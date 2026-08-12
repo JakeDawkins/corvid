@@ -1,4 +1,18 @@
-import type { Cache, Data } from "./types";
+import type { Cache, Data, IssueStatus, PrStatus } from "./types";
+
+export type ResolvedLink =
+  | { kind: "pr"; status: PrStatus }
+  | { kind: "linear"; status: IssueStatus }
+  | { kind: "unknown"; error: string };
+
+export async function resolveLink(url: string): Promise<ResolvedLink> {
+  const res = await fetch("/api/resolve", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  return (await res.json()) as ResolvedLink;
+}
 
 export async function loadData(): Promise<Data> {
   const res = await fetch("/api/data");

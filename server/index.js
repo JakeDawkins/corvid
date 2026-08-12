@@ -186,6 +186,21 @@ app.put("/api/data", async (req, res) => {
   res.json({ ok: true });
 });
 
+// Resolve a single pasted link to its title + status, for quick-create.
+app.post("/api/resolve", async (req, res) => {
+  const url = String(req.body?.url || "").trim();
+  if (!url) return res.status(400).json({ error: "No URL provided" });
+  if (parsePrUrl(url)) {
+    const status = await fetchPr(url);
+    return res.json({ kind: "pr", status });
+  }
+  if (parseLinearUrl(url)) {
+    const status = await fetchLinear(url);
+    return res.json({ kind: "linear", status });
+  }
+  res.json({ kind: "unknown", error: "Unrecognized link (expected a GitHub PR or Linear URL)" });
+});
+
 // Refresh statuses for a set of PR/Linear URLs. Stateless — client merges results.
 app.post("/api/refresh", async (req, res) => {
   const prUrls = [...new Set(req.body?.prUrls || [])];
