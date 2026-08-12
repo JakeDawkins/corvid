@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Card, Data } from "./types";
-import { loadData, refresh, saveData } from "./api";
+import { loadData, refresh, resolveLink, saveData } from "./api";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
 
@@ -26,6 +26,9 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [editing, setEditing] = useState<Card | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [quickLink, setQuickLink] = useState("");
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [quickError, setQuickError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // initial load
@@ -98,6 +101,60 @@ export default function App() {
     }));
   }
 
+  // Quick-create a card from a pasted GitHub PR or Linear link. The card's
+  // title is set to the resolved PR/issue title and its status is pre-cached.
+  async function quickCreate() {
+    const url = quickLink.trim();
+    if (!url || quickBusy) return;
+    const column = data.columns[0];
+    if (!column) return;
+    setQuickBusy(true);
+    setQuickError(null);
+    try {
+      const result = await resolveLink(url);
+      if (result.kind === "unknown" || result.status.error) {
+        setQuickError(
+          result.kind === "unknown" ? result.error : result.status.error!,
+        );
+        return;
+      }
+      const base: Card = {
+        id: crypto.randomUUID(),
+        title: result.status.title || url,
+        column,
+        hidden: false,
+        prUrls: [],
+        links: [],
+      };
+      if (result.kind === "pr") {
+        base.prUrls = [url];
+        setData((d) => ({
+          ...d,
+          cards: [...d.cards, base],
+          cache: {
+            prs: { ...d.cache?.prs, [url]: result.status },
+            issues: { ...d.cache?.issues },
+          },
+        }));
+      } else {
+        base.linearUrl = url;
+        setData((d) => ({
+          ...d,
+          cards: [...d.cards, base],
+          cache: {
+            prs: { ...d.cache?.prs },
+            issues: { ...d.cache?.issues, [url]: result.status },
+          },
+        }));
+      }
+      setQuickLink("");
+    } catch {
+      setQuickError("Failed to resolve link");
+    } finally {
+      setQuickBusy(false);
+    }
+  }
+
   function newCard(column: string) {
     setEditing({
       id: crypto.randomUUID(),
@@ -151,6 +208,32 @@ export default function App() {
     <div className="app">
       <header className="toolbar">
         <h1>PR Tracker</h1>
+        <form
+          className="quick-create"
+          onSubmit={(e) => {
+            e.preventDefault();
+            quickCreate();
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Paste a GitHub or Linear link…"
+            value={quickLink}
+            onChange={(e) => {
+              setQuickLink(e.target.value);
+              if (quickError) setQuickError(null);
+            }}
+            disabled={quickBusy}
+          />
+          <button
+            type="submit"
+            className="btn"
+            disabled={quickBusy || !quickLink.trim()}
+          >
+            {quickBusy ? "Adding…" : "+ Add"}
+          </button>
+        </form>
+        {quickError && <span className="hint error">{quickError}</span>}
         <div className="spacer" />
         <button className="btn primary" onClick={doRefresh} disabled={refreshing}>
           {refreshing ? "Refreshing…" : "↻ Refresh"}
