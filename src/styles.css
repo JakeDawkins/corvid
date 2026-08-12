@@ -113,8 +113,18 @@ body {
   cursor: grab;
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 9px;
 }
+
+/* A group of one link type (Linear / GitHub PRs / misc links). */
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+.group.links { flex-direction: row; flex-wrap: wrap; gap: 6px 8px; }
 .card:active { cursor: grabbing; }
 .card.dim { opacity: 0.5; }
 
@@ -154,7 +164,6 @@ body {
 .badge.merged { color: var(--merged); border-color: color-mix(in srgb, var(--merged) 40%, transparent); background: color-mix(in srgb, var(--merged) 12%, transparent); }
 .badge.muted { color: var(--muted); }
 
-.links { display: flex; flex-wrap: wrap; gap: 6px 8px; margin-top: 1px; }
 .chip {
   font-size: 11px;
   padding: 2px 8px;

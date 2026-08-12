@@ -95,7 +95,7 @@ export function CardEditor({
           {links.map((l, i) => (
             <div key={i} className="link-editor">
               <input
-                placeholder="Label"
+                placeholder="Label (optional)"
                 value={l.label}
                 onChange={(e) =>
                   setLinks((ls) => ls.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))

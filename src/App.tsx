@@ -6,6 +6,18 @@ import { CardEditor } from "./CardEditor";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} } };
 
+// Fallback label for a link with no title: the site's second-level domain.
+// "https://www.figma.com/file/…" -> "figma", "docs.google.com" -> "google".
+function domainName(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    const parts = host.split(".");
+    return parts.length >= 2 ? parts[parts.length - 2] : host;
+  } catch {
+    return url.replace(/^https?:\/\//, "").split("/")[0] || "link";
+  }
+}
+
 export default function App() {
   const [data, setData] = useState<Data>(EMPTY);
   const [loaded, setLoaded] = useState(false);
@@ -209,17 +221,24 @@ export default function App() {
                   {card.notes && <div className="card-notes">{card.notes}</div>}
 
                   {card.linearUrl && (
-                    <IssueRow url={card.linearUrl} status={cache.issues[card.linearUrl]} />
+                    <div className="group">
+                      <IssueRow url={card.linearUrl} status={cache.issues[card.linearUrl]} />
+                    </div>
                   )}
-                  {card.prUrls.map((u) => (
-                    <PrRow key={u} url={u} status={cache.prs[u]} />
-                  ))}
+
+                  {card.prUrls.length > 0 && (
+                    <div className="group">
+                      {card.prUrls.map((u) => (
+                        <PrRow key={u} url={u} status={cache.prs[u]} />
+                      ))}
+                    </div>
+                  )}
 
                   {card.links.length > 0 && (
-                    <div className="links">
+                    <div className="group links">
                       {card.links.map((l, i) => (
                         <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
-                          {l.label || "link"}
+                          {l.label?.trim() || domainName(l.url)}
                         </a>
                       ))}
                     </div>
