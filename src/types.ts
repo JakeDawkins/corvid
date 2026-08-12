@@ -1,0 +1,48 @@
+export type Link = { label: string; url: string };
+
+export type Card = {
+  id: string;
+  title: string;
+  column: string;
+  hidden: boolean;
+  notes?: string;
+  linearUrl?: string;
+  prUrls: string[];
+  links: Link[];
+};
+
+export type PrStatus = {
+  url: string;
+  title?: string;
+  number?: number;
+  state?: "OPEN" | "CLOSED" | "MERGED";
+  isDraft?: boolean;
+  reviewDecision?: "APPROVED" | "CHANGES_REQUESTED" | "REVIEW_REQUIRED" | null;
+  unresolvedThreads?: number;
+  totalThreads?: number;
+  ci?: "SUCCESS" | "FAILURE" | "PENDING" | "ERROR" | "EXPECTED" | null;
+  fetchedAt?: string;
+  error?: string;
+};
+
+export type IssueStatus = {
+  url: string;
+  identifier?: string;
+  title?: string;
+  stateName?: string;
+  stateColor?: string;
+  stateType?: "backlog" | "unstarted" | "started" | "completed" | "canceled";
+  fetchedAt?: string;
+  error?: string;
+};
+
+export type Cache = {
+  prs: Record<string, PrStatus>;
+  issues: Record<string, IssueStatus>;
+};
+
+export type Data = {
+  columns: string[];
+  cards: Card[];
+  cache?: Cache;
+};
