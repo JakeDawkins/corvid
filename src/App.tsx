@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
+import { linearKey } from "./links";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { Inbox } from "./Inbox";
@@ -28,6 +29,7 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [editing, setEditing] = useState<Card | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [quickLink, setQuickLink] = useState("");
   const [quickBusy, setQuickBusy] = useState(false);
@@ -98,11 +100,39 @@ export default function App() {
     }));
   }
 
+  // Move a card to a column, placing it after the column's current last card so
+  // it lands at the bottom of that list rather than keeping its old array slot.
   function moveCard(id: string, column: string) {
-    setData((d) => ({
-      ...d,
-      cards: d.cards.map((c) => (c.id === id ? { ...c, column } : c)),
-    }));
+    setData((d) => {
+      const idx = d.cards.findIndex((c) => c.id === id);
+      if (idx === -1) return d;
+      const moved = { ...d.cards[idx], column };
+      const rest = d.cards.filter((c) => c.id !== id);
+      let insertAt = rest.length;
+      for (let i = rest.length - 1; i >= 0; i--) {
+        if (rest[i].column === column) {
+          insertAt = i + 1;
+          break;
+        }
+      }
+      rest.splice(insertAt, 0, moved);
+      return { ...d, cards: rest };
+    });
+  }
+
+  // Reorder by dropping the dragged card onto another card: insert it just before
+  // the target and adopt the target's column (so this also works across columns).
+  function reorderCard(id: string, targetId: string) {
+    if (id === targetId) return;
+    setData((d) => {
+      const from = d.cards.findIndex((c) => c.id === id);
+      const target = d.cards.find((c) => c.id === targetId);
+      if (from === -1 || !target) return d;
+      const rest = d.cards.filter((c) => c.id !== id);
+      const insertAt = rest.findIndex((c) => c.id === targetId);
+      rest.splice(insertAt, 0, { ...d.cards[from], column: target.column });
+      return { ...d, cards: rest };
+    });
   }
 
   // Quick-create a card from a pasted GitHub PR or Linear link. The card's
@@ -280,10 +310,14 @@ export default function App() {
     () => new Set(data.cards.flatMap((c) => c.prUrls)),
     [data.cards],
   );
-  const existingLinearUrls = useMemo(
+  // Normalized so an item counts as "on the board" even if its card's URL uses a
+  // different slug/query than the inbox's canonical URL for the same entity.
+  const existingLinearKeys = useMemo(
     () =>
       new Set(
-        data.cards.map((c) => c.linearUrl).filter(Boolean) as string[],
+        (data.cards.map((c) => c.linearUrl).filter(Boolean) as string[]).map(
+          linearKey,
+        ),
       ),
     [data.cards],
   );
@@ -364,6 +398,7 @@ export default function App() {
             onDrop={() => {
               if (dragId) moveCard(dragId, col);
               setDragId(null);
+              setDragOverId(null);
             }}
           >
             <div className="column-head">
@@ -379,18 +414,38 @@ export default function App() {
                   key={card.id}
                   className={`card${card.hidden ? " dim" : ""}${
                     dragItem ? " link-target" : ""
-                  }`}
+                  }${dragOverId === card.id ? " drop-before" : ""}`}
+                  style={
+                    card.color
+                      ? { borderLeft: `4px solid ${card.color}` }
+                      : undefined
+                  }
                   draggable
                   onDragStart={() => setDragId(card.id)}
-                  onDragEnd={() => setDragId(null)}
+                  onDragEnd={() => {
+                    setDragId(null);
+                    setDragOverId(null);
+                  }}
                   onDragOver={(e) => {
                     if (dragItem) e.preventDefault();
+                    else if (dragId && dragId !== card.id) {
+                      e.preventDefault();
+                      setDragOverId(card.id);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverId === card.id) setDragOverId(null);
                   }}
                   onDrop={(e) => {
                     if (dragItem) {
                       e.stopPropagation();
                       linkItemToCard(card.id, dragItem);
                       setDragItem(null);
+                    } else if (dragId) {
+                      e.stopPropagation();
+                      reorderCard(dragId, card.id);
+                      setDragId(null);
+                      setDragOverId(null);
                     }
                   }}
                 >
@@ -446,7 +501,7 @@ export default function App() {
         <Inbox
           targetColumn={data.columns[0]}
           existingPrUrls={existingPrUrls}
-          existingLinearUrls={existingLinearUrls}
+          existingLinearKeys={existingLinearKeys}
           onAddPr={addPrCard}
           onAddLinear={addLinearCard}
           onDragItem={setDragItem}

@@ -6,6 +6,7 @@ export type Card = {
   column: string;
   hidden: boolean;
   notes?: string;
+  color?: string;
   linearUrl?: string;
   prUrls: string[];
   links: Link[];
