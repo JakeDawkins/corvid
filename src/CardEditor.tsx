@@ -1,6 +1,18 @@
 import { useState } from "react";
 import type { Card, Link } from "./types";
 
+// Preset card accent colors. `undefined` = no color.
+const COLORS = [
+  { name: "None", value: undefined },
+  { name: "Red", value: "#e5484d" },
+  { name: "Orange", value: "#f76b15" },
+  { name: "Yellow", value: "#ffb224" },
+  { name: "Green", value: "#30a46c" },
+  { name: "Blue", value: "#3b9eff" },
+  { name: "Purple", value: "#8e4ec6" },
+  { name: "Pink", value: "#e93d82" },
+];
+
 export function CardEditor({
   card,
   columns,
@@ -70,6 +82,24 @@ export function CardEditor({
             placeholder="Optional"
           />
         </label>
+
+        <div className="field">
+          <span>Color</span>
+          <div className="color-swatches">
+            {COLORS.map((c) => (
+              <button
+                key={c.name}
+                type="button"
+                title={c.name}
+                className={`swatch${draft.color === c.value ? " selected" : ""}${
+                  c.value ? "" : " none"
+                }`}
+                style={c.value ? { background: c.value } : undefined}
+                onClick={() => set("color", c.value)}
+              />
+            ))}
+          </div>
+        </div>
 
         <label className="field">
           <span>Linear issue URL</span>

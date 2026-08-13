@@ -140,6 +140,30 @@ body {
 .group.links { flex-direction: row; flex-wrap: wrap; gap: 6px 8px; }
 .card:active { cursor: grabbing; }
 .card.dim { opacity: 0.5; }
+/* Insertion indicator when dragging a card above another to reorder it. */
+.card.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+
+/* Card color picker in the editor. */
+.color-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+}
+.swatch.none { background: var(--panel-2); position: relative; }
+.swatch.none::after {
+  content: "";
+  position: absolute;
+  inset: 3px 0;
+  left: 10px;
+  width: 1px;
+  background: var(--muted);
+  transform: rotate(45deg);
+}
+.swatch.selected { outline: 2px solid var(--text); outline-offset: 2px; }
 
 .card-title-row { display: flex; align-items: flex-start; gap: 6px; }
 .card-title { font-weight: 600; flex: 1; }

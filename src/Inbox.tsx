@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { IssueStatus, PrStatus } from "./types";
 import { loadInbox } from "./api";
+import { linearKey } from "./links";
 import { IssueRow, PrRow } from "./Badges";
 
 export type DragItem =
@@ -13,7 +14,7 @@ export type DragItem =
 export function Inbox({
   targetColumn,
   existingPrUrls,
-  existingLinearUrls,
+  existingLinearKeys,
   onAddPr,
   onAddLinear,
   onDragItem,
@@ -22,7 +23,7 @@ export function Inbox({
 }: {
   targetColumn?: string;
   existingPrUrls: Set<string>;
-  existingLinearUrls: Set<string>;
+  existingLinearKeys: Set<string>;
   onAddPr: (status: PrStatus) => void;
   onAddLinear: (status: IssueStatus) => void;
   onDragItem: (item: DragItem) => void;
@@ -62,7 +63,7 @@ export function Inbox({
   // Only surface items not already on the board (or just added this session).
   const onBoardPr = (url: string) => existingPrUrls.has(url) || added.has(url);
   const onBoardLinear = (url: string) =>
-    existingLinearUrls.has(url) || added.has(url);
+    existingLinearKeys.has(linearKey(url)) || added.has(url);
   const openPrs = prs.filter((s) => !onBoardPr(s.url));
   const openIssues = issues.filter((s) => !onBoardLinear(s.url));
   const openProjects = projects.filter((s) => !onBoardLinear(s.url));
