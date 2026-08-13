@@ -50,36 +50,38 @@ export function Inbox({
     setAdded((a) => new Set(a).add(s.url));
   }
 
+  // Only surface items not already on the board (or just added this session).
+  const onBoardPr = (url: string) => existingPrUrls.has(url) || added.has(url);
+  const onBoardLinear = (url: string) =>
+    existingLinearUrls.has(url) || added.has(url);
+  const openPrs = prs.filter((s) => !onBoardPr(s.url));
+  const openIssues = issues.filter((s) => !onBoardLinear(s.url));
+  const openProjects = projects.filter((s) => !onBoardLinear(s.url));
+
   function prRow(s: PrStatus) {
-    const onBoard = existingPrUrls.has(s.url) || added.has(s.url);
     return (
       <div className="inbox-item" key={s.url}>
         <PrRow url={s.url} status={s} />
-        {onBoard ? (
-          <span className="hint">on board</span>
-        ) : (
-          <button className="btn" onClick={() => addPr(s)}>+ Add</button>
-        )}
+        <button className="btn" onClick={() => addPr(s)}>+ Add</button>
       </div>
     );
   }
 
   function linearRow(s: IssueStatus) {
-    const onBoard = existingLinearUrls.has(s.url) || added.has(s.url);
     return (
       <div className="inbox-item" key={s.url}>
         <div className="inbox-linear">
           <IssueRow url={s.url} status={s} />
           <span className="inbox-linear-title" title={s.title}>{s.title}</span>
         </div>
-        {onBoard ? (
-          <span className="hint">on board</span>
-        ) : (
-          <button className="btn" onClick={() => addLinear(s)}>+ Add</button>
-        )}
+        <button className="btn" onClick={() => addLinear(s)}>+ Add</button>
       </div>
     );
   }
+
+  // Distinguish "nothing exists" from "everything's already on the board".
+  const emptyMsg = (raw: number, kind: string) =>
+    raw > 0 ? "All on the board." : `No ${kind}.`;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -97,34 +99,34 @@ export function Inbox({
           <>
             <section className="inbox-section">
               <h3>
-                Open PRs <span className="count">{prs.length}</span>
+                Open PRs <span className="count">{openPrs.length}</span>
               </h3>
               {githubError && <p className="hint error">{githubError}</p>}
-              {!githubError && prs.length === 0 && (
-                <p className="hint">No open PRs.</p>
+              {!githubError && openPrs.length === 0 && (
+                <p className="hint">{emptyMsg(prs.length, "open PRs")}</p>
               )}
-              {prs.map(prRow)}
+              {openPrs.map(prRow)}
             </section>
 
             <section className="inbox-section">
               <h3>
-                Assigned issues <span className="count">{issues.length}</span>
+                Assigned issues <span className="count">{openIssues.length}</span>
               </h3>
               {linearError && <p className="hint error">{linearError}</p>}
-              {!linearError && issues.length === 0 && (
-                <p className="hint">No assigned issues.</p>
+              {!linearError && openIssues.length === 0 && (
+                <p className="hint">{emptyMsg(issues.length, "assigned issues")}</p>
               )}
-              {issues.map(linearRow)}
+              {openIssues.map(linearRow)}
             </section>
 
             <section className="inbox-section">
               <h3>
-                Projects I lead <span className="count">{projects.length}</span>
+                Projects I lead <span className="count">{openProjects.length}</span>
               </h3>
-              {!linearError && projects.length === 0 && (
-                <p className="hint">No projects.</p>
+              {!linearError && openProjects.length === 0 && (
+                <p className="hint">{emptyMsg(projects.length, "projects")}</p>
               )}
-              {projects.map(linearRow)}
+              {openProjects.map(linearRow)}
             </section>
           </>
         )}
