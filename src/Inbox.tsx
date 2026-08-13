@@ -3,14 +3,21 @@ import type { IssueStatus, PrStatus } from "./types";
 import { loadInbox } from "./api";
 import { IssueRow, PrRow } from "./Badges";
 
-// A drawer listing my open PRs and Linear issues/projects assigned to me, each
-// with a one-click "Add" that drops a card into the first column of the board.
+export type DragItem =
+  | { kind: "pr"; status: PrStatus }
+  | { kind: "linear"; status: IssueStatus };
+
+// A right-side sidebar listing my open PRs and Linear issues/projects assigned
+// to me. Each row can be dropped onto a card via its drag handle (to link it)
+// or added as a new card with the + button.
 export function Inbox({
   targetColumn,
   existingPrUrls,
   existingLinearUrls,
   onAddPr,
   onAddLinear,
+  onDragItem,
+  onDragEnd,
   onClose,
 }: {
   targetColumn?: string;
@@ -18,6 +25,8 @@ export function Inbox({
   existingLinearUrls: Set<string>;
   onAddPr: (status: PrStatus) => void;
   onAddLinear: (status: IssueStatus) => void;
+  onDragItem: (item: DragItem) => void;
+  onDragEnd: () => void;
   onClose: () => void;
 }) {
   const [loading, setLoading] = useState(true);
@@ -58,10 +67,31 @@ export function Inbox({
   const openIssues = issues.filter((s) => !onBoardLinear(s.url));
   const openProjects = projects.filter((s) => !onBoardLinear(s.url));
 
+  function handle(item: DragItem) {
+    return (
+      <span
+        className="drag-handle"
+        draggable
+        title="Drag onto a card to link"
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = "link";
+          onDragItem(item);
+        }}
+        onDragEnd={onDragEnd}
+      >
+        ⠿
+      </span>
+    );
+  }
+
   function prRow(s: PrStatus) {
     return (
       <div className="inbox-item" key={s.url}>
-        <PrRow url={s.url} status={s} />
+        {handle({ kind: "pr", status: s })}
+        <div className="inbox-main">
+          <span className="inbox-title" title={s.title}>{s.title || s.url}</span>
+          <PrRow url={s.url} status={s} />
+        </div>
         <button className="btn" onClick={() => addPr(s)}>+ Add</button>
       </div>
     );
@@ -70,9 +100,10 @@ export function Inbox({
   function linearRow(s: IssueStatus) {
     return (
       <div className="inbox-item" key={s.url}>
-        <div className="inbox-linear">
+        {handle({ kind: "linear", status: s })}
+        <div className="inbox-main">
+          <span className="inbox-title" title={s.title}>{s.title || s.url}</span>
           <IssueRow url={s.url} status={s} />
-          <span className="inbox-linear-title" title={s.title}>{s.title}</span>
         </div>
         <button className="btn" onClick={() => addLinear(s)}>+ Add</button>
       </div>
@@ -84,15 +115,17 @@ export function Inbox({
     raw > 0 ? "All on the board." : `No ${kind}.`;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal inbox" onClick={(e) => e.stopPropagation()}>
-        <h2>
-          My work
-          {targetColumn && (
-            <span className="hint"> — adds to “{targetColumn}”</span>
-          )}
-        </h2>
+    <aside className="sidebar">
+      <div className="sidebar-head">
+        <h2>My work</h2>
+        <button className="btn ghost" onClick={onClose} title="Close">✕</button>
+      </div>
+      <p className="hint sidebar-hint">
+        Drag ⠿ onto a card to link, or + Add
+        {targetColumn ? ` to “${targetColumn}”` : ""}.
+      </p>
 
+      <div className="sidebar-body">
         {loading ? (
           <p className="hint">Loading…</p>
         ) : (
@@ -130,12 +163,7 @@ export function Inbox({
             </section>
           </>
         )}
-
-        <div className="modal-actions">
-          <div className="spacer" />
-          <button className="btn" onClick={onClose}>Close</button>
-        </div>
       </div>
-    </div>
+    </aside>
   );
 }
