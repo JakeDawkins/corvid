@@ -46,3 +46,12 @@ export type Data = {
   cards: Card[];
   cache?: Cache;
 };
+
+// My open PRs + Linear issues/projects assigned to me, for the inbox.
+export type Inbox = {
+  prs: PrStatus[];
+  issues: IssueStatus[];
+  projects: IssueStatus[];
+  githubError?: string;
+  linearError?: string;
+};

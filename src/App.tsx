@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Card, Data } from "./types";
+import type { Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
+import { Inbox } from "./Inbox";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} } };
 
@@ -29,6 +30,7 @@ export default function App() {
   const [quickLink, setQuickLink] = useState("");
   const [quickBusy, setQuickBusy] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
+  const [showInbox, setShowInbox] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // initial load
@@ -155,6 +157,51 @@ export default function App() {
     }
   }
 
+  // Add a card straight from an already-resolved inbox item, pre-caching its
+  // status so its badges show without a refresh (mirrors quickCreate).
+  function addPrCard(status: PrStatus) {
+    const column = data.columns[0];
+    if (!column) return;
+    const card: Card = {
+      id: crypto.randomUUID(),
+      title: status.title || status.url,
+      column,
+      hidden: false,
+      prUrls: [status.url],
+      links: [],
+    };
+    setData((d) => ({
+      ...d,
+      cards: [...d.cards, card],
+      cache: {
+        prs: { ...d.cache?.prs, [status.url]: status },
+        issues: { ...d.cache?.issues },
+      },
+    }));
+  }
+
+  function addLinearCard(status: IssueStatus) {
+    const column = data.columns[0];
+    if (!column) return;
+    const card: Card = {
+      id: crypto.randomUUID(),
+      title: status.title || status.url,
+      column,
+      hidden: false,
+      linearUrl: status.url,
+      prUrls: [],
+      links: [],
+    };
+    setData((d) => ({
+      ...d,
+      cards: [...d.cards, card],
+      cache: {
+        prs: { ...d.cache?.prs },
+        issues: { ...d.cache?.issues, [status.url]: status },
+      },
+    }));
+  }
+
   function newCard(column: string) {
     setEditing({
       id: crypto.randomUUID(),
@@ -204,6 +251,19 @@ export default function App() {
 
   const hiddenCount = data.cards.filter((c) => c.hidden).length;
 
+  // URLs already on the board, so the inbox can mark them instead of re-adding.
+  const existingPrUrls = useMemo(
+    () => new Set(data.cards.flatMap((c) => c.prUrls)),
+    [data.cards],
+  );
+  const existingLinearUrls = useMemo(
+    () =>
+      new Set(
+        data.cards.map((c) => c.linearUrl).filter(Boolean) as string[],
+      ),
+    [data.cards],
+  );
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -235,6 +295,9 @@ export default function App() {
         </form>
         {quickError && <span className="hint error">{quickError}</span>}
         <div className="spacer" />
+        <button className="btn" onClick={() => setShowInbox(true)}>
+          ↓ My work
+        </button>
         <button className="btn primary" onClick={doRefresh} disabled={refreshing}>
           {refreshing ? "Refreshing…" : "↻ Refresh"}
         </button>
@@ -332,6 +395,17 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {showInbox && (
+        <Inbox
+          targetColumn={data.columns[0]}
+          existingPrUrls={existingPrUrls}
+          existingLinearUrls={existingLinearUrls}
+          onAddPr={addPrCard}
+          onAddLinear={addLinearCard}
+          onClose={() => setShowInbox(false)}
+        />
+      )}
 
       {editing && (
         <CardEditor

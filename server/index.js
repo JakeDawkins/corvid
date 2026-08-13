@@ -70,6 +70,26 @@ query($owner:String!,$repo:String!,$number:Int!){
   }
 }`;
 
+// Shape a PullRequest GraphQL node into a PrStatus. Used by both the
+// single-PR fetch and the "my open PRs" search.
+function shapePr(pr) {
+  const threads = pr.reviewThreads?.nodes || [];
+  const unresolved = threads.filter((t) => !t.isResolved).length;
+  const ci = pr.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state || null;
+  return {
+    url: pr.url,
+    title: pr.title,
+    number: pr.number,
+    state: pr.merged ? 'MERGED' : pr.state, // OPEN | CLOSED | MERGED
+    isDraft: pr.isDraft,
+    reviewDecision: pr.reviewDecision, // APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | null
+    unresolvedThreads: unresolved,
+    totalThreads: pr.reviewThreads?.totalCount ?? threads.length,
+    ci, // SUCCESS | FAILURE | PENDING | ERROR | EXPECTED | null
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 async function fetchPr(url) {
   const ref = parsePrUrl(url);
   if (!ref) return { url, error: 'Unrecognized PR URL' };
@@ -92,23 +112,45 @@ async function fetchPr(url) {
     );
     const pr = JSON.parse(stdout)?.data?.repository?.pullRequest;
     if (!pr) return { url, error: 'PR not found' };
-    const threads = pr.reviewThreads?.nodes || [];
-    const unresolved = threads.filter((t) => !t.isResolved).length;
-    const ci = pr.commits?.nodes?.[0]?.commit?.statusCheckRollup?.state || null;
-    return {
-      url,
-      title: pr.title,
-      number: pr.number,
-      state: pr.merged ? 'MERGED' : pr.state, // OPEN | CLOSED | MERGED
-      isDraft: pr.isDraft,
-      reviewDecision: pr.reviewDecision, // APPROVED | CHANGES_REQUESTED | REVIEW_REQUIRED | null
-      unresolvedThreads: unresolved,
-      totalThreads: pr.reviewThreads?.totalCount ?? threads.length,
-      ci, // SUCCESS | FAILURE | PENDING | ERROR | EXPECTED | null
-      fetchedAt: new Date().toISOString(),
-    };
+    return shapePr(pr);
   } catch (e) {
     return { url, error: cleanErr(e) };
+  }
+}
+
+// All open PRs authored by the authenticated gh user, across every repo.
+const MY_PRS_QUERY = `
+query($q:String!){
+  search(query:$q, type:ISSUE, first:100){
+    nodes{
+      ... on PullRequest {
+        title number url isDraft state merged
+        reviewDecision
+        reviewThreads(first:100){ totalCount nodes { isResolved } }
+        commits(last:1){ nodes { commit { statusCheckRollup { state } } } }
+      }
+    }
+  }
+}`;
+
+async function fetchMyPrs() {
+  try {
+    const { stdout } = await execFileP(
+      'gh',
+      [
+        'api',
+        'graphql',
+        '-f',
+        `query=${MY_PRS_QUERY}`,
+        '-F',
+        'q=is:pr is:open author:@me archived:false',
+      ],
+      { maxBuffer: 10 * 1024 * 1024 },
+    );
+    const nodes = JSON.parse(stdout)?.data?.search?.nodes || [];
+    return { prs: nodes.filter((n) => n && n.url).map(shapePr) };
+  } catch (e) {
+    return { prs: [], githubError: cleanErr(e) };
   }
 }
 
@@ -155,6 +197,31 @@ async function linearGraphql(query, variables) {
   return json.data;
 }
 
+// Shape a Linear issue / project node into an IssueStatus.
+function shapeLinearIssue(issue) {
+  return {
+    url: issue.url,
+    identifier: issue.identifier,
+    title: issue.title,
+    stateName: issue.state?.name,
+    stateColor: issue.state?.color,
+    stateType: issue.state?.type, // backlog|unstarted|started|completed|canceled
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+function shapeLinearProject(p) {
+  return {
+    url: p.url,
+    identifier: 'Project',
+    title: p.name,
+    stateName: p.status?.name,
+    stateColor: p.status?.color,
+    stateType: p.status?.type,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
 async function fetchLinear(url) {
   const ref = parseLinearUrl(url);
   if (!ref)
@@ -167,32 +234,62 @@ async function fetchLinear(url) {
       const p = (await linearGraphql(PROJECT_QUERY, { id: ref.slugId }))
         ?.project;
       if (!p) return { url, error: 'Project not found' };
-      return {
-        url,
-        identifier: 'Project',
-        title: p.name,
-        stateName: p.status?.name,
-        stateColor: p.status?.color,
-        stateType: p.status?.type,
-        fetchedAt: new Date().toISOString(),
-      };
+      return shapeLinearProject(p);
     }
     const issue = (
       await linearGraphql(ISSUE_QUERY, { team: ref.team, number: ref.number })
     )?.issues?.nodes?.[0];
     if (!issue) return { url, error: 'Issue not found' };
-    return {
-      url,
-      identifier: issue.identifier,
-      title: issue.title,
-      stateName: issue.state?.name,
-      stateColor: issue.state?.color,
-      stateType: issue.state?.type, // backlog|unstarted|started|completed|canceled
-      fetchedAt: new Date().toISOString(),
-    };
+    return shapeLinearIssue(issue);
   } catch (e) {
     return { url, error: cleanErr(e) };
   }
+}
+
+// Issues assigned to me (excluding done/cancelled) and projects I lead. Issues
+// and projects are fetched separately so one failing doesn't wipe out the other.
+const MY_ISSUES_QUERY = `
+query {
+  viewer {
+    assignedIssues(first:100, filter:{ state:{ type:{ nin:["completed","canceled"] } } }){
+      nodes{ identifier title url state{ name color type } }
+    }
+  }
+}`;
+
+const MY_PROJECTS_QUERY = `
+query {
+  projects(first:100, filter:{ lead:{ isMe:{ eq:true } } }){
+    nodes{ name url status{ name color type } }
+  }
+}`;
+
+async function fetchMyLinear() {
+  if (!process.env.LINEAR_API_KEY) {
+    return {
+      issues: [],
+      projects: [],
+      linearError: 'LINEAR_API_KEY not set in .env.local',
+    };
+  }
+  const out = { issues: [], projects: [] };
+  try {
+    const data = await linearGraphql(MY_ISSUES_QUERY, {});
+    out.issues = (data?.viewer?.assignedIssues?.nodes || []).map(
+      shapeLinearIssue,
+    );
+  } catch (e) {
+    out.linearError = cleanErr(e);
+  }
+  try {
+    const data = await linearGraphql(MY_PROJECTS_QUERY, {});
+    out.projects = (data?.projects?.nodes || [])
+      .filter((p) => !['completed', 'canceled'].includes(p.status?.type))
+      .map(shapeLinearProject);
+  } catch (e) {
+    out.linearError = out.linearError || cleanErr(e);
+  }
+  return out;
 }
 
 function cleanErr(e) {
@@ -243,6 +340,13 @@ app.post('/api/refresh', async (req, res) => {
     prs: Object.fromEntries(prs.map((p) => [p.url, p])),
     issues: Object.fromEntries(issues.map((i) => [i.url, i])),
   });
+});
+
+// My open PRs (across all repos) + Linear issues/projects assigned to me,
+// for the "add mine to the board" inbox. Each side degrades independently.
+app.get('/api/inbox', async (_req, res) => {
+  const [gh, linear] = await Promise.all([fetchMyPrs(), fetchMyLinear()]);
+  res.json({ ...gh, ...linear });
 });
 
 // Serve built frontend if present (production).
