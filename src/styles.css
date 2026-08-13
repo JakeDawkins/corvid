@@ -298,7 +298,5 @@ textarea { resize: vertical; }
 }
 .inbox-title {
   font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
