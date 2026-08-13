@@ -64,9 +64,17 @@ export function PrRow({ status, url }: { status?: PrStatus; url: string }) {
       ].filter(Boolean)
     : [];
 
+  const merged = status?.state === "MERGED";
+
   return (
     <div className="pr-row">
-      <a href={url} target="_blank" rel="noreferrer" className="pr-link" title={status?.title || url}>
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className={`pr-link${merged ? " merged" : ""}`}
+        title={status?.title || url}
+      >
         {label}
       </a>
       {status?.error ? (

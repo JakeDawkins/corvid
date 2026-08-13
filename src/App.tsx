@@ -414,9 +414,15 @@ export default function App() {
 
                   {card.prUrls.length > 0 && (
                     <div className="group">
-                      {card.prUrls.map((u) => (
-                        <PrRow key={u} url={u} status={cache.prs[u]} />
-                      ))}
+                      {[...card.prUrls]
+                        .sort(
+                          (a, b) =>
+                            (cache.prs[a]?.state === "MERGED" ? 1 : 0) -
+                            (cache.prs[b]?.state === "MERGED" ? 1 : 0),
+                        )
+                        .map((u) => (
+                          <PrRow key={u} url={u} status={cache.prs[u]} />
+                        ))}
                     </div>
                   )}
 
