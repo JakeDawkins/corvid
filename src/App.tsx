@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Card, Data } from "./types";
+import type { Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
+import { Inbox } from "./Inbox";
+import type { DragItem } from "./Inbox";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} } };
 
@@ -26,9 +28,11 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [editing, setEditing] = useState<Card | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [dragItem, setDragItem] = useState<DragItem | null>(null);
   const [quickLink, setQuickLink] = useState("");
   const [quickBusy, setQuickBusy] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
+  const [showInbox, setShowInbox] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // initial load
@@ -155,6 +159,73 @@ export default function App() {
     }
   }
 
+  // Add a card straight from an already-resolved inbox item, pre-caching its
+  // status so its badges show without a refresh (mirrors quickCreate).
+  function addPrCard(status: PrStatus) {
+    const column = data.columns[0];
+    if (!column) return;
+    const card: Card = {
+      id: crypto.randomUUID(),
+      title: status.title || status.url,
+      column,
+      hidden: false,
+      prUrls: [status.url],
+      links: [],
+    };
+    setData((d) => ({
+      ...d,
+      cards: [...d.cards, card],
+      cache: {
+        prs: { ...d.cache?.prs, [status.url]: status },
+        issues: { ...d.cache?.issues },
+      },
+    }));
+  }
+
+  function addLinearCard(status: IssueStatus) {
+    const column = data.columns[0];
+    if (!column) return;
+    const card: Card = {
+      id: crypto.randomUUID(),
+      title: status.title || status.url,
+      column,
+      hidden: false,
+      linearUrl: status.url,
+      prUrls: [],
+      links: [],
+    };
+    setData((d) => ({
+      ...d,
+      cards: [...d.cards, card],
+      cache: {
+        prs: { ...d.cache?.prs },
+        issues: { ...d.cache?.issues, [status.url]: status },
+      },
+    }));
+  }
+
+  // Link a dragged inbox item onto an existing card, pre-caching its status.
+  function linkItemToCard(cardId: string, item: DragItem) {
+    setData((d) => {
+      const cards = d.cards.map((c) => {
+        if (c.id !== cardId) return c;
+        if (item.kind === "pr") {
+          return c.prUrls.includes(item.status.url)
+            ? c
+            : { ...c, prUrls: [...c.prUrls, item.status.url] };
+        }
+        return { ...c, linearUrl: item.status.url };
+      });
+      const cache = {
+        prs: { ...d.cache?.prs },
+        issues: { ...d.cache?.issues },
+      };
+      if (item.kind === "pr") cache.prs[item.status.url] = item.status;
+      else cache.issues[item.status.url] = item.status;
+      return { ...d, cards, cache };
+    });
+  }
+
   function newCard(column: string) {
     setEditing({
       id: crypto.randomUUID(),
@@ -204,6 +275,19 @@ export default function App() {
 
   const hiddenCount = data.cards.filter((c) => c.hidden).length;
 
+  // URLs already on the board, so the inbox can mark them instead of re-adding.
+  const existingPrUrls = useMemo(
+    () => new Set(data.cards.flatMap((c) => c.prUrls)),
+    [data.cards],
+  );
+  const existingLinearUrls = useMemo(
+    () =>
+      new Set(
+        data.cards.map((c) => c.linearUrl).filter(Boolean) as string[],
+      ),
+    [data.cards],
+  );
+
   return (
     <div className="app">
       <header className="toolbar">
@@ -235,6 +319,12 @@ export default function App() {
         </form>
         {quickError && <span className="hint error">{quickError}</span>}
         <div className="spacer" />
+        <button
+          className={`btn${showInbox ? " active" : ""}`}
+          onClick={() => setShowInbox((v) => !v)}
+        >
+          ☰ My work
+        </button>
         <button className="btn primary" onClick={doRefresh} disabled={refreshing}>
           {refreshing ? "Refreshing…" : "↻ Refresh"}
         </button>
@@ -264,6 +354,7 @@ export default function App() {
         />
       </header>
 
+      <div className="app-body">
       <div className="board">
         {data.columns.map((col) => (
           <div
@@ -286,10 +377,22 @@ export default function App() {
               {(cardsByColumn[col] ?? []).map((card) => (
                 <div
                   key={card.id}
-                  className={`card${card.hidden ? " dim" : ""}`}
+                  className={`card${card.hidden ? " dim" : ""}${
+                    dragItem ? " link-target" : ""
+                  }`}
                   draggable
                   onDragStart={() => setDragId(card.id)}
                   onDragEnd={() => setDragId(null)}
+                  onDragOver={(e) => {
+                    if (dragItem) e.preventDefault();
+                  }}
+                  onDrop={(e) => {
+                    if (dragItem) {
+                      e.stopPropagation();
+                      linkItemToCard(card.id, dragItem);
+                      setDragItem(null);
+                    }
+                  }}
                 >
                   <div className="card-title-row">
                     <span className="card-title">{card.title || "(untitled)"}</span>
@@ -331,6 +434,20 @@ export default function App() {
             </div>
           </div>
         ))}
+      </div>
+
+      {showInbox && (
+        <Inbox
+          targetColumn={data.columns[0]}
+          existingPrUrls={existingPrUrls}
+          existingLinearUrls={existingLinearUrls}
+          onAddPr={addPrCard}
+          onAddLinear={addLinearCard}
+          onDragItem={setDragItem}
+          onDragEnd={() => setDragItem(null)}
+          onClose={() => setShowInbox(false)}
+        />
+      )}
       </div>
 
       {editing && (

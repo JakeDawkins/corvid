@@ -1,4 +1,4 @@
-import type { Cache, Data, IssueStatus, PrStatus } from "./types";
+import type { Cache, Data, Inbox, IssueStatus, PrStatus } from "./types";
 
 export type ResolvedLink =
   | { kind: "pr"; status: PrStatus }
@@ -29,6 +29,15 @@ export async function saveData(data: Data): Promise<void> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+}
+
+export async function loadInbox(): Promise<Inbox> {
+  const res = await fetch("/api/inbox");
+  const inbox = (await res.json()) as Inbox;
+  inbox.prs ??= [];
+  inbox.issues ??= [];
+  inbox.projects ??= [];
+  return inbox;
 }
 
 export async function refresh(
