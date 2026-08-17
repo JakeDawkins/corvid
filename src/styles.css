@@ -151,11 +151,12 @@ body {
   padding-top: 9px;
   border-top: 1px solid var(--border);
 }
-.group.links { flex-direction: row; flex-wrap: wrap; gap: 6px 8px; }
-/* The first group (Figma/Slack links now sit at the top) shouldn't show the
-   separator line meant to divide it from content above it. */
+/* Misc links sit directly under the card title, with no divider above them. */
+.group.links { flex-direction: row; flex-wrap: wrap; gap: 6px 8px; border-top: none; padding-top: 0; }
 .card > .group:first-child { border-top: none; padding-top: 0; }
-/* PR mini-cards stack without the divider border used by other groups. */
+/* Linear and PR mini-cards stack together as one block, with no divider
+   between them. */
+.group.linear,
 .group.prs { border-top: none; padding-top: 0; }
 .card:active { cursor: grabbing; }
 .card.dim { opacity: 0.5; }
