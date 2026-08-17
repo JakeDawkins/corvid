@@ -134,17 +134,44 @@ export function PrRow({ status, url }: { status?: PrStatus; url: string }) {
   );
 }
 
+// A Linear issue/project rendered as its own status-tinted mini-card (mirroring
+// PrRow), with its external links shown as chips inside the card. The Linear
+// workflow-state color drives the card's left border and faint background.
 export function IssueRow({ status, url }: { status?: IssueStatus; url: string }) {
   const resources = status?.resources ?? [];
+  const color = status?.error ? undefined : status?.stateColor;
+  // Issues read best by identifier (PLA-655); projects have no number, so fall
+  // back to their name.
+  const label =
+    status?.identifier && status.identifier !== "Project"
+      ? status.identifier
+      : status?.title || "Linear";
+
   return (
-    <div className="issue">
-      <div className="pr-row">
-        <a href={url} target="_blank" rel="noreferrer" className="pr-link" title={status?.title || url}>
-          {status?.identifier || "Linear"}
-        </a>
-        {status?.error ? (
-          <span className="error-msg" title={status.error}>{status.error}</span>
-        ) : status?.stateName ? (
+    <div
+      className={`pr-card linear-card${color ? "" : " neutral"}`}
+      style={
+        color
+          ? {
+              borderLeftColor: color,
+              background: `color-mix(in srgb, ${color} 9%, var(--panel))`,
+            }
+          : undefined
+      }
+    >
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="pr-link"
+        title={status?.title || url}
+      >
+        {label}
+      </a>
+      {status?.error ? (
+        <span className="error-msg" title={status.error}>{status.error}</span>
+      ) : status?.stateName ? (
+        <div className="pr-badges">
           <span
             className="badge"
             style={{
@@ -155,8 +182,8 @@ export function IssueRow({ status, url }: { status?: IssueStatus; url: string })
           >
             {status.stateName}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       {resources.length > 0 && (
         <div className="resources">
           {resources.map((r, i) => (
