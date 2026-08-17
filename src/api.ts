@@ -1,4 +1,5 @@
 import type { Cache, Data, Inbox, IssueStatus, PrStatus } from "./types";
+import { normalizeCard } from "./links";
 
 export type ResolvedLink =
   | { kind: "pr"; status: PrStatus }
@@ -20,6 +21,7 @@ export async function loadData(): Promise<Data> {
   data.cache ??= { prs: {}, issues: {} };
   data.cache.prs ??= {};
   data.cache.issues ??= {};
+  data.cards = data.cards.map(normalizeCard);
   return data;
 }
 

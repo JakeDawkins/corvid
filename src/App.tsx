@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
-import { linearKey } from "./links";
+import { linearKey, linkKind, normalizeCard } from "./links";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { Inbox } from "./Inbox";
@@ -60,10 +60,11 @@ export default function App() {
   const cache = data.cache ?? { prs: {}, issues: {} };
 
   async function doRefresh() {
-    const prUrls = [...new Set(data.cards.flatMap((c) => c.prUrls))];
-    const linearUrls = [
-      ...new Set(data.cards.map((c) => c.linearUrl).filter(Boolean) as string[]),
+    const urls = [
+      ...new Set(data.cards.flatMap((c) => c.links.map((l) => l.url))),
     ];
+    const prUrls = urls.filter((u) => linkKind(u) === "pr");
+    const linearUrls = urls.filter((u) => linkKind(u) === "linear");
     if (!prUrls.length && !linearUrls.length) return;
     setRefreshing(true);
     try {
@@ -173,11 +174,9 @@ export default function App() {
         title: result.status.title || url,
         column,
         hidden: false,
-        prUrls: [],
-        links: [],
+        links: [{ label: "", url }],
       };
       if (result.kind === "pr") {
-        base.prUrls = [url];
         setData((d) => ({
           ...d,
           cards: [...d.cards, base],
@@ -187,7 +186,6 @@ export default function App() {
           },
         }));
       } else {
-        base.linearUrl = url;
         setData((d) => ({
           ...d,
           cards: [...d.cards, base],
@@ -215,8 +213,7 @@ export default function App() {
       title: status.title || status.url,
       column,
       hidden: false,
-      prUrls: [status.url],
-      links: [],
+      links: [{ label: "", url: status.url }],
     };
     setData((d) => ({
       ...d,
@@ -236,9 +233,7 @@ export default function App() {
       title: status.title || status.url,
       column,
       hidden: false,
-      linearUrl: status.url,
-      prUrls: [],
-      links: [],
+      links: [{ label: "", url: status.url }],
     };
     setData((d) => ({
       ...d,
@@ -255,12 +250,9 @@ export default function App() {
     setData((d) => {
       const cards = d.cards.map((c) => {
         if (c.id !== cardId) return c;
-        if (item.kind === "pr") {
-          return c.prUrls.includes(item.status.url)
-            ? c
-            : { ...c, prUrls: [...c.prUrls, item.status.url] };
-        }
-        return { ...c, linearUrl: item.status.url };
+        return c.links.some((l) => l.url === item.status.url)
+          ? c
+          : { ...c, links: [...c.links, { label: "", url: item.status.url }] };
       });
       const cache = {
         prs: { ...d.cache?.prs },
@@ -278,7 +270,6 @@ export default function App() {
       title: "",
       column,
       hidden: false,
-      prUrls: [],
       links: [],
     });
   }
@@ -301,6 +292,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(String(reader.result)) as Data;
         parsed.cache ??= { prs: {}, issues: {} };
+        parsed.cards = (parsed.cards ?? []).map(normalizeCard);
         setData(parsed);
       } catch {
         alert("Invalid JSON file");
@@ -327,7 +319,12 @@ export default function App() {
 
   // URLs already on the board, so the inbox can mark them instead of re-adding.
   const existingPrUrls = useMemo(
-    () => new Set(data.cards.flatMap((c) => c.prUrls)),
+    () =>
+      new Set(
+        data.cards
+          .flatMap((c) => c.links.map((l) => l.url))
+          .filter((u) => linkKind(u) === "pr"),
+      ),
     [data.cards],
   );
   // Normalized so an item counts as "on the board" even if its card's URL uses a
@@ -335,14 +332,26 @@ export default function App() {
   const existingLinearKeys = useMemo(
     () =>
       new Set(
-        (data.cards.map((c) => c.linearUrl).filter(Boolean) as string[]).map(
-          linearKey,
-        ),
+        data.cards
+          .flatMap((c) => c.links.map((l) => l.url))
+          .filter((u) => linkKind(u) === "linear")
+          .map(linearKey),
       ),
     [data.cards],
   );
 
-  const renderCard = (card: Card) => (
+  const renderCard = (card: Card) => {
+    // Group the flat link list by kind for display: Linear rows, then PR rows
+    // (merged sorted to the bottom), then misc links as chips.
+    const linearUrls = card.links
+      .map((l) => l.url)
+      .filter((u) => linkKind(u) === "linear");
+    const prUrls = card.links
+      .map((l) => l.url)
+      .filter((u) => linkKind(u) === "pr");
+    const otherLinks = card.links.filter((l) => linkKind(l.url) === "generic");
+
+    return (
     <div
       key={card.id}
       className={`card${dragItem ? " link-target" : ""}${
@@ -392,15 +401,17 @@ export default function App() {
 
       {card.notes && <div className="card-notes">{card.notes}</div>}
 
-      {card.linearUrl && (
+      {linearUrls.length > 0 && (
         <div className="group">
-          <IssueRow url={card.linearUrl} status={cache.issues[card.linearUrl]} />
+          {linearUrls.map((u) => (
+            <IssueRow key={u} url={u} status={cache.issues[u]} />
+          ))}
         </div>
       )}
 
-      {card.prUrls.length > 0 && (
+      {prUrls.length > 0 && (
         <div className="group">
-          {[...card.prUrls]
+          {[...prUrls]
             .sort(
               (a, b) =>
                 (cache.prs[a]?.state === "MERGED" ? 1 : 0) -
@@ -412,9 +423,9 @@ export default function App() {
         </div>
       )}
 
-      {card.links.length > 0 && (
+      {otherLinks.length > 0 && (
         <div className="group links">
-          {card.links.map((l, i) => (
+          {otherLinks.map((l, i) => (
             <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
               {l.label?.trim() || domainName(l.url)}
             </a>
@@ -422,7 +433,8 @@ export default function App() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   return (
     <div className="app">

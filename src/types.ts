@@ -7,8 +7,8 @@ export type Card = {
   hidden: boolean;
   notes?: string;
   color?: string;
-  linearUrl?: string;
-  prUrls: string[];
+  // A flat list of links (GitHub PRs, Linear issues/projects, and misc URLs).
+  // Each link's kind is derived from its URL via linkKind(), not stored.
   links: Link[];
 };
 
