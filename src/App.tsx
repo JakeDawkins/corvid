@@ -387,16 +387,6 @@ export default function App() {
         }
       }}
     >
-      {otherLinks.length > 0 && (
-        <div className="group links">
-          {otherLinks.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
-              {l.label?.trim() || domainName(l.url)}
-            </a>
-          ))}
-        </div>
-      )}
-
       <div className="card-title-row">
         <span className="card-title">{card.title || "(untitled)"}</span>
         <div className="card-actions">
@@ -413,6 +403,16 @@ export default function App() {
         <div className="group">
           {linearUrls.map((u) => (
             <IssueRow key={u} url={u} status={cache.issues[u]} />
+          ))}
+        </div>
+      )}
+
+      {otherLinks.length > 0 && (
+        <div className="group links">
+          {otherLinks.map((l, i) => (
+            <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
+              {l.label?.trim() || domainName(l.url)}
+            </a>
           ))}
         </div>
       )}
