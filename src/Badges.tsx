@@ -42,6 +42,32 @@ function stateBadge(s: PrStatus["state"], isDraft?: boolean) {
   }
 }
 
+// Pick a single status color for the PR mini-card, in priority order:
+// merged/closed/draft take precedence, then problems (red), then in-progress
+// (yellow), then healthy (green). Falls back to a neutral accent.
+function prCardClass(status?: PrStatus): string {
+  if (!status || status.error) return "neutral";
+  if (status.isDraft) return "muted";
+  if (status.state === "MERGED") return "merged";
+  if (status.state === "CLOSED") return "muted";
+  if (
+    status.ci === "FAILURE" ||
+    status.ci === "ERROR" ||
+    status.reviewDecision === "CHANGES_REQUESTED" ||
+    status.unresolvedThreads
+  )
+    return "bad";
+  if (
+    status.ci === "PENDING" ||
+    status.ci === "EXPECTED" ||
+    status.reviewDecision === "REVIEW_REQUIRED"
+  )
+    return "run";
+  if (status.reviewDecision === "APPROVED" || status.ci === "SUCCESS")
+    return "ok";
+  return "neutral";
+}
+
 function repoFromUrl(url: string) {
   const m = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
   return m ? { repo: `${m[1]}/${m[2]}`, number: m[3] } : null;
@@ -67,7 +93,7 @@ export function PrRow({ status, url }: { status?: PrStatus; url: string }) {
   const merged = status?.state === "MERGED";
 
   return (
-    <div className="pr-row">
+    <div className={`pr-card ${prCardClass(status)}`}>
       <a
         href={url}
         target="_blank"
@@ -80,9 +106,11 @@ export function PrRow({ status, url }: { status?: PrStatus; url: string }) {
       {status?.error ? (
         <span className="error-msg" title={status.error}>{status.error}</span>
       ) : (
-        badges.map((b, i) => (
-          <span key={i} className={`badge ${b!.cls}`}>{b!.text}</span>
-        ))
+        <div className="pr-badges">
+          {badges.map((b, i) => (
+            <span key={i} className={`badge ${b!.cls}`}>{b!.text}</span>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -152,6 +152,11 @@ body {
   border-top: 1px solid var(--border);
 }
 .group.links { flex-direction: row; flex-wrap: wrap; gap: 6px 8px; }
+/* The first group (Figma/Slack links now sit at the top) shouldn't show the
+   separator line meant to divide it from content above it. */
+.card > .group:first-child { border-top: none; padding-top: 0; }
+/* PR mini-cards stack without the divider border used by other groups. */
+.group.prs { border-top: none; padding-top: 0; }
 .card:active { cursor: grabbing; }
 .card.dim { opacity: 0.5; }
 /* Insertion indicator when dragging a card above another to reorder it. */
@@ -195,6 +200,27 @@ body {
 .card-notes { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
 
 .pr-row { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
+
+/* Each PR renders as its own mini-card inside the main card, tinted by status:
+   a colored left border plus a faint status-colored background. */
+.pr-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  background: var(--panel);
+}
+.pr-card .pr-badges { display: flex; flex-wrap: wrap; gap: 6px 8px; }
+.pr-card.ok { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 9%, var(--panel)); }
+.pr-card.bad { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--panel)); }
+.pr-card.run { border-left-color: var(--run); background: color-mix(in srgb, var(--run) 9%, var(--panel)); }
+.pr-card.merged { border-left-color: var(--merged); background: color-mix(in srgb, var(--merged) 9%, var(--panel)); }
+.pr-card.muted { border-left-color: var(--muted); }
+.pr-card.neutral { border-left-color: var(--accent); }
+
 .pr-link { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500; }
 .pr-link:hover { text-decoration: underline; }
 .pr-link.merged { text-decoration: line-through; opacity: 0.7; }

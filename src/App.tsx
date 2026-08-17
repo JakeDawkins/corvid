@@ -357,9 +357,7 @@ export default function App() {
       className={`card${dragItem ? " link-target" : ""}${
         dragOverId === card.id ? " drop-before" : ""
       }`}
-      style={
-        card.color ? { borderLeft: `4px solid ${card.color}` } : undefined
-      }
+      style={card.color ? { border: `2px solid ${card.color}` } : undefined}
       draggable
       onDragStart={() => setDragId(card.id)}
       onDragEnd={() => {
@@ -389,6 +387,16 @@ export default function App() {
         }
       }}
     >
+      {otherLinks.length > 0 && (
+        <div className="group links">
+          {otherLinks.map((l, i) => (
+            <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
+              {l.label?.trim() || domainName(l.url)}
+            </a>
+          ))}
+        </div>
+      )}
+
       <div className="card-title-row">
         <span className="card-title">{card.title || "(untitled)"}</span>
         <div className="card-actions">
@@ -410,7 +418,7 @@ export default function App() {
       )}
 
       {prUrls.length > 0 && (
-        <div className="group">
+        <div className="group prs">
           {[...prUrls]
             .sort(
               (a, b) =>
@@ -420,16 +428,6 @@ export default function App() {
             .map((u) => (
               <PrRow key={u} url={u} status={cache.prs[u]} />
             ))}
-        </div>
-      )}
-
-      {otherLinks.length > 0 && (
-        <div className="group links">
-          {otherLinks.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
-              {l.label?.trim() || domainName(l.url)}
-            </a>
-          ))}
         </div>
       )}
     </div>
