@@ -9,6 +9,10 @@ import type { DragItem } from "./Inbox";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} } };
 
+// Virtual column id for the far-right "Hidden" column. Not a real user column;
+// membership is driven by each card's `hidden` flag rather than its `column`.
+const HIDDEN_COL = "__hidden__";
+
 // Fallback label for a link with no title: the site's second-level domain.
 // "https://www.figma.com/file/…" -> "figma", "docs.google.com" -> "google".
 function domainName(url: string): string {
@@ -102,11 +106,19 @@ export default function App() {
 
   // Move a card to a column, placing it after the column's current last card so
   // it lands at the bottom of that list rather than keeping its old array slot.
+  // Dropping onto the Hidden column hides the card (keeping its real column);
+  // dropping onto a real column unhides it.
   function moveCard(id: string, column: string) {
     setData((d) => {
       const idx = d.cards.findIndex((c) => c.id === id);
       if (idx === -1) return d;
-      const moved = { ...d.cards[idx], column };
+      if (column === HIDDEN_COL) {
+        return {
+          ...d,
+          cards: d.cards.map((c) => (c.id === id ? { ...c, hidden: true } : c)),
+        };
+      }
+      const moved = { ...d.cards[idx], column, hidden: false };
       const rest = d.cards.filter((c) => c.id !== id);
       let insertAt = rest.length;
       for (let i = rest.length - 1; i >= 0; i--) {
@@ -130,7 +142,11 @@ export default function App() {
       if (from === -1 || !target) return d;
       const rest = d.cards.filter((c) => c.id !== id);
       const insertAt = rest.findIndex((c) => c.id === targetId);
-      rest.splice(insertAt, 0, { ...d.cards[from], column: target.column });
+      rest.splice(insertAt, 0, {
+        ...d.cards[from],
+        column: target.column,
+        hidden: target.hidden,
+      });
       return { ...d, cards: rest };
     });
   }
@@ -297,13 +313,17 @@ export default function App() {
     const map: Record<string, Card[]> = {};
     for (const col of data.columns) map[col] = [];
     for (const c of data.cards) {
-      if (c.hidden && !showHidden) continue;
+      if (c.hidden) continue;
       (map[c.column] ??= []).push(c);
     }
     return map;
-  }, [data, showHidden]);
+  }, [data]);
 
-  const hiddenCount = data.cards.filter((c) => c.hidden).length;
+  const hiddenCards = useMemo(
+    () => data.cards.filter((c) => c.hidden),
+    [data],
+  );
+  const hiddenCount = hiddenCards.length;
 
   // URLs already on the board, so the inbox can mark them instead of re-adding.
   const existingPrUrls = useMemo(
@@ -320,6 +340,88 @@ export default function App() {
         ),
       ),
     [data.cards],
+  );
+
+  const renderCard = (card: Card) => (
+    <div
+      key={card.id}
+      className={`card${dragItem ? " link-target" : ""}${
+        dragOverId === card.id ? " drop-before" : ""
+      }`}
+      style={
+        card.color ? { borderLeft: `4px solid ${card.color}` } : undefined
+      }
+      draggable
+      onDragStart={() => setDragId(card.id)}
+      onDragEnd={() => {
+        setDragId(null);
+        setDragOverId(null);
+      }}
+      onDragOver={(e) => {
+        if (dragItem) e.preventDefault();
+        else if (dragId && dragId !== card.id) {
+          e.preventDefault();
+          setDragOverId(card.id);
+        }
+      }}
+      onDragLeave={() => {
+        if (dragOverId === card.id) setDragOverId(null);
+      }}
+      onDrop={(e) => {
+        if (dragItem) {
+          e.stopPropagation();
+          linkItemToCard(card.id, dragItem);
+          setDragItem(null);
+        } else if (dragId) {
+          e.stopPropagation();
+          reorderCard(dragId, card.id);
+          setDragId(null);
+          setDragOverId(null);
+        }
+      }}
+    >
+      <div className="card-title-row">
+        <span className="card-title">{card.title || "(untitled)"}</span>
+        <div className="card-actions">
+          <button onClick={() => setEditing(card)} title="Edit">✎</button>
+          <button onClick={() => toggleHidden(card.id)} title={card.hidden ? "Unhide" : "Hide"}>
+            {card.hidden ? "◑" : "○"}
+          </button>
+        </div>
+      </div>
+
+      {card.notes && <div className="card-notes">{card.notes}</div>}
+
+      {card.linearUrl && (
+        <div className="group">
+          <IssueRow url={card.linearUrl} status={cache.issues[card.linearUrl]} />
+        </div>
+      )}
+
+      {card.prUrls.length > 0 && (
+        <div className="group">
+          {[...card.prUrls]
+            .sort(
+              (a, b) =>
+                (cache.prs[a]?.state === "MERGED" ? 1 : 0) -
+                (cache.prs[b]?.state === "MERGED" ? 1 : 0),
+            )
+            .map((u) => (
+              <PrRow key={u} url={u} status={cache.prs[u]} />
+            ))}
+        </div>
+      )}
+
+      {card.links.length > 0 && (
+        <div className="group links">
+          {card.links.map((l, i) => (
+            <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
+              {l.label?.trim() || domainName(l.url)}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -363,14 +465,6 @@ export default function App() {
           {refreshing ? "Refreshing…" : "↻ Refresh"}
         </button>
         {lastRefresh && <span className="hint">updated {lastRefresh}</span>}
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={showHidden}
-            onChange={(e) => setShowHidden(e.target.checked)}
-          />
-          Show hidden{hiddenCount ? ` (${hiddenCount})` : ""}
-        </label>
         <button className="btn" onClick={exportJson}>Export</button>
         <button className="btn" onClick={() => fileInput.current?.click()}>
           Import
@@ -409,92 +503,35 @@ export default function App() {
               </button>
             </div>
             <div className="cards">
-              {(cardsByColumn[col] ?? []).map((card) => (
-                <div
-                  key={card.id}
-                  className={`card${card.hidden ? " dim" : ""}${
-                    dragItem ? " link-target" : ""
-                  }${dragOverId === card.id ? " drop-before" : ""}`}
-                  style={
-                    card.color
-                      ? { borderLeft: `4px solid ${card.color}` }
-                      : undefined
-                  }
-                  draggable
-                  onDragStart={() => setDragId(card.id)}
-                  onDragEnd={() => {
-                    setDragId(null);
-                    setDragOverId(null);
-                  }}
-                  onDragOver={(e) => {
-                    if (dragItem) e.preventDefault();
-                    else if (dragId && dragId !== card.id) {
-                      e.preventDefault();
-                      setDragOverId(card.id);
-                    }
-                  }}
-                  onDragLeave={() => {
-                    if (dragOverId === card.id) setDragOverId(null);
-                  }}
-                  onDrop={(e) => {
-                    if (dragItem) {
-                      e.stopPropagation();
-                      linkItemToCard(card.id, dragItem);
-                      setDragItem(null);
-                    } else if (dragId) {
-                      e.stopPropagation();
-                      reorderCard(dragId, card.id);
-                      setDragId(null);
-                      setDragOverId(null);
-                    }
-                  }}
-                >
-                  <div className="card-title-row">
-                    <span className="card-title">{card.title || "(untitled)"}</span>
-                    <div className="card-actions">
-                      <button onClick={() => setEditing(card)} title="Edit">✎</button>
-                      <button onClick={() => toggleHidden(card.id)} title={card.hidden ? "Unhide" : "Hide"}>
-                        {card.hidden ? "◑" : "○"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {card.notes && <div className="card-notes">{card.notes}</div>}
-
-                  {card.linearUrl && (
-                    <div className="group">
-                      <IssueRow url={card.linearUrl} status={cache.issues[card.linearUrl]} />
-                    </div>
-                  )}
-
-                  {card.prUrls.length > 0 && (
-                    <div className="group">
-                      {[...card.prUrls]
-                        .sort(
-                          (a, b) =>
-                            (cache.prs[a]?.state === "MERGED" ? 1 : 0) -
-                            (cache.prs[b]?.state === "MERGED" ? 1 : 0),
-                        )
-                        .map((u) => (
-                          <PrRow key={u} url={u} status={cache.prs[u]} />
-                        ))}
-                    </div>
-                  )}
-
-                  {card.links.length > 0 && (
-                    <div className="group links">
-                      {card.links.map((l, i) => (
-                        <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
-                          {l.label?.trim() || domainName(l.url)}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+              {(cardsByColumn[col] ?? []).map(renderCard)}
             </div>
           </div>
         ))}
+
+        <div
+          className={`column hidden-column${dragId ? " droppable" : ""}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => {
+            if (dragId) moveCard(dragId, HIDDEN_COL);
+            setDragId(null);
+            setDragOverId(null);
+          }}
+        >
+          <div className="column-head">
+            <span>Hidden</span>
+            <span className="count">{hiddenCount}</span>
+            <button
+              className="toggle-hidden"
+              onClick={() => setShowHidden((v) => !v)}
+              title={showHidden ? "Hide items" : "Show items"}
+            >
+              {showHidden ? "Hide" : "Show"}
+            </button>
+          </div>
+          {showHidden && (
+            <div className="cards">{hiddenCards.map(renderCard)}</div>
+          )}
+        </div>
       </div>
 
       {showInbox && (

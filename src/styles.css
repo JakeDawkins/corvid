@@ -115,6 +115,20 @@ body {
   line-height: 1;
 }
 .column-head .add:hover { color: var(--accent); }
+.column-head .toggle-hidden {
+  margin-left: auto;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.column-head .toggle-hidden:hover { color: var(--text); border-color: var(--accent); }
+
+/* Far-right virtual column that collects hidden cards. */
+.hidden-column { background: var(--panel-2); }
 
 .cards { padding: 10px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 
