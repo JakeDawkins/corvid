@@ -254,6 +254,15 @@ body {
 }
 .chip:hover { border-color: var(--accent); }
 
+/* A Linear row and its linked resources (Notion specs, Figma designs), which
+   are indented to sit visually beneath their issue/project link. */
+.issue { display: flex; flex-direction: column; gap: 6px; }
+.resources { display: flex; flex-wrap: wrap; gap: 6px 8px; padding-left: 14px; }
+.chip.resource { display: inline-flex; align-items: center; gap: 5px; }
+.chip.resource .resource-icon { font-size: 10px; opacity: 0.85; }
+.chip.resource.figma { border-color: color-mix(in srgb, #a259ff 50%, var(--border)); color: color-mix(in srgb, #a259ff 65%, var(--text)); }
+.chip.resource.notion { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
+
 /* modal */
 .modal-backdrop {
   position: fixed;

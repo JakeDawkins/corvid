@@ -1,4 +1,22 @@
-import type { IssueStatus, PrStatus } from "./types";
+import type { IssueStatus, LinearResource, PrStatus } from "./types";
+
+// A small glyph per resource type so Figma designs and Notion specs are
+// scannable at a glance among a card's linked resources.
+const RESOURCE_ICON: Record<NonNullable<LinearResource["type"]>, string> = {
+  figma: "◆",
+  notion: "▤",
+  link: "↗",
+};
+
+// Label a resource by its title, falling back to the link's hostname.
+function resourceLabel(r: LinearResource): string {
+  if (r.title?.trim()) return r.title.trim();
+  try {
+    return new URL(r.url).hostname.replace(/^www\./, "");
+  } catch {
+    return r.url;
+  }
+}
 
 function ciBadge(ci: PrStatus["ci"]) {
   switch (ci) {
@@ -117,25 +135,45 @@ export function PrRow({ status, url }: { status?: PrStatus; url: string }) {
 }
 
 export function IssueRow({ status, url }: { status?: IssueStatus; url: string }) {
+  const resources = status?.resources ?? [];
   return (
-    <div className="pr-row">
-      <a href={url} target="_blank" rel="noreferrer" className="pr-link" title={status?.title || url}>
-        {status?.identifier || "Linear"}
-      </a>
-      {status?.error ? (
-        <span className="error-msg" title={status.error}>{status.error}</span>
-      ) : status?.stateName ? (
-        <span
-          className="badge"
-          style={{
-            background: (status.stateColor || "#888") + "22",
-            color: status.stateColor || "#888",
-            borderColor: (status.stateColor || "#888") + "66",
-          }}
-        >
-          {status.stateName}
-        </span>
-      ) : null}
+    <div className="issue">
+      <div className="pr-row">
+        <a href={url} target="_blank" rel="noreferrer" className="pr-link" title={status?.title || url}>
+          {status?.identifier || "Linear"}
+        </a>
+        {status?.error ? (
+          <span className="error-msg" title={status.error}>{status.error}</span>
+        ) : status?.stateName ? (
+          <span
+            className="badge"
+            style={{
+              background: (status.stateColor || "#888") + "22",
+              color: status.stateColor || "#888",
+              borderColor: (status.stateColor || "#888") + "66",
+            }}
+          >
+            {status.stateName}
+          </span>
+        ) : null}
+      </div>
+      {resources.length > 0 && (
+        <div className="resources">
+          {resources.map((r, i) => (
+            <a
+              key={i}
+              href={r.url}
+              target="_blank"
+              rel="noreferrer"
+              className={`chip resource ${r.type ?? "link"}`}
+              title={r.title || r.url}
+            >
+              <span className="resource-icon">{RESOURCE_ICON[r.type ?? "link"]}</span>
+              {resourceLabel(r)}
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

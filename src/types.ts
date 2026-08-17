@@ -1,5 +1,13 @@
 export type Link = { label: string; url: string };
 
+// An external resource linked on a Linear issue (attachment) or project (link),
+// e.g. a Notion spec or Figma design. `type` drives its badge in the UI.
+export type LinearResource = {
+  url: string;
+  title?: string;
+  type?: "figma" | "notion" | "link";
+};
+
 export type Card = {
   id: string;
   title: string;
@@ -33,6 +41,7 @@ export type IssueStatus = {
   stateName?: string;
   stateColor?: string;
   stateType?: "backlog" | "unstarted" | "started" | "completed" | "canceled";
+  resources?: LinearResource[];
   fetchedAt?: string;
   error?: string;
 };

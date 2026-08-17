@@ -175,13 +175,19 @@ function parseLinearUrl(url) {
 const ISSUE_QUERY = `
 query($team:String!,$number:Float!){
   issues(filter:{team:{key:{eq:$team}},number:{eq:$number}}, first:1){
-    nodes{ identifier title url state{ name color type } }
+    nodes{
+      identifier title url state{ name color type }
+      attachments(first:25){ nodes{ url title } }
+    }
   }
 }`;
 
 const PROJECT_QUERY = `
 query($id:String!){
-  project(id:$id){ name url status{ name color type } }
+  project(id:$id){
+    name url status{ name color type }
+    links(first:25){ nodes{ url label } }
+  }
 }`;
 
 async function linearGraphql(query, variables) {
@@ -197,6 +203,31 @@ async function linearGraphql(query, variables) {
   return json.data;
 }
 
+// Classify an external resource link by host so the UI can badge Figma designs
+// and Notion specs specially. Everything else is a generic link.
+function resourceType(url) {
+  const s = String(url);
+  if (/figma\.com/i.test(s)) return 'figma';
+  if (/notion\.(so|site|com)/i.test(s)) return 'notion';
+  return 'link';
+}
+
+// Shape a Linear issue's attachments / project's links into LinearResources.
+// Drops GitHub links (their PRs render as their own cards) and Linear self-links
+// so only external resources like Notion specs or Figma designs remain.
+function shapeResources(nodes) {
+  return (nodes || [])
+    .map((n) => ({
+      url: n.url,
+      title: n.title || n.label || '',
+      type: resourceType(n.url),
+    }))
+    .filter(
+      (r) =>
+        r.url && !/github\.com/i.test(r.url) && !/linear\.app/i.test(r.url),
+    );
+}
+
 // Shape a Linear issue / project node into an IssueStatus.
 function shapeLinearIssue(issue) {
   return {
@@ -206,6 +237,7 @@ function shapeLinearIssue(issue) {
     stateName: issue.state?.name,
     stateColor: issue.state?.color,
     stateType: issue.state?.type, // backlog|unstarted|started|completed|canceled
+    resources: shapeResources(issue.attachments?.nodes),
     fetchedAt: new Date().toISOString(),
   };
 }
@@ -218,6 +250,7 @@ function shapeLinearProject(p) {
     stateName: p.status?.name,
     stateColor: p.status?.color,
     stateType: p.status?.type,
+    resources: shapeResources(p.links?.nodes),
     fetchedAt: new Date().toISOString(),
   };
 }
