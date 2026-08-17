@@ -186,7 +186,7 @@ const PROJECT_QUERY = `
 query($id:String!){
   project(id:$id){
     name url status{ name color type }
-    links(first:25){ nodes{ url label } }
+    externalLinks(first:25){ nodes{ url label } }
   }
 }`;
 
@@ -212,9 +212,9 @@ function resourceType(url) {
   return 'link';
 }
 
-// Shape a Linear issue's attachments / project's links into LinearResources.
-// Drops GitHub links (their PRs render as their own cards) and Linear self-links
-// so only external resources like Notion specs or Figma designs remain.
+// Shape a Linear issue's attachments / project's external links into
+// LinearResources. Shows every link (Notion specs, Figma designs, docs, Slack,
+// etc.) but drops GitHub links, whose PRs already render as their own cards.
 function shapeResources(nodes) {
   return (nodes || [])
     .map((n) => ({
@@ -222,10 +222,7 @@ function shapeResources(nodes) {
       title: n.title || n.label || '',
       type: resourceType(n.url),
     }))
-    .filter(
-      (r) =>
-        r.url && !/github\.com/i.test(r.url) && !/linear\.app/i.test(r.url),
-    );
+    .filter((r) => r.url && !/github\.com/i.test(r.url));
 }
 
 // Shape a Linear issue / project node into an IssueStatus.
@@ -250,7 +247,7 @@ function shapeLinearProject(p) {
     stateName: p.status?.name,
     stateColor: p.status?.color,
     stateType: p.status?.type,
-    resources: shapeResources(p.links?.nodes),
+    resources: shapeResources(p.externalLinks?.nodes),
     fetchedAt: new Date().toISOString(),
   };
 }
