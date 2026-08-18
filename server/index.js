@@ -362,13 +362,17 @@ app.post('/api/resolve', async (req, res) => {
 app.post('/api/refresh', async (req, res) => {
   const prUrls = [...new Set(req.body?.prUrls || [])];
   const linearUrls = [...new Set(req.body?.linearUrls || [])];
+  // Key results by the requested URL, not the fetched entity's canonical URL.
+  // A card may link a project as .../slug-id/overview while Linear returns
+  // .../slug-id; keying by the request keeps the client's cache lookup (by the
+  // card's exact URL) in sync so a refresh actually overwrites its entry.
   const [prs, issues] = await Promise.all([
-    Promise.all(prUrls.map(fetchPr)),
-    Promise.all(linearUrls.map(fetchLinear)),
+    Promise.all(prUrls.map(async (url) => [url, await fetchPr(url)])),
+    Promise.all(linearUrls.map(async (url) => [url, await fetchLinear(url)])),
   ]);
   res.json({
-    prs: Object.fromEntries(prs.map((p) => [p.url, p])),
-    issues: Object.fromEntries(issues.map((i) => [i.url, i])),
+    prs: Object.fromEntries(prs),
+    issues: Object.fromEntries(issues),
   });
 });
 
