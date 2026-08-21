@@ -4,10 +4,11 @@ import { loadData, refresh, resolveLink, saveData } from "./api";
 import { linearKey, linkKind, normalizeCard } from "./links";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
+import { textOn } from "./colors";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
 
-const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} } };
+const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
 
 // Virtual column id for the far-right "Hidden" column. Not a real user column;
 // membership is driven by each card's `hidden` flag rather than its `column`.
@@ -103,6 +104,16 @@ export default function App() {
       ...d,
       cards: d.cards.map((c) => (c.id === id ? { ...c, hidden: !c.hidden } : c)),
     }));
+  }
+
+  // Name (or rename) an accent color globally. An empty name clears the tag.
+  function setColorTag(color: string, name: string) {
+    setData((d) => {
+      const tags = { ...d.colorTags };
+      if (name.trim()) tags[color] = name;
+      else delete tags[color];
+      return { ...d, colorTags: tags };
+    });
   }
 
   // Move a card to a column, placing it after the column's current last card so
@@ -387,10 +398,29 @@ export default function App() {
         }
       }}
     >
-      <div className="card-title-row">
-        <span className="card-title">{card.title || "(untitled)"}</span>
+      <div
+        className={`card-title-row${card.color ? " colored" : ""}`}
+        style={card.color ? { background: card.color, color: textOn(card.color) } : undefined}
+      >
+        {card.color && data.colorTags?.[card.color] && (
+          <span className="card-tag">{data.colorTags[card.color]}</span>
+        )}
+        <span
+          className="card-title"
+          role="button"
+          tabIndex={0}
+          title="Open details"
+          onClick={() => setEditing(card)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setEditing(card);
+            }
+          }}
+        >
+          {card.title || "(untitled)"}
+        </span>
         <div className="card-actions">
-          <button onClick={() => setEditing(card)} title="Edit">✎</button>
           <button onClick={() => toggleHidden(card.id)} title={card.hidden ? "Unhide" : "Hide"}>
             {card.hidden ? "◑" : "○"}
           </button>
@@ -562,6 +592,8 @@ export default function App() {
         <CardEditor
           card={editing}
           columns={data.columns}
+          colorTags={data.colorTags ?? {}}
+          onSetColorTag={setColorTag}
           onCancel={() => setEditing(null)}
           onSave={(c) => {
             upsertCard(c);

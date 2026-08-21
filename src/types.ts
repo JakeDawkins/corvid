@@ -55,6 +55,9 @@ export type Data = {
   columns: string[];
   cards: Card[];
   cache?: Cache;
+  // User-assigned names for accent colors, keyed by color value (e.g.
+  // "#3b9eff" -> "sales"). Shown as a tag on any card using that color.
+  colorTags?: Record<string, string>;
 };
 
 // My open PRs + Linear issues/projects assigned to me, for the inbox.

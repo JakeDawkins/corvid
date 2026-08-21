@@ -186,17 +186,35 @@ body {
 .swatch.selected { outline: 2px solid var(--text); outline-offset: 2px; }
 
 .card-title-row { display: flex; align-items: flex-start; gap: 6px; }
-.card-title { font-weight: 600; flex: 1; }
+/* Colored header bleeds to the card edges and rounds with the card's top. */
+.card-title-row.colored {
+  align-items: center;
+  margin: -12px -12px 0;
+  padding: 8px 12px;
+  border-radius: 6px 6px 0 0;
+}
+.card-title { font-weight: 600; flex: 1; cursor: pointer; }
+.card-title:hover { text-decoration: underline; }
+.card-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.75;
+  white-space: nowrap;
+}
 .card-actions { display: flex; gap: 2px; }
 .card-actions button {
   background: none;
   border: none;
-  color: var(--muted);
+  color: currentColor;
+  opacity: 0.55;
   cursor: pointer;
   font-size: 13px;
   padding: 2px 4px;
 }
-.card-actions button:hover { color: var(--text); }
+.card-actions button:hover { opacity: 1; }
+.color-tag-input { margin-top: 8px; }
 
 .card-notes { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
 

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Card, Link } from "./types";
 import { linkKind } from "./links";
+import { COLORS } from "./colors";
 
 // Human label for a link's auto-detected kind, shown beside each link row.
 const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
@@ -9,27 +10,19 @@ const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
   generic: "Link",
 };
 
-// Preset card accent colors. `undefined` = no color.
-const COLORS = [
-  { name: "None", value: undefined },
-  { name: "Red", value: "#e5484d" },
-  { name: "Orange", value: "#f76b15" },
-  { name: "Yellow", value: "#ffb224" },
-  { name: "Green", value: "#30a46c" },
-  { name: "Blue", value: "#3b9eff" },
-  { name: "Purple", value: "#8e4ec6" },
-  { name: "Pink", value: "#e93d82" },
-];
-
 export function CardEditor({
   card,
   columns,
+  colorTags,
+  onSetColorTag,
   onSave,
   onCancel,
   onDelete,
 }: {
   card: Card;
   columns: string[];
+  colorTags: Record<string, string>;
+  onSetColorTag: (color: string, name: string) => void;
   onSave: (c: Card) => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -90,7 +83,7 @@ export function CardEditor({
               <button
                 key={c.name}
                 type="button"
-                title={c.name}
+                title={(c.value && colorTags[c.value]) || c.name}
                 className={`swatch${draft.color === c.value ? " selected" : ""}${
                   c.value ? "" : " none"
                 }`}
@@ -99,6 +92,14 @@ export function CardEditor({
               />
             ))}
           </div>
+          {draft.color && (
+            <input
+              className="color-tag-input"
+              placeholder="Tag name for this color (e.g. sales)"
+              value={colorTags[draft.color] ?? ""}
+              onChange={(e) => onSetColorTag(draft.color!, e.target.value)}
+            />
+          )}
         </div>
 
         <div className="field">
