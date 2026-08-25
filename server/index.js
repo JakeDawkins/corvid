@@ -410,6 +410,7 @@ async function listVercelProjects() {
 }
 
 function shapeDeployment(d) {
+  const m = d.meta || {};
   return {
     uid: d.uid,
     name: d.name,
@@ -417,7 +418,10 @@ function shapeDeployment(d) {
     state: d.state,
     readyState: d.readyState || d.state,
     target: d.target ?? null,
-    branch: d.meta?.githubCommitRef,
+    branch: m.githubCommitRef,
+    org: m.githubOrg || m.githubCommitOrg,
+    repo: m.githubRepo || m.githubCommitRepo,
+    prNumber: m.githubPrId ? Number(m.githubPrId) : undefined,
     creator: d.creator?.username,
     createdAt: d.createdAt,
     inspectorUrl: d.inspectorUrl,

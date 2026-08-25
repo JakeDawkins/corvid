@@ -16,6 +16,18 @@ export function linkKind(url: string): LinkKind {
   return "generic";
 }
 
+// Parse a GitHub PR URL into its owner/repo/number. Mirrors the server's
+// parsePrUrl. Returns null for anything that isn't a PR link.
+export function parsePrUrl(
+  url: string,
+): { owner: string; repo: string; number: number } | null {
+  const m = String(url).match(
+    /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/i,
+  );
+  if (!m) return null;
+  return { owner: m[1], repo: m[2], number: Number(m[3]) };
+}
+
 // Fold a card's legacy split fields (single linearUrl + prUrls[]) into the flat
 // `links` list, preserving the old display order (Linear, then PRs, then other
 // links). Idempotent for already-migrated cards. Used on load and import.

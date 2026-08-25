@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
-import { linearKey, linkKind, normalizeCard } from "./links";
+import { linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
+import type { VercelDeployment } from "./types";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { textOn } from "./colors";
@@ -42,7 +43,11 @@ export default function App() {
   const [quickError, setQuickError] = useState<string | null>(null);
   const [showInbox, setShowInbox] = useState(false);
   const [showDeployments, setShowDeployments] = useState(false);
+  const [deploymentsPaused, setDeploymentsPaused] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // initial load
   useEffect(() => {
@@ -59,6 +64,11 @@ export default function App() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => saveData(data), 400);
   }, [data, loaded]);
+
+  // Reopening the Deployments sidebar should always start actively polling.
+  useEffect(() => {
+    if (!showDeployments) setDeploymentsPaused(false);
+  }, [showDeployments]);
 
   const cache = data.cache ?? { prs: {}, issues: {} };
 
@@ -353,6 +363,44 @@ export default function App() {
     [data.cards],
   );
 
+  // Find a board card whose PR link matches a deployment's org/repo/PR number,
+  // so the Deployments sidebar can link a preview build back to its card.
+  function findCardForDeployment(dep: VercelDeployment): string | null {
+    if (!dep.prNumber || !dep.repo) return null;
+    const org = dep.org?.toLowerCase();
+    const repo = dep.repo.toLowerCase();
+    for (const card of data.cards) {
+      for (const l of card.links) {
+        const pr = parsePrUrl(l.url);
+        if (
+          pr &&
+          pr.number === dep.prNumber &&
+          pr.repo.toLowerCase() === repo &&
+          (!org || pr.owner.toLowerCase() === org)
+        ) {
+          return card.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  // Briefly highlight a card (and scroll it into view), unhiding it if needed.
+  function highlightCard(id: string) {
+    const card = data.cards.find((c) => c.id === id);
+    if (!card) return;
+    if (card.hidden) setShowHidden(true);
+    setHighlightId(id);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightId(null), 5000);
+    requestAnimationFrame(() =>
+      cardRefs.current[id]?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      }),
+    );
+  }
+
   const renderCard = (card: Card) => {
     // Group the flat link list by kind for display: Linear rows, then PR rows
     // (merged sorted to the bottom), then misc links as chips.
@@ -367,9 +415,12 @@ export default function App() {
     return (
     <div
       key={card.id}
+      ref={(el) => {
+        cardRefs.current[card.id] = el;
+      }}
       className={`card${dragItem ? " link-target" : ""}${
         dragOverId === card.id ? " drop-before" : ""
-      }`}
+      }${highlightId === card.id ? " highlight" : ""}`}
       style={card.color ? { border: `2px solid ${card.color}` } : undefined}
       draggable
       onDragStart={() => setDragId(card.id)}
@@ -504,10 +555,12 @@ export default function App() {
           ☰ My work
         </button>
         <button
-          className={`btn${showDeployments ? " active" : ""}`}
+          className={`btn${showDeployments ? " active" : ""}${
+            showDeployments && deploymentsPaused ? " paused" : ""
+          }`}
           onClick={() => setShowDeployments((v) => !v)}
         >
-          ▲ Deployments
+          ▲ Deployments{showDeployments && deploymentsPaused ? " (paused)" : ""}
         </button>
         <button className="btn primary" onClick={doRefresh} disabled={refreshing}>
           {refreshing ? "Refreshing…" : "↻ Refresh"}
@@ -596,7 +649,13 @@ export default function App() {
       )}
 
       {showDeployments && (
-        <Deployments onClose={() => setShowDeployments(false)} />
+        <Deployments
+          paused={deploymentsPaused}
+          onPausedChange={setDeploymentsPaused}
+          findCardForDeployment={findCardForDeployment}
+          onLinkCard={highlightCard}
+          onClose={() => setShowDeployments(false)}
+        />
       )}
       </div>
 

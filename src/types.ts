@@ -77,6 +77,11 @@ export type VercelDeployment = {
   readyState: string;
   target?: string | null;
   branch?: string;
+  // GitHub org/repo and PR number for the commit this deployment built, when it
+  // came from a branch with an open PR. Used to link a deployment to a board card.
+  org?: string;
+  repo?: string;
+  prNumber?: number;
   creator?: string;
   createdAt: number;
   inspectorUrl?: string;

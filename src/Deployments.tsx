@@ -3,6 +3,9 @@ import type { VercelDeployment, VercelProject } from "./types";
 import { loadVercelDeployments, loadVercelProjects } from "./api";
 
 const REFRESH_MS = 15000;
+// Stop polling after this long without a manual resume, so a forgotten-open
+// sidebar doesn't hammer the API indefinitely.
+const AUTO_PAUSE_MS = 4 * 60 * 60 * 1000; // 4 hours
 // Which projects are hidden, persisted so toggles survive reloads. We store the
 // hidden set (not the shown set) so newly-appearing projects default to shown.
 const HIDDEN_KEY = "vercel_hidden_projects_v1";
@@ -36,8 +39,21 @@ function stateClass(s: string): string {
 }
 
 // A right-side sidebar listing recent Vercel deployments per project, with
-// per-project show/hide toggles. Opens alongside the "My work" sidebar.
-export function Deployments({ onClose }: { onClose: () => void }) {
+// per-project show/hide toggles. Opens alongside the "My work" sidebar. Polls
+// every 15s while active; pausable, and auto-pauses after 4h.
+export function Deployments({
+  paused,
+  onPausedChange,
+  findCardForDeployment,
+  onLinkCard,
+  onClose,
+}: {
+  paused: boolean;
+  onPausedChange: (paused: boolean) => void;
+  findCardForDeployment: (dep: VercelDeployment) => string | null;
+  onLinkCard: (cardId: string) => void;
+  onClose: () => void;
+}) {
   const [projects, setProjects] = useState<VercelProject[]>([]);
   const [deployments, setDeployments] = useState<
     Record<string, VercelDeployment[]>
@@ -68,7 +84,7 @@ export function Deployments({ onClose }: { onClose: () => void }) {
         ps.map((p) => ({ id: p.id, teamId: p.teamId })),
       );
       setDeployments(deployments);
-      if (error) setError(error);
+      setError(error);
       setLastUpdated(Date.now());
     } finally {
       setRefreshing(false);
@@ -87,11 +103,29 @@ export function Deployments({ onClose }: { onClose: () => void }) {
       .finally(() => setLoading(false));
   }, [refresh]);
 
-  // Auto-refresh on an interval.
+  // Poll on an interval while active. A manual refresh works even when paused.
   useEffect(() => {
+    if (paused) return;
     const id = setInterval(refresh, REFRESH_MS);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refresh, paused]);
+
+  // Auto-pause after 4h of continuous polling; resuming resets the clock.
+  useEffect(() => {
+    if (paused) return;
+    const id = setTimeout(() => onPausedChange(true), AUTO_PAUSE_MS);
+    return () => clearTimeout(id);
+  }, [paused, onPausedChange]);
+
+  // Refresh immediately when resumed so stale data updates without waiting.
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    if (!paused) refresh();
+  }, [paused, refresh]);
 
   function toggle(id: string) {
     setHidden((prev) => {
@@ -105,18 +139,29 @@ export function Deployments({ onClose }: { onClose: () => void }) {
   const visible = projects.filter((p) => !hidden.has(p.id));
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar${paused ? " paused" : ""}`}>
       <div className="sidebar-head">
         <h2>Deployments</h2>
-        {lastUpdated && (
-          <span className="hint" style={{ marginRight: 8 }}>
-            {refreshing ? "…" : timeAgo(lastUpdated)}
-          </span>
-        )}
+        <span className="hint" style={{ marginRight: 8 }}>
+          {paused
+            ? "paused"
+            : lastUpdated
+              ? refreshing
+                ? "…"
+                : timeAgo(lastUpdated)
+              : ""}
+        </span>
+        <button
+          className="btn ghost"
+          onClick={() => onPausedChange(!paused)}
+          title={paused ? "Resume polling" : "Pause polling"}
+        >
+          {paused ? "▶" : "⏸"}
+        </button>
         <button
           className="btn ghost"
           onClick={refresh}
-          title="Refresh"
+          title="Refresh now"
           disabled={refreshing}
         >
           ↻
@@ -131,6 +176,11 @@ export function Deployments({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           {error && <p className="hint error sidebar-hint">{error}</p>}
+          {paused && (
+            <p className="hint sidebar-hint">
+              Paused — not auto-refreshing. Press ▶ to resume.
+            </p>
+          )}
           {projects.length > 0 && (
             <div className="dep-toggles">
               {projects.map((p) => {
@@ -163,27 +213,39 @@ export function Deployments({ onClose }: { onClose: () => void }) {
                   {deps.length === 0 ? (
                     <p className="hint">No deployments.</p>
                   ) : (
-                    deps.map((d) => (
-                      <div className="dep-row" key={d.uid}>
-                        <span className={`badge ${stateClass(d.readyState)}`}>
-                          {d.readyState}
-                        </span>
-                        <a
-                          href={d.inspectorUrl ?? `https://${d.url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="dep-ref"
-                          title={d.url}
-                        >
-                          {d.target === "production"
-                            ? "production"
-                            : d.branch ?? d.target ?? d.url}
-                        </a>
-                        <span className="hint dep-time">
-                          {timeAgo(d.createdAt)}
-                        </span>
-                      </div>
-                    ))
+                    deps.map((d) => {
+                      const cardId = findCardForDeployment(d);
+                      return (
+                        <div className="dep-row" key={d.uid}>
+                          <span className={`badge ${stateClass(d.readyState)}`}>
+                            {d.readyState}
+                          </span>
+                          {cardId && (
+                            <button
+                              className="dep-link"
+                              title="Highlight the linked card on the board"
+                              onClick={() => onLinkCard(cardId)}
+                            >
+                              ◎
+                            </button>
+                          )}
+                          <a
+                            href={d.inspectorUrl ?? `https://${d.url}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="dep-ref"
+                            title={d.url}
+                          >
+                            {d.target === "production"
+                              ? "production"
+                              : d.branch ?? d.target ?? d.url}
+                          </a>
+                          <span className="hint dep-time">
+                            {timeAgo(d.createdAt)}
+                          </span>
+                        </div>
+                      );
+                    })
                   )}
                 </section>
               );
