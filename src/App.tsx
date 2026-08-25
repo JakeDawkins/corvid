@@ -59,11 +59,39 @@ export default function App() {
 
   // debounced autosave
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while a local edit is queued or being written; used to let UI changes
+  // win over a concurrent external file change instead of reloading over them.
+  const pendingSave = useRef(false);
+  // Set before applying an external reload so the resulting state change doesn't
+  // trigger a redundant save back to disk.
+  const skipNextSave = useRef(false);
   useEffect(() => {
     if (!loaded) return;
+    if (skipNextSave.current) {
+      skipNextSave.current = false;
+      return;
+    }
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveData(data), 400);
+    pendingSave.current = true;
+    saveTimer.current = setTimeout(async () => {
+      await saveData(data);
+      pendingSave.current = false;
+    }, 400);
   }, [data, loaded]);
+
+  // Reload when data.json changes on disk from outside the UI (e.g. a skill),
+  // unless the UI has unsaved edits — those take precedence.
+  useEffect(() => {
+    if (!loaded) return;
+    const es = new EventSource("/api/events");
+    es.addEventListener("data", async () => {
+      if (pendingSave.current) return;
+      const fresh = await loadData();
+      skipNextSave.current = true;
+      setData(fresh);
+    });
+    return () => es.close();
+  }, [loaded]);
 
   // Reopening the Deployments sidebar should always start actively polling.
   useEffect(() => {

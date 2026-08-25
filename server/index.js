@@ -1,6 +1,7 @@
 import express from 'express';
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -47,8 +48,22 @@ async function readData() {
     return structuredClone(DEFAULT_DATA);
   }
 }
+function hashData(str) {
+  return createHash('sha1').update(str).digest('hex');
+}
+
+// Hash of the last data.json content this server is aware of. Updated both when
+// we write (so our own writes don't look like external edits) and when the
+// watcher observes an external change. Lets us tell "the UI saved" apart from
+// "a skill/editor changed the file" so we only notify the browser for the latter.
+let lastKnownHash = existsSync(DATA_PATH)
+  ? hashData(readFileSync(DATA_PATH, 'utf8'))
+  : null;
+
 async function writeData(data) {
-  await writeFile(DATA_PATH, JSON.stringify(data, null, 2));
+  const str = JSON.stringify(data, null, 2);
+  await writeFile(DATA_PATH, str);
+  lastKnownHash = hashData(str);
 }
 
 // ---------------- GitHub ----------------
@@ -447,6 +462,44 @@ app.put('/api/data', async (req, res) => {
   await writeData(req.body);
   res.json({ ok: true });
 });
+
+// Server-sent events stream. The browser subscribes and reloads data.json when
+// it changes on disk from outside the UI (e.g. a skill editing the file).
+const sseClients = new Set();
+function broadcastDataChanged() {
+  for (const res of sseClients) res.write('event: data\ndata: {}\n\n');
+}
+
+app.get('/api/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive',
+  });
+  res.write('retry: 3000\n\n');
+  sseClients.add(res);
+  const ping = setInterval(() => res.write(': ping\n\n'), 25000);
+  req.on('close', () => {
+    clearInterval(ping);
+    sseClients.delete(res);
+  });
+});
+
+// Poll data.json for external edits (robust across editors that replace the
+// file). A change whose hash differs from our last write is an outside edit, so
+// we update our baseline and notify subscribers.
+setInterval(async () => {
+  if (sseClients.size === 0) return;
+  try {
+    const h = hashData(await readFile(DATA_PATH, 'utf8'));
+    if (h !== lastKnownHash) {
+      lastKnownHash = h;
+      broadcastDataChanged();
+    }
+  } catch {
+    // file missing/mid-write; try again next tick
+  }
+}, 1000);
 
 // Resolve a single pasted link to its title + status, for quick-create.
 app.post('/api/resolve', async (req, res) => {
