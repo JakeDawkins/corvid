@@ -420,7 +420,7 @@ export default function App() {
     if (card.hidden) setShowHidden(true);
     setHighlightId(id);
     if (highlightTimer.current) clearTimeout(highlightTimer.current);
-    highlightTimer.current = setTimeout(() => setHighlightId(null), 5000);
+    highlightTimer.current = setTimeout(() => setHighlightId(null), 2400);
     requestAnimationFrame(() =>
       cardRefs.current[id]?.scrollIntoView({
         behavior: "smooth",

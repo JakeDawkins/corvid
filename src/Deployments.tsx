@@ -222,11 +222,11 @@ export function Deployments({
                           </span>
                           {cardId && (
                             <button
-                              className="dep-link"
+                              className={`dep-link ${stateClass(d.readyState)}`}
                               title="Highlight the linked card on the board"
                               onClick={() => onLinkCard(cardId)}
                             >
-                              ◎
+                              ◎ card
                             </button>
                           )}
                           <a

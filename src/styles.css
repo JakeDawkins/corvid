@@ -10,6 +10,7 @@
   --bad: #f85149;
   --run: #d29922;
   --merged: #a371f7;
+  --highlight: #ff2d78;
 }
 
 * { box-sizing: border-box; }
@@ -447,19 +448,28 @@ textarea { resize: vertical; }
 .dep-ref:hover { text-decoration: underline; }
 .dep-time { flex: none; white-space: nowrap; }
 
-/* button linking a deployment back to its card on the board */
+/* button linking a deployment back to its card on the board, tinted with the
+   deployment's status so it reads as a colored pill next to the status badge */
 .dep-link {
   flex: none;
-  background: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--panel);
   border: 1px solid var(--border);
-  color: var(--accent);
-  border-radius: 6px;
-  padding: 0 6px;
-  font-size: 12px;
-  line-height: 1.7;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
 }
-.dep-link:hover { border-color: var(--accent); }
+.dep-link.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.dep-link.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+.dep-link.run { color: var(--run); border-color: color-mix(in srgb, var(--run) 45%, transparent); background: color-mix(in srgb, var(--run) 14%, transparent); }
+.dep-link.muted { color: var(--muted); }
+.dep-link:hover { filter: brightness(1.25); }
 
 /* dim the sidebar contents while paused (header stays clear for controls) */
 .sidebar.paused .dep-toggles,
@@ -467,16 +477,24 @@ textarea { resize: vertical; }
   opacity: 0.55;
 }
 
-/* temporary highlight when a deployment links to its board card */
+/* temporary highlight when a deployment links to its board card: a vibrant ring
+   set a couple pixels off the card (inner --bg ring makes the gap), flashing a
+   few times over ~2.5s. */
 .card.highlight {
-  animation: card-pulse 5s ease-out;
+  animation: card-flash 0.55s ease-in-out 4;
 }
-@keyframes card-pulse {
+@keyframes card-flash {
   0%,
-  85% {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 65%, transparent);
-  }
   100% {
-    box-shadow: 0 0 0 3px transparent;
+    box-shadow:
+      0 0 0 2px var(--bg),
+      0 0 0 5px var(--highlight),
+      0 0 16px 5px color-mix(in srgb, var(--highlight) 60%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px var(--bg),
+      0 0 0 5px color-mix(in srgb, var(--highlight) 20%, transparent),
+      0 0 0 5px transparent;
   }
 }
