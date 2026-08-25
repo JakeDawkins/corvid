@@ -60,6 +60,28 @@ export type Data = {
   colorTags?: Record<string, string>;
 };
 
+// A Vercel project (personal or under a team), used for the Deployments sidebar.
+export type VercelProject = {
+  id: string;
+  name: string;
+  teamId?: string;
+  teamSlug?: string;
+};
+
+export type VercelDeployment = {
+  uid: string;
+  name: string;
+  url: string;
+  state: string;
+  // READY | BUILDING | ERROR | QUEUED | INITIALIZING | CANCELED
+  readyState: string;
+  target?: string | null;
+  branch?: string;
+  creator?: string;
+  createdAt: number;
+  inspectorUrl?: string;
+};
+
 // My open PRs + Linear issues/projects assigned to me, for the inbox.
 export type Inbox = {
   prs: PrStatus[];

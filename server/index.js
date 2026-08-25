@@ -327,6 +327,110 @@ function cleanErr(e) {
   return msg.split('\n').slice(0, 2).join(' ').slice(0, 300);
 }
 
+// ---------------- Vercel ----------------
+// Auth mirrors how we lean on the gh CLI: instead of a token in .env, we reuse
+// the token the Vercel CLI already stored at login (`vercel login`). A
+// VERCEL_TOKEN env var still wins if set.
+const VERCEL_API = 'https://api.vercel.com';
+let vercelTokenCache;
+
+function vercelAuthPaths() {
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  const paths = [];
+  if (process.platform === 'darwin') {
+    paths.push(join(home, 'Library', 'Application Support', 'com.vercel.cli', 'auth.json'));
+  }
+  if (process.env.XDG_DATA_HOME) {
+    paths.push(join(process.env.XDG_DATA_HOME, 'com.vercel.cli', 'auth.json'));
+  }
+  paths.push(join(home, '.local', 'share', 'com.vercel.cli', 'auth.json'));
+  if (process.env.APPDATA) {
+    paths.push(join(process.env.APPDATA, 'com.vercel.cli', 'auth.json'));
+  }
+  return paths;
+}
+
+function vercelToken() {
+  if (vercelTokenCache !== undefined) return vercelTokenCache;
+  if (process.env.VERCEL_TOKEN) return (vercelTokenCache = process.env.VERCEL_TOKEN);
+  for (const p of vercelAuthPaths()) {
+    if (!existsSync(p)) continue;
+    try {
+      const tok = JSON.parse(readFileSync(p, 'utf8'))?.token;
+      if (tok) return (vercelTokenCache = tok);
+    } catch {
+      // try next candidate
+    }
+  }
+  return (vercelTokenCache = null);
+}
+
+async function vercelFetch(path) {
+  const token = vercelToken();
+  if (!token) {
+    throw new Error('Vercel auth not found. Run `vercel login` or set VERCEL_TOKEN.');
+  }
+  const res = await fetch(`${VERCEL_API}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    throw new Error(`Vercel API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+  return res.json();
+}
+
+function teamQuery(teamId) {
+  return teamId ? `&teamId=${encodeURIComponent(teamId)}` : '';
+}
+
+// Every project the token can see: the personal account plus each team. Each
+// project is tagged with its teamId so deployment lookups hit the right scope.
+async function listVercelProjects() {
+  const scopes = [undefined];
+  try {
+    const teams = (await vercelFetch('/v2/teams'))?.teams || [];
+    for (const t of teams) scopes.push({ id: t.id, slug: t.slug });
+  } catch {
+    // No team access; personal scope still works.
+  }
+  const seen = new Set();
+  const projects = [];
+  for (const scope of scopes) {
+    const teamId = scope?.id;
+    const data = await vercelFetch(`/v9/projects?limit=100${teamQuery(teamId)}`);
+    for (const p of data.projects || []) {
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      projects.push({ id: p.id, name: p.name, teamId, teamSlug: scope?.slug });
+    }
+  }
+  projects.sort((a, b) => a.name.localeCompare(b.name));
+  return projects;
+}
+
+function shapeDeployment(d) {
+  return {
+    uid: d.uid,
+    name: d.name,
+    url: d.url,
+    state: d.state,
+    readyState: d.readyState || d.state,
+    target: d.target ?? null,
+    branch: d.meta?.githubCommitRef,
+    creator: d.creator?.username,
+    createdAt: d.createdAt,
+    inspectorUrl: d.inspectorUrl,
+  };
+}
+
+async function listVercelDeployments(projectId, teamId, limit = 5) {
+  const data = await vercelFetch(
+    `/v6/deployments?projectId=${encodeURIComponent(projectId)}&limit=${limit}${teamQuery(teamId)}`,
+  );
+  return (data.deployments || []).map(shapeDeployment);
+}
+
 // ---------------- app ----------------
 const app = express();
 app.use(express.json({ limit: '5mb' }));
@@ -381,6 +485,36 @@ app.post('/api/refresh', async (req, res) => {
 app.get('/api/inbox', async (_req, res) => {
   const [gh, linear] = await Promise.all([fetchMyPrs(), fetchMyLinear()]);
   res.json({ ...gh, ...linear });
+});
+
+// Vercel projects the token can see (for the Deployments sidebar toggles).
+app.get('/api/vercel/projects', async (_req, res) => {
+  try {
+    res.json({ projects: await listVercelProjects() });
+  } catch (e) {
+    res.json({ projects: [], error: cleanErr(e) });
+  }
+});
+
+// Recent deployments for a set of projects, keyed by projectId. The client
+// sends the {id, teamId} pairs it already loaded so we skip re-listing projects.
+app.post('/api/vercel/deployments', async (req, res) => {
+  const projects = Array.isArray(req.body?.projects) ? req.body.projects : [];
+  const limit = Number(req.body?.limit) || 5;
+  try {
+    const entries = await Promise.all(
+      projects.map(async (p) => {
+        try {
+          return [p.id, await listVercelDeployments(p.id, p.teamId, limit)];
+        } catch {
+          return [p.id, []];
+        }
+      }),
+    );
+    res.json({ deployments: Object.fromEntries(entries) });
+  } catch (e) {
+    res.json({ deployments: {}, error: cleanErr(e) });
+  }
 });
 
 // Serve built frontend if present (production).

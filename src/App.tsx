@@ -7,6 +7,7 @@ import { CardEditor } from "./CardEditor";
 import { textOn } from "./colors";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
+import { Deployments } from "./Deployments";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
 
@@ -40,6 +41,7 @@ export default function App() {
   const [quickBusy, setQuickBusy] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
   const [showInbox, setShowInbox] = useState(false);
+  const [showDeployments, setShowDeployments] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // initial load
@@ -501,6 +503,12 @@ export default function App() {
         >
           ☰ My work
         </button>
+        <button
+          className={`btn${showDeployments ? " active" : ""}`}
+          onClick={() => setShowDeployments((v) => !v)}
+        >
+          ▲ Deployments
+        </button>
         <button className="btn primary" onClick={doRefresh} disabled={refreshing}>
           {refreshing ? "Refreshing…" : "↻ Refresh"}
         </button>
@@ -585,6 +593,10 @@ export default function App() {
           onDragEnd={() => setDragItem(null)}
           onClose={() => setShowInbox(false)}
         />
+      )}
+
+      {showDeployments && (
+        <Deployments onClose={() => setShowDeployments(false)} />
       )}
       </div>
 

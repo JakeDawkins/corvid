@@ -402,3 +402,45 @@ textarea { resize: vertical; }
   font-weight: 500;
   overflow-wrap: anywhere;
 }
+
+/* deployments sidebar: project show/hide toggles */
+.dep-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.pill {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--muted);
+  cursor: pointer;
+}
+.pill:hover { border-color: var(--accent); }
+.pill.active { color: var(--text); border-color: var(--accent); }
+.pill:not(.active) { opacity: 0.55; text-decoration: line-through; }
+
+/* a single deployment row */
+.dep-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.dep-ref {
+  flex: 1;
+  min-width: 0;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dep-ref:hover { text-decoration: underline; }
+.dep-time { flex: none; white-space: nowrap; }

@@ -14,6 +14,9 @@ No database — state is a flat `data.json` file with JSON import/export.
     (approved / changes requested / review required), and **unresolved review thread count**.
   - **Linear:** the issue's workflow state (with its color).
 - Hide/unhide cards; toggle to show hidden.
+- **Deployments** sidebar: live Vercel deployment status per project (production
+  and preview together), with per-project show/hide toggles. Opens alongside the
+  My work sidebar so both can stack.
 - Import / Export the full state as JSON for backup.
 
 ## How it's wired
@@ -22,6 +25,9 @@ No database — state is a flat `data.json` file with JSON import/export.
 - **Server:** a small Express app (`server/index.js`) that owns all secrets and
   outbound calls. Nothing sensitive touches the browser.
 - **GitHub:** uses your existing `gh` CLI auth (`gh api graphql`). No token to manage.
+- **Vercel:** reuses the token the Vercel CLI stored at login (`vercel login`),
+  same idea as `gh`. Projects across your personal account and all teams are
+  listed automatically. Override with `VERCEL_TOKEN` in `.env.local` if needed.
 - **Linear:** GraphQL API with a personal API key from `.env.local`.
 - **Storage:** `data.json` in the repo root (git-ignored). Includes the last-fetched
   status cache so badges survive reloads.
@@ -35,7 +41,10 @@ No database — state is a flat `data.json` file with JSON import/export.
    - Copy `.env.example` to `.env.local`
    - Get a key at Linear → Settings → Security & access → Personal API keys
    - Set `LINEAR_API_KEY=...`
-4. Run: `npm run dev`
+4. Vercel (optional, only for the Deployments sidebar): install the
+   [Vercel CLI](https://vercel.com/docs/cli) and run `vercel login`. The app
+   reads that stored token; no `.env` entry needed unless you set `VERCEL_TOKEN`.
+5. Run: `npm run dev`
    - App: http://localhost:5473 (server on :8787, proxied automatically)
 
 ## Production-ish single process

@@ -1,4 +1,12 @@
-import type { Cache, Data, Inbox, IssueStatus, PrStatus } from "./types";
+import type {
+  Cache,
+  Data,
+  Inbox,
+  IssueStatus,
+  PrStatus,
+  VercelDeployment,
+  VercelProject,
+} from "./types";
 import { normalizeCard } from "./links";
 
 export type ResolvedLink =
@@ -40,6 +48,33 @@ export async function loadInbox(): Promise<Inbox> {
   inbox.issues ??= [];
   inbox.projects ??= [];
   return inbox;
+}
+
+export async function loadVercelProjects(): Promise<{
+  projects: VercelProject[];
+  error?: string;
+}> {
+  const res = await fetch("/api/vercel/projects");
+  const data = (await res.json()) as {
+    projects?: VercelProject[];
+    error?: string;
+  };
+  return { projects: data.projects ?? [], error: data.error };
+}
+
+export async function loadVercelDeployments(
+  projects: { id: string; teamId?: string }[],
+): Promise<{ deployments: Record<string, VercelDeployment[]>; error?: string }> {
+  const res = await fetch("/api/vercel/deployments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projects }),
+  });
+  const data = (await res.json()) as {
+    deployments?: Record<string, VercelDeployment[]>;
+    error?: string;
+  };
+  return { deployments: data.deployments ?? {}, error: data.error };
 }
 
 export async function refresh(
