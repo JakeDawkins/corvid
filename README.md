@@ -2,7 +2,7 @@
 
 A local, single-user Kanban board that links ad-hoc tasks to GitHub PRs and Linear
 issues, and shows their live statuses as badges. Runs entirely on your machine.
-No database — state is a flat `data.json` file with JSON import/export.
+No database — state is a flat `tasks-data/data.json` file with JSON import/export.
 
 ## What it does
 
@@ -29,8 +29,9 @@ No database — state is a flat `data.json` file with JSON import/export.
   same idea as `gh`. Projects across your personal account and all teams are
   listed automatically. Override with `VERCEL_TOKEN` in `.env.local` if needed.
 - **Linear:** GraphQL API with a personal API key from `.env.local`.
-- **Storage:** `data.json` in the repo root (git-ignored). Includes the last-fetched
-  status cache so badges survive reloads.
+- **Storage:** `tasks-data/data.json` (git-ignored). Includes the last-fetched
+  status cache so badges survive reloads. Keeping it in its own directory lets you
+  sync just `tasks-data/` to Google Drive without pulling in `node_modules`.
 
 ## Setup
 
@@ -54,7 +55,7 @@ server at http://localhost:8787.
 
 ## Notes
 
-- `data.json` is git-ignored so your task list / PR URLs don't get committed. Use
+- `tasks-data/` is git-ignored so your task list / PR URLs don't get committed. Use
   **Export** to back it up. **Import** restores it.
 - CI state reflects GitHub's status-check rollup on the PR's latest commit; PRs with
   no checks show no CI badge.

@@ -1,5 +1,5 @@
 import express from 'express';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
@@ -10,7 +10,8 @@ import { dirname, join } from 'node:path';
 const execFileP = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
-const DATA_PATH = join(ROOT, 'data.json');
+const DATA_DIR = join(ROOT, 'tasks-data');
+const DATA_PATH = join(DATA_DIR, 'data.json');
 
 // --- minimal .env.local loader (no dependency) ---
 function loadEnv() {
@@ -62,6 +63,7 @@ let lastKnownHash = existsSync(DATA_PATH)
 
 async function writeData(data) {
   const str = JSON.stringify(data, null, 2);
+  await mkdir(DATA_DIR, { recursive: true });
   await writeFile(DATA_PATH, str);
   lastKnownHash = hashData(str);
 }

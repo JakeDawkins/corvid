@@ -1,6 +1,6 @@
 node_modules
 dist
-data.json
+tasks-data/
 .env.local
 .DS_Store
 tsconfig.tsbuildinfo
