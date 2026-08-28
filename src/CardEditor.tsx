@@ -33,7 +33,17 @@ export function CardEditor({
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  const [links, setLinks] = useState<Link[]>(card.links);
+  // Always keep a trailing empty row so a new link field is ready without a button.
+  const [links, setLinks] = useState<Link[]>([...card.links, { label: "", url: "" }]);
+
+  function updateLink(i: number, patch: Partial<Link>) {
+    setLinks((ls) => {
+      const next = ls.map((x, j) => (j === i ? { ...x, ...patch } : x));
+      const last = next[next.length - 1];
+      if (last.label.trim() || last.url.trim()) next.push({ label: "", url: "" });
+      return next;
+    });
+  }
 
   function save() {
     onSave({
@@ -109,28 +119,23 @@ export function CardEditor({
               <input
                 placeholder="Label (optional)"
                 value={l.label}
-                onChange={(e) =>
-                  setLinks((ls) => ls.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))
-                }
+                onChange={(e) => updateLink(i, { label: e.target.value })}
               />
               <input
                 placeholder="https://…"
                 value={l.url}
-                onChange={(e) =>
-                  setLinks((ls) => ls.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))
-                }
+                onChange={(e) => updateLink(i, { url: e.target.value })}
               />
               {l.url.trim() && (
                 <span className="link-kind">{KIND_LABEL[linkKind(l.url)]}</span>
               )}
-              <button className="btn" onClick={() => setLinks((ls) => ls.filter((_, j) => j !== i))}>
-                ✕
-              </button>
+              {i < links.length - 1 && (
+                <button className="btn" onClick={() => setLinks((ls) => ls.filter((_, j) => j !== i))}>
+                  ✕
+                </button>
+              )}
             </div>
           ))}
-          <button className="btn" onClick={() => setLinks((ls) => [...ls, { label: "", url: "" }])}>
-            + Add link
-          </button>
         </div>
 
         <div className="modal-actions">
