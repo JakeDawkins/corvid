@@ -1,12 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="7" fill="#4f8cff"/>
-  <!-- three kanban columns of cards, white on blue for high contrast in pinned tabs -->
-  <g fill="#ffffff">
-    <rect x="6"  y="6"  width="6" height="9"  rx="1.5"/>
-    <rect x="6"  y="18" width="6" height="5"  rx="1.5" opacity="0.55"/>
-    <rect x="13" y="6"  width="6" height="6"  rx="1.5"/>
-    <rect x="13" y="15" width="6" height="11" rx="1.5"/>
-    <rect x="20" y="6"  width="6" height="5"  rx="1.5" opacity="0.55"/>
-    <rect x="20" y="14" width="6" height="6"  rx="1.5"/>
+  <rect width="32" height="32" rx="7" fill="#15161a"/>
+  <!-- perched corvid, blue-jay accent on crow-black -->
+  <g fill="#5b8fb0">
+    <ellipse cx="15" cy="15" rx="7.5" ry="4.8" transform="rotate(32 15 15)"/>
+    <circle cx="9.5" cy="9" r="4"/>
+    <polygon points="6.5,7.5 1,9.2 6.5,11"/>
+    <polygon points="18,16 29.5,26.5 25,26 22,22 18,19.5"/>
+    <rect x="12" y="19" width="1" height="6"/>
+    <rect x="15.5" y="20" width="1" height="6"/>
   </g>
+  <circle cx="9" cy="8.4" r="1" fill="#15161a"/>
 </svg>

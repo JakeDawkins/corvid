@@ -332,7 +332,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pr-tracker-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `corvid-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -503,7 +503,19 @@ export default function App() {
         </span>
         <div className="card-actions">
           <button onClick={() => toggleHidden(card.id)} title={card.hidden ? "Unhide" : "Hide"}>
-            {card.hidden ? "◑" : "○"}
+            {card.hidden ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9.88 9.88a3 3 0 0 0 4.24 4.24" />
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                <line x1="2" y1="2" x2="22" y2="22" />
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
@@ -548,7 +560,18 @@ export default function App() {
   return (
     <div className="app">
       <header className="toolbar">
-        <h1>PR Tracker</h1>
+        <div className="brand">
+          <svg className="brand-logo" viewBox="0 0 32 32" aria-hidden="true">
+            <ellipse cx="15" cy="15" rx="7.5" ry="4.8" transform="rotate(32 15 15)" />
+            <circle cx="9.5" cy="9" r="4" />
+            <polygon points="6.5,7.5 1,9.2 6.5,11" />
+            <polygon points="18,16 29.5,26.5 25,26 22,22 18,19.5" />
+            <rect x="12" y="19" width="1" height="6" />
+            <rect x="15.5" y="20" width="1" height="6" />
+            <circle cx="9" cy="8.4" r="1" fill="var(--panel)" />
+          </svg>
+          <h1>Corvid</h1>
+        </div>
         <form
           className="quick-create"
           onSubmit={(e) => {

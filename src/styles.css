@@ -1,11 +1,12 @@
 :root {
-  --bg: #0f1115;
-  --panel: #171a21;
-  --panel-2: #1e222b;
-  --border: #2a2f3a;
-  --text: #e6e8ee;
-  --muted: #8b93a3;
-  --accent: #4f8cff;
+  /* Corvid: crow gray-black base, blue-jay accent */
+  --bg: #0c0d0f;
+  --panel: #15161a;
+  --panel-2: #1d1f24;
+  --border: #2b2e35;
+  --text: #e7e9ec;
+  --muted: #8b909b;
+  --accent: #5b8fb0;
   --ok: #3fb950;
   --bad: #f85149;
   --run: #d29922;
@@ -32,7 +33,9 @@ body {
   border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
-.toolbar h1 { font-size: 16px; margin: 0; font-weight: 600; }
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand-logo { width: 22px; height: 22px; fill: var(--accent); flex: none; }
+.toolbar h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: 0.2px; }
 .spacer { flex: 1; }
 .hint { color: var(--muted); font-size: 12px; }
 .hint.error { color: var(--bad); }
@@ -215,6 +218,7 @@ body {
   padding: 2px 4px;
 }
 .card-actions button:hover { opacity: 1; }
+.card-actions button svg { display: block; }
 .color-tag-input { margin-top: 8px; }
 
 .card-notes { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
