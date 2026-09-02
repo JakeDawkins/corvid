@@ -223,6 +223,42 @@ body {
 
 .card-notes { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
 
+/* Complexity meter on a card: five segments, filled to the size's rank. */
+.complexity { display: flex; align-items: center; gap: 8px; }
+.complexity-bars { display: flex; gap: 3px; }
+.complexity-bar {
+  width: 15px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.complexity-bar.on { background: var(--accent); }
+.complexity-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* Size picker in the card editor. */
+.complexity-picker { display: flex; gap: 6px; }
+.complexity-option {
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.complexity-option:hover { border-color: var(--accent); }
+.complexity-option.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
 .pr-row { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
 
 /* Each PR renders as its own mini-card inside the main card, tinted by status:
@@ -307,6 +343,13 @@ body {
   padding: 20px;
 }
 .modal h2 { margin: 0 0 14px; font-size: 16px; }
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.modal-head h2 { margin: 0 0 14px; }
 
 .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
 .field > span { font-size: 12px; color: var(--muted); }

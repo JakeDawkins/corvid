@@ -1,5 +1,9 @@
 export type Link = { label: string; url: string };
 
+// T-shirt sizing for a card's estimated complexity, smallest to largest. Its
+// rank (XS=1 … XL=5) drives the 5-segment bar meter shown on the card.
+export type Complexity = "XS" | "S" | "M" | "L" | "XL";
+
 // An external resource linked on a Linear issue (attachment) or project (link),
 // e.g. a Notion spec or Figma design. `type` drives its badge in the UI.
 export type LinearResource = {
@@ -15,6 +19,7 @@ export type Card = {
   hidden: boolean;
   notes?: string;
   color?: string;
+  complexity?: Complexity;
   // A flat list of links (GitHub PRs, Linear issues/projects, and misc URLs).
   // Each link's kind is derived from its URL via linkKind(), not stored.
   links: Link[];

@@ -6,6 +6,7 @@ import type { VercelDeployment } from "./types";
 import { IssueRow, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { textOn } from "./colors";
+import { ComplexityBars } from "./Complexity";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
 import { Deployments } from "./Deployments";
@@ -45,6 +46,7 @@ export default function App() {
   const [showDeployments, setShowDeployments] = useState(false);
   const [deploymentsPaused, setDeploymentsPaused] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -413,6 +415,18 @@ export default function App() {
     return null;
   }
 
+  // Copy a card's id to the clipboard (for referencing it with AI agents),
+  // flashing a brief "copied" state on that card's button.
+  async function copyCardId(id: string) {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((c) => (c === id ? null : c)), 1200);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
   // Briefly highlight a card (and scroll it into view), unhiding it if needed.
   function highlightCard(id: string) {
     const card = data.cards.find((c) => c.id === id);
@@ -502,6 +516,21 @@ export default function App() {
           {card.title || "(untitled)"}
         </span>
         <div className="card-actions">
+          <button
+            onClick={() => copyCardId(card.id)}
+            title={copiedId === card.id ? "Copied ID" : "Copy card ID"}
+          >
+            {copiedId === card.id ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
+          </button>
           <button onClick={() => toggleHidden(card.id)} title={card.hidden ? "Unhide" : "Hide"}>
             {card.hidden ? (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -519,6 +548,10 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {card.complexity && (
+        <ComplexityBars value={card.complexity} color={card.color} />
+      )}
 
       {otherLinks.length > 0 && (
         <div className="group links">
