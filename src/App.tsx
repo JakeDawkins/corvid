@@ -403,6 +403,9 @@ export default function App() {
     [data],
   );
   const hiddenCount = hiddenCards.length;
+  const claudeCount = claudeColumn
+    ? cardsByColumn[claudeColumn]?.length ?? 0
+    : 0;
 
   // URLs already on the board, so the inbox can mark them instead of re-adding.
   const existingPrUrls = useMemo(
@@ -662,7 +665,9 @@ export default function App() {
         <div className="spacer" />
         {claudeColumn && (
           <button
-            className={`btn claude-btn${showClaude ? " active" : ""}`}
+            className={`btn claude-btn${showClaude ? " active" : ""}${
+              claudeCount > 0 ? " has-items" : ""
+            }`}
             onClick={() => setShowClaude((v) => !v)}
             title={claudeColumn}
           >
@@ -674,6 +679,9 @@ export default function App() {
               <path d="M12 2.2c.5 0 .9.4.9.9l.35 5.03 3.2-3.88a.9.9 0 0 1 1.42 1.1l-2.9 4.13 4.83-1.57a.9.9 0 0 1 .56 1.71l-4.83 1.57 4.83 1.57a.9.9 0 0 1-.56 1.71l-4.83-1.57 2.9 4.13a.9.9 0 0 1-1.42 1.1l-3.2-3.88-.35 5.03a.9.9 0 0 1-1.8 0l-.35-5.03-3.2 3.88a.9.9 0 0 1-1.42-1.1l2.9-4.13-4.83 1.57a.9.9 0 1 1-.56-1.71l4.83-1.57-4.83-1.57a.9.9 0 0 1 .56-1.71l4.83 1.57-2.9-4.13a.9.9 0 0 1 1.42-1.1l3.2 3.88.35-5.03c0-.5.4-.9.9-.9Z" />
             </svg>
             Suggested
+            {claudeCount > 0 && (
+              <span className="claude-count">{claudeCount}</span>
+            )}
           </button>
         )}
         <button
@@ -712,6 +720,40 @@ export default function App() {
       </header>
 
       <div className="app-body">
+      {showClaude && claudeColumn && (
+        <aside
+          className={`sidebar claude-sidebar${dragId ? " droppable" : ""}`}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => {
+            if (dragId) moveCard(dragId, claudeColumn);
+            setDragId(null);
+            setDragOverId(null);
+          }}
+        >
+          <div className="sidebar-head">
+            <h2>
+              {claudeColumn} <span className="count">{claudeCount}</span>
+            </h2>
+            <button
+              className="btn ghost"
+              onClick={() => newCard(claudeColumn)}
+              title="Add card"
+            >
+              +
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => setShowClaude(false)}
+              title="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="cards">
+            {(cardsByColumn[claudeColumn] ?? []).map(renderCard)}
+          </div>
+        </aside>
+      )}
       <div className="board">
         {boardColumns.map((col) => (
           <div
@@ -790,44 +832,6 @@ export default function App() {
         </div>
       )}
       </div>
-
-      {showClaude && claudeColumn && (
-        <div className="claude-popover">
-          <div
-            className={`column claude-column${dragId ? " droppable" : ""}`}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => {
-              if (dragId) moveCard(dragId, claudeColumn);
-              setDragId(null);
-              setDragOverId(null);
-            }}
-          >
-            <div className="column-head">
-              <span>{claudeColumn}</span>
-              <span className="count">
-                {cardsByColumn[claudeColumn]?.length ?? 0}
-              </span>
-              <button
-                className="add"
-                onClick={() => newCard(claudeColumn)}
-                title="Add card"
-              >
-                +
-              </button>
-              <button
-                className="btn ghost"
-                onClick={() => setShowClaude(false)}
-                title="Close"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="cards">
-              {(cardsByColumn[claudeColumn] ?? []).map(renderCard)}
-            </div>
-          </div>
-        </div>
-      )}
 
       {editing && (
         <CardEditor
