@@ -17,6 +17,23 @@ const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, co
 // membership is driven by each card's `hidden` flag rather than its `column`.
 const HIDDEN_COL = "__hidden__";
 
+// Cards quick-added from a pasted link or the inbox land at the TOP of this
+// column (matched case-insensitively), falling back to the first column.
+const BACKLOG_MATCH = /^backlog$/i;
+// The "Suggested by Claude" column is surfaced through a toolbar popover rather
+// than as a permanent board column.
+const CLAUDE_MATCH = /claude/i;
+
+// Insert a new card at the TOP of its column: just before the first card already
+// in that column, or at the front of the list if the column is empty.
+function insertAtColumnTop(cards: Card[], card: Card): Card[] {
+  const at = cards.findIndex((c) => c.column === card.column);
+  const next = [...cards];
+  if (at === -1) next.unshift(card);
+  else next.splice(at, 0, card);
+  return next;
+}
+
 // Fallback label for a link with no title: the site's second-level domain.
 // "https://www.figma.com/file/…" -> "figma", "docs.google.com" -> "google".
 function domainName(url: string): string {
@@ -44,6 +61,7 @@ export default function App() {
   const [quickError, setQuickError] = useState<string | null>(null);
   const [showInbox, setShowInbox] = useState(false);
   const [showDeployments, setShowDeployments] = useState(false);
+  const [showClaude, setShowClaude] = useState(false);
   const [deploymentsPaused, setDeploymentsPaused] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -210,7 +228,7 @@ export default function App() {
   async function quickCreate() {
     const url = quickLink.trim();
     if (!url || quickBusy) return;
-    const column = data.columns[0];
+    const column = backlogColumn;
     if (!column) return;
     setQuickBusy(true);
     setQuickError(null);
@@ -232,7 +250,7 @@ export default function App() {
       if (result.kind === "pr") {
         setData((d) => ({
           ...d,
-          cards: [...d.cards, base],
+          cards: insertAtColumnTop(d.cards, base),
           cache: {
             prs: { ...d.cache?.prs, [url]: result.status },
             issues: { ...d.cache?.issues },
@@ -241,7 +259,7 @@ export default function App() {
       } else {
         setData((d) => ({
           ...d,
-          cards: [...d.cards, base],
+          cards: insertAtColumnTop(d.cards, base),
           cache: {
             prs: { ...d.cache?.prs },
             issues: { ...d.cache?.issues, [url]: result.status },
@@ -259,7 +277,7 @@ export default function App() {
   // Add a card straight from an already-resolved inbox item, pre-caching its
   // status so its badges show without a refresh (mirrors quickCreate).
   function addPrCard(status: PrStatus) {
-    const column = data.columns[0];
+    const column = backlogColumn;
     if (!column) return;
     const card: Card = {
       id: crypto.randomUUID(),
@@ -270,7 +288,7 @@ export default function App() {
     };
     setData((d) => ({
       ...d,
-      cards: [...d.cards, card],
+      cards: insertAtColumnTop(d.cards, card),
       cache: {
         prs: { ...d.cache?.prs, [status.url]: status },
         issues: { ...d.cache?.issues },
@@ -279,7 +297,7 @@ export default function App() {
   }
 
   function addLinearCard(status: IssueStatus) {
-    const column = data.columns[0];
+    const column = backlogColumn;
     if (!column) return;
     const card: Card = {
       id: crypto.randomUUID(),
@@ -290,7 +308,7 @@ export default function App() {
     };
     setData((d) => ({
       ...d,
-      cards: [...d.cards, card],
+      cards: insertAtColumnTop(d.cards, card),
       cache: {
         prs: { ...d.cache?.prs },
         issues: { ...d.cache?.issues, [status.url]: status },
@@ -353,6 +371,22 @@ export default function App() {
     };
     reader.readAsText(file);
   }
+
+  // Quick-add/inbox target: the Backlog column, falling back to the first column.
+  const backlogColumn = useMemo(
+    () => data.columns.find((c) => BACKLOG_MATCH.test(c)) ?? data.columns[0],
+    [data.columns],
+  );
+  // The "Suggested by Claude" column, surfaced via its own toolbar popover, and
+  // the remaining columns that render on the board.
+  const claudeColumn = useMemo(
+    () => data.columns.find((c) => CLAUDE_MATCH.test(c)),
+    [data.columns],
+  );
+  const boardColumns = useMemo(
+    () => data.columns.filter((c) => !CLAUDE_MATCH.test(c)),
+    [data.columns],
+  );
 
   const cardsByColumn = useMemo(() => {
     const map: Record<string, Card[]> = {};
@@ -626,6 +660,22 @@ export default function App() {
         </form>
         {quickError && <span className="hint error">{quickError}</span>}
         <div className="spacer" />
+        {claudeColumn && (
+          <button
+            className={`btn claude-btn${showClaude ? " active" : ""}`}
+            onClick={() => setShowClaude((v) => !v)}
+            title={claudeColumn}
+          >
+            <svg
+              className="claude-logo"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path d="M12 2.2c.5 0 .9.4.9.9l.35 5.03 3.2-3.88a.9.9 0 0 1 1.42 1.1l-2.9 4.13 4.83-1.57a.9.9 0 0 1 .56 1.71l-4.83 1.57 4.83 1.57a.9.9 0 0 1-.56 1.71l-4.83-1.57 2.9 4.13a.9.9 0 0 1-1.42 1.1l-3.2-3.88-.35 5.03a.9.9 0 0 1-1.8 0l-.35-5.03-3.2 3.88a.9.9 0 0 1-1.42-1.1l2.9-4.13-4.83 1.57a.9.9 0 1 1-.56-1.71l4.83-1.57-4.83-1.57a.9.9 0 0 1 .56-1.71l4.83 1.57-2.9-4.13a.9.9 0 0 1 1.42-1.1l3.2 3.88.35-5.03c0-.5.4-.9.9-.9Z" />
+            </svg>
+            Suggested
+          </button>
+        )}
         <button
           className={`btn${showInbox ? " active" : ""}`}
           onClick={() => setShowInbox((v) => !v)}
@@ -663,7 +713,7 @@ export default function App() {
 
       <div className="app-body">
       <div className="board">
-        {data.columns.map((col) => (
+        {boardColumns.map((col) => (
           <div
             key={col}
             className={`column${dragId ? " droppable" : ""}`}
@@ -713,29 +763,71 @@ export default function App() {
         </div>
       </div>
 
-      {showInbox && (
-        <Inbox
-          targetColumn={data.columns[0]}
-          existingPrUrls={existingPrUrls}
-          existingLinearKeys={existingLinearKeys}
-          onAddPr={addPrCard}
-          onAddLinear={addLinearCard}
-          onDragItem={setDragItem}
-          onDragEnd={() => setDragItem(null)}
-          onClose={() => setShowInbox(false)}
-        />
-      )}
+      {(showInbox || showDeployments) && (
+        <div className="sidebar-stack">
+          {showInbox && (
+            <Inbox
+              targetColumn={backlogColumn}
+              existingPrUrls={existingPrUrls}
+              existingLinearKeys={existingLinearKeys}
+              onAddPr={addPrCard}
+              onAddLinear={addLinearCard}
+              onDragItem={setDragItem}
+              onDragEnd={() => setDragItem(null)}
+              onClose={() => setShowInbox(false)}
+            />
+          )}
 
-      {showDeployments && (
-        <Deployments
-          paused={deploymentsPaused}
-          onPausedChange={setDeploymentsPaused}
-          findCardForDeployment={findCardForDeployment}
-          onLinkCard={highlightCard}
-          onClose={() => setShowDeployments(false)}
-        />
+          {showDeployments && (
+            <Deployments
+              paused={deploymentsPaused}
+              onPausedChange={setDeploymentsPaused}
+              findCardForDeployment={findCardForDeployment}
+              onLinkCard={highlightCard}
+              onClose={() => setShowDeployments(false)}
+            />
+          )}
+        </div>
       )}
       </div>
+
+      {showClaude && claudeColumn && (
+        <div className="claude-popover">
+          <div
+            className={`column claude-column${dragId ? " droppable" : ""}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => {
+              if (dragId) moveCard(dragId, claudeColumn);
+              setDragId(null);
+              setDragOverId(null);
+            }}
+          >
+            <div className="column-head">
+              <span>{claudeColumn}</span>
+              <span className="count">
+                {cardsByColumn[claudeColumn]?.length ?? 0}
+              </span>
+              <button
+                className="add"
+                onClick={() => newCard(claudeColumn)}
+                title="Add card"
+              >
+                +
+              </button>
+              <button
+                className="btn ghost"
+                onClick={() => setShowClaude(false)}
+                title="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="cards">
+              {(cardsByColumn[claudeColumn] ?? []).map(renderCard)}
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <CardEditor
