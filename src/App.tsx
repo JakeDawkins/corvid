@@ -619,7 +619,12 @@ export default function App() {
                 (cache.prs[b]?.state === "MERGED" ? 1 : 0),
             )
             .map((u) => (
-              <PrRow key={u} url={u} status={cache.prs[u]} />
+              <PrRow
+                key={u}
+                url={u}
+                status={cache.prs[u]}
+                repoNames={data.repoNames}
+              />
             ))}
         </div>
       )}
@@ -810,6 +815,7 @@ export default function App() {
           {showInbox && (
             <Inbox
               targetColumn={backlogColumn}
+              repoNames={data.repoNames}
               existingPrUrls={existingPrUrls}
               existingLinearKeys={existingLinearKeys}
               onAddPr={addPrCard}

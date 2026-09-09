@@ -91,11 +91,31 @@ function repoFromUrl(url: string) {
   return m ? { repo: `${m[1]}/${m[2]}`, number: m[3] } : null;
 }
 
-export function PrRow({ status, url }: { status?: PrStatus; url: string }) {
+// Resolve a repo's display name, applying a "owner/repo" override from
+// data.repoNames (matched case-insensitively) when one is set.
+function repoLabel(slug: string, repoNames?: Record<string, string>): string {
+  if (!repoNames) return slug;
+  if (repoNames[slug]) return repoNames[slug];
+  const lower = slug.toLowerCase();
+  for (const [key, name] of Object.entries(repoNames)) {
+    if (key.toLowerCase() === lower) return name;
+  }
+  return slug;
+}
+
+export function PrRow({
+  status,
+  url,
+  repoNames,
+}: {
+  status?: PrStatus;
+  url: string;
+  repoNames?: Record<string, string>;
+}) {
   const parsed = repoFromUrl(url);
   const number = status?.number ?? parsed?.number;
   const label = parsed
-    ? `${parsed.repo}${number ? ` #${number}` : ""}`
+    ? `${repoLabel(parsed.repo, repoNames)}${number ? ` #${number}` : ""}`
     : `PR ${number ? `#${number}` : url.split("/").slice(-1)[0]}`;
   const badges = status
     ? [

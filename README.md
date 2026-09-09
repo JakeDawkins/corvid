@@ -60,3 +60,7 @@ server at http://localhost:8787.
 - CI state reflects GitHub's status-check rollup on the PR's latest commit; PRs with
   no checks show no CI badge.
 - Unresolved thread count looks at up to 100 review threads per PR.
+- Repo display names on PR rows can be overridden via a `repoNames` map in
+  `data.json`, keyed by `owner/repo` (case-insensitive). Example:
+  `"repoNames": { "homeaglow/homeaglowpub": "pub" }` shows `pub #123` instead of
+  `homeaglow/homeaglowpub #123`.

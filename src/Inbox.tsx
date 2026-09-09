@@ -13,6 +13,7 @@ export type DragItem =
 // or added as a new card with the + button.
 export function Inbox({
   targetColumn,
+  repoNames,
   existingPrUrls,
   existingLinearKeys,
   onAddPr,
@@ -22,6 +23,7 @@ export function Inbox({
   onClose,
 }: {
   targetColumn?: string;
+  repoNames?: Record<string, string>;
   existingPrUrls: Set<string>;
   existingLinearKeys: Set<string>;
   onAddPr: (status: PrStatus) => void;
@@ -91,7 +93,7 @@ export function Inbox({
         {handle({ kind: "pr", status: s })}
         <div className="inbox-main">
           <span className="inbox-title" title={s.title}>{s.title || s.url}</span>
-          <PrRow url={s.url} status={s} />
+          <PrRow url={s.url} status={s} repoNames={repoNames} />
         </div>
         <button className="btn" onClick={() => addPr(s)}>+ Add</button>
       </div>

@@ -63,6 +63,10 @@ export type Data = {
   // User-assigned names for accent colors, keyed by color value (e.g.
   // "#3b9eff" -> "sales"). Shown as a tag on any card using that color.
   colorTags?: Record<string, string>;
+  // Display-name overrides for GitHub repos, keyed by "owner/repo"
+  // (case-insensitive, e.g. "homeaglow/homeaglowpub" -> "pub"). When set, the
+  // override replaces the "owner/repo" text shown on PR rows.
+  repoNames?: Record<string, string>;
 };
 
 // A Vercel project (personal or under a team), used for the Deployments sidebar.
