@@ -1,0 +1,12 @@
+{
+  "name": "Corvid",
+  "short_name": "Corvid",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#15161a",
+  "theme_color": "#15161a",
+  "icons": [
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
