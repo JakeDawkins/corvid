@@ -64,7 +64,7 @@ export type Data = {
   // "#3b9eff" -> "sales"). Shown as a tag on any card using that color.
   colorTags?: Record<string, string>;
   // Display-name overrides for GitHub repos, keyed by "owner/repo"
-  // (case-insensitive, e.g. "homeaglow/homeaglowpub" -> "pub"). When set, the
+  // (case-insensitive, e.g. "acme/acme-web" -> "web"). When set, the
   // override replaces the "owner/repo" text shown on PR rows.
   repoNames?: Record<string, string>;
 };

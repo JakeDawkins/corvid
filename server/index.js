@@ -27,6 +27,10 @@ function loadEnv() {
 loadEnv();
 
 const PORT = process.env.PORT || 8787;
+// Bind to loopback only. The server holds your gh/Vercel/Linear credentials and
+// has no auth of its own, so it must not be reachable from the local network.
+// Override deliberately (e.g. HOST=0.0.0.0) only if you understand that.
+const HOST = process.env.HOST || '127.0.0.1';
 
 const DEFAULT_DATA = {
   columns: [
@@ -580,6 +584,6 @@ app.post('/api/vercel/deployments', async (req, res) => {
 const dist = join(ROOT, 'dist');
 if (existsSync(dist)) app.use(express.static(dist));
 
-app.listen(PORT, () => {
-  console.log(`gh-pr-tracker server on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`gh-pr-tracker server on http://${HOST}:${PORT}`);
 });
