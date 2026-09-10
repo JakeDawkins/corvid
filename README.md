@@ -104,7 +104,7 @@ for the authoritative version):
 
 ```jsonc
 {
-  "columns": ["Todo", "In Progress", "In Review", "Done"],
+  "columns": ["Todo", "In Progress", "In Review", "Done", "Suggested by Claude"],
   "cards": [
     {
       "id": "abc123",

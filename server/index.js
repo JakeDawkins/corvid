@@ -40,6 +40,12 @@ const DEFAULT_DATA = {
     'Addressing Feedback',
     'Top Priority Now',
     'Done',
+    // Agent-managed suggestions. Any column whose name contains "claude" is
+    // lifted out of the board into its own toolbar popover, so this one stays
+    // out of the way until something fills it (see docs/suggested-tasks-routine.md).
+    // Kept last on purpose: quick-add and the tracker script's add-card both
+    // fall back to columns[0], which should stay a real working column.
+    'Suggested by Claude',
   ],
   cards: [],
 };

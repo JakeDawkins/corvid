@@ -26,7 +26,14 @@ cards can't be touched, and every write is backed up. Because the server watches
 
 ## Setup
 
-1. **Add the column.** Create a column named `Suggested by Claude` on your board.
+1. **Check the column exists.** A board created from scratch already has
+   `Suggested by Claude` — it's in the server's default column set. If you
+   started your board before this was added, the column won't be there and the
+   routine's writes will fail with `column "Suggested by Claude" does not exist`.
+   There's no UI for adding a column, so add it by exporting your board, adding
+   the name to the end of `columns`, and importing it back. Keep it last: the
+   quick-add button and the tracker's `add-card` both fall back to `columns[0]`,
+   which should stay a real working column.
 
 2. **Save the prompt.** Put the template below at
    `~/.claude/scheduled-tasks/<routine-name>/SKILL.md`.
