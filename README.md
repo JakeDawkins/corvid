@@ -22,8 +22,8 @@ those features simply stay empty.
 ## Setup
 
 ```bash
-git clone <your-fork-url> pr-tracker
-cd pr-tracker
+git clone https://github.com/JakeDawkins/corvid.git
+cd corvid
 npm install
 
 # Optional: Linear key and/or overrides
@@ -161,6 +161,10 @@ guessing. It refuses to write if any other card or the card ordering would
 change, backs the file up to `~/.pr-tracker-backups/` first (last 20 kept), and
 takes `--dry` to preview. Because the server watches `data.json`, an open board
 picks up these edits on its own.
+
+There's also an optional scheduled routine that fills a "Suggested by Claude"
+column with work worth picking up — see
+[docs/suggested-tasks-routine.md](docs/suggested-tasks-routine.md).
 
 By default it targets `tasks-data/data.json` in the repo the skill ships inside,
 resolved from the script's own location rather than the working directory. If

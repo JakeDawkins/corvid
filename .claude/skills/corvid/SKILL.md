@@ -1,9 +1,9 @@
 ---
 name: corvid
-description: Read and edit the PR Tracker board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), create a new card, or asks what's on the board / in a column.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), create a new card, or asks what's on the board / in a column.
 ---
 
-# PR Tracker board edits
+# Corvid board edits
 
 The board is a local single-user app whose entire state is one flat file. Use
 `scripts/tracker.mjs` in this skill directory for all mutations; it is the only
@@ -11,7 +11,7 @@ safe way to touch the file (see Rules).
 
 ## The one file that counts
 
-**`<repo>/tasks-data/data.json`**, where `<repo>` is the PR Tracker checkout this
+**`<repo>/tasks-data/data.json`**, where `<repo>` is the Corvid checkout this
 skill ships inside. The script derives that path from its own location, so it
 works from any working directory without configuration.
 
