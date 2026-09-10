@@ -97,6 +97,7 @@ node $S set <query> [--title T] [--column C] [--color HEX|NAME|none]
                     [--notes N] [--append-notes N] [--hidden true|false]
 node $S add-card --title T [--column C] [--link URL]... [--color C]
                  [--complexity XS|S|M|L|XL] [--notes N] [--hidden] [--top]
+node $S add-column <name> [--after EXISTING]
 node $S validate                     # schema + JSON check
 ```
 
@@ -136,8 +137,15 @@ node $S add-link "checkout redirect" https://github.com/acme/acme-web/pull/317
 - If a command reports 0 cards or an unfamiliar board, you are almost certainly
   pointed at a decoy copy, not an empty board. Check `where` before writing.
 - Only use existing column names. If the user names a column that doesn't
-  exist, list the real ones and ask; don't add a column unless they ask for one
-  (that means editing `columns[]` directly, so confirm first).
+  exist, list the real ones and ask — don't create one to make a command
+  succeed. When they do ask for a new column, use `add-column`; never hand-edit
+  `columns[]`. It appends by default, or takes `--after EXISTING` to position
+  it. There is no way to add one at position 0, on purpose: the app's quick-add
+  and this script's `add-card` both fall back to `columns[0]`, so an empty
+  column there would start swallowing new cards.
+- Adding a column is not reversible with this script (there is no
+  `remove-column`, since it would orphan cards), so confirm the exact name
+  first.
 - Deleting a card is not a script command on purpose. If the user wants one
   gone, prefer `set <query> --hidden true`; only hard-delete if they explicitly
   ask, and confirm the exact card first.

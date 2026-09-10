@@ -16,6 +16,7 @@
 //              [--append-notes N] [--hidden true|false]
 //   add-card --title T [--column C] [--link URL]... [--color HEX]
 //            [--complexity XS|S|M|L|XL] [--notes N] [--hidden] [--top]
+//   add-column <name> [--after EXISTING]
 //   validate
 //   where                      // print the resolved tasks-data/data.json path and why
 //
@@ -241,6 +242,12 @@ function commit(before, data, cardId, summary) {
     console.log('no change (data.json already matches the requested state)');
     return;
   }
+  writeAndReport(next, summary);
+}
+
+// Back up, write, and report. Shared by the card and column commit paths so the
+// backup/reporting behaviour can't drift between them.
+function writeAndReport(next, summary) {
   if (DRY) {
     console.log('--- DRY RUN, nothing written ---');
     console.log(summary);
@@ -259,6 +266,26 @@ function commit(before, data, cardId, summary) {
         `this change on its own. The one exception is an edit made in the browser in the same ` +
         `moment: the page's own unsaved state wins and would overwrite this write.`,
     );
+}
+
+// Guard for a columns[] change: no card may be touched, and every pre-existing
+// column must survive in its original relative order. Only additions pass.
+function assertColumnsOnly(beforeData, afterData) {
+  if (JSON.stringify(beforeData.cards) !== JSON.stringify(afterData.cards))
+    die('refusing to write: the change would modify cards');
+  const kept = afterData.columns.filter((c) => beforeData.columns.includes(c));
+  if (JSON.stringify(kept) !== JSON.stringify(beforeData.columns))
+    die('refusing to write: the change would remove or reorder existing columns');
+}
+
+function commitColumns(before, data, summary) {
+  assertColumnsOnly(JSON.parse(before), data);
+  const next = serialize(data);
+  if (next === before) {
+    console.log('no change (data.json already matches the requested state)');
+    return;
+  }
+  writeAndReport(next, summary);
 }
 
 const short = (id) => id.slice(0, 8);
@@ -527,6 +554,37 @@ switch (cmd) {
       card.id,
       `added card ${short(card.id)} ${JSON.stringify(title)} to [${column}]` +
         (card.links.length ? `\n  ${card.links.map((l) => l.url).join('\n  ')}` : ''),
+    );
+    break;
+  }
+  case 'add-column': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const after = flag('after');
+    const name = argv.shift();
+    if (typeof name !== 'string' || !name.trim()) die('add-column requires a column name');
+    const trimmed = name.trim();
+    const clash = data.columns.find((c) => c.toLowerCase() === trimmed.toLowerCase());
+    if (clash)
+      die(
+        `column ${JSON.stringify(clash)} already exists` +
+          (clash === trimmed ? '' : ` (differs only in case from ${JSON.stringify(trimmed)})`),
+      );
+    // Append by default. Position 0 is deliberately not offered: the app's
+    // quick-add button and this script's add-card both fall back to columns[0],
+    // so a new empty column there would start swallowing new cards.
+    let index = data.columns.length;
+    if (typeof after === 'string') {
+      requireColumn(data, after);
+      index = data.columns.indexOf(after) + 1;
+    }
+    data.columns.splice(index, 0, trimmed);
+    commitColumns(
+      before,
+      data,
+      `added column ${JSON.stringify(trimmed)} at position ${index + 1} of ${data.columns.length}\n` +
+        `  columns: ${data.columns.join(' | ')}`,
     );
     break;
   }

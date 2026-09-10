@@ -153,6 +153,7 @@ node $S list --all
 node $S add-link "checkout redirect" https://github.com/acme/acme-web/pull/317
 node $S set "checkout redirect" --column "In Review" --complexity L
 node $S add-card --title "New task" --column Todo --top
+node $S add-column "Suggested by Claude"
 ```
 
 Every mutation targets exactly one card, matched by uuid, title substring, or
