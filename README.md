@@ -1,4 +1,4 @@
-# PR Tracker
+# Corvid
 
 A local, single-user Kanban board that links ad-hoc tasks to GitHub PRs and Linear
 issues and shows their live status as badges. Runs entirely on your machine, with
