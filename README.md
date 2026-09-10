@@ -134,6 +134,40 @@ Two conveniences worth knowing:
   It's an ordinary column otherwise, useful as a drop target for an agent that
   proposes work.
 
+## Editing the board from an agent
+
+The repo ships a [Claude Code](https://claude.com/claude-code) skill at
+`.claude/skills/corvid/` that lets an agent read and edit the board for you:
+"add this PR to the checkout card", "move the redirect card to In Review",
+"what's in my Todo column". Clone the repo and Claude Code picks it up
+automatically when you work in this directory.
+
+It drives `.claude/skills/corvid/scripts/tracker.mjs`, a standalone Node script
+with no dependencies, so it's equally usable by hand or from any other agent:
+
+```bash
+S=.claude/skills/corvid/scripts/tracker.mjs
+node $S where                 # which data.json am I pointed at?
+node $S columns               # columns, card counts, color tags
+node $S list --all
+node $S add-link "checkout redirect" https://github.com/acme/acme-web/pull/317
+node $S set "checkout redirect" --column "In Review" --complexity L
+node $S add-card --title "New task" --column Todo --top
+```
+
+Every mutation targets exactly one card, matched by uuid, title substring, or
+link substring; an ambiguous match aborts with the candidates rather than
+guessing. It refuses to write if any other card or the card ordering would
+change, backs the file up to `~/.pr-tracker-backups/` first (last 20 kept), and
+takes `--dry` to preview. Because the server watches `data.json`, an open board
+picks up these edits on its own.
+
+By default it targets `tasks-data/data.json` in the repo the skill ships inside,
+resolved from the script's own location rather than the working directory. If
+your board lives in a different checkout, point `PR_TRACKER_DIR` at it. Linked
+git worktrees are refused, since their git-ignored `tasks-data/` is an empty
+decoy board.
+
 ## Notes and limits
 
 - Single user, single machine, no auth. It is not built to be hosted.
@@ -145,3 +179,7 @@ Two conveniences worth knowing:
 - The inbox reads up to 100 open PRs and 100 Linear issues/projects.
 - Status is fetched on demand, not polled. Hit **Refresh** when you want it
   current.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
