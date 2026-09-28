@@ -8,6 +8,19 @@ const RESOURCE_ICON: Record<NonNullable<LinearResource["type"]>, string> = {
   link: "↗",
 };
 
+// A card's freeform link (Slack, Notion, Figma, …) as a tinted chip with a link icon.
+export function LinkChip({ url, label }: { url: string; label: string }) {
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="chip link-chip" title={url}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+      </svg>
+      <span>{label}</span>
+    </a>
+  );
+}
+
 // Label a resource by its title, falling back to the link's hostname.
 function resourceLabel(r: LinearResource): string {
   if (r.title?.trim()) return r.title.trim();

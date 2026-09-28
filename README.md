@@ -47,12 +47,12 @@ npm run build && npm start   # http://localhost:8787
 ## What it does
 
 - **Kanban board** with columns you define yourself; drag cards between them.
-  Columns live in `data.json`, so rename or reorder them however you like.
+  Add, rename, or delete columns from the Settings page (gear icon); they live in `data.json`.
 - **Cards** are either ad-hoc (just a title) or a bundle of links: any number of
   GitHub PRs, Linear issues/projects, and freeform links (Slack, Notion, Figma, …).
   Paste a GitHub PR or Linear URL into the quick-add box and it resolves the
   title for you.
-- **Refresh** pulls live status for every linked item:
+- **Refresh** pulls live status for every linked item on non-hidden cards:
   - **PR:** open / merged / closed / draft, CI rollup (✓ / ✗ / …), review decision
     (approved / changes requested / review required), and unresolved review
     thread count.

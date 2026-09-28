@@ -55,3 +55,15 @@ export function linearKey(url: string): string {
   if (project) return `project:${project[1].toLowerCase()}`;
   return s.trim();
 }
+
+// Fallback label for a link with no title: the site's second-level domain.
+// "https://www.figma.com/file/…" -> "figma", "docs.google.com" -> "google".
+export function domainName(url: string): string {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    const parts = host.split(".");
+    return parts.length >= 2 ? parts[parts.length - 2] : host;
+  } catch {
+    return url.replace(/^https?:\/\//, "").split("/")[0] || "link";
+  }
+}

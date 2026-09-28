@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Card, Link } from "./types";
-import { linkKind } from "./links";
+import { domainName, linkKind } from "./links";
+import { LinkChip } from "./Badges";
 import { COLORS } from "./colors";
 import { COMPLEXITY_LEVELS } from "./Complexity";
 
@@ -10,6 +11,13 @@ const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
   linear: "Linear",
   generic: "Link",
 };
+
+// Chip text for an untitled link: its kind for PRs/Linear, else its site name
+// (matching how the card itself labels untitled links).
+function chipFallback(url: string): string {
+  const kind = linkKind(url);
+  return kind === "generic" ? domainName(url) : KIND_LABEL[kind];
+}
 
 export function CardEditor({
   card,
@@ -35,8 +43,11 @@ export function CardEditor({
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  // Always keep a trailing empty row so a new link field is ready without a button.
-  const [links, setLinks] = useState<Link[]>([...card.links, { label: "", url: "" }]);
+  const [links, setLinks] = useState<Link[]>(card.links);
+  // URL typed into the add-link box, not yet added to `links`.
+  const [newUrl, setNewUrl] = useState("");
+  // The link row currently open for editing, with its unsaved values.
+  const [editing, setEditing] = useState<{ index: number; link: Link } | null>(null);
 
   // Build a paste-ready instruction for an AI agent to work on this card: the
   // task, its links (so the agent has full context), and a standing instruction
@@ -88,19 +99,45 @@ export function CardEditor({
     }
   }
 
-  function updateLink(i: number, patch: Partial<Link>) {
-    setLinks((ls) => {
-      const next = ls.map((x, j) => (j === i ? { ...x, ...patch } : x));
-      const last = next[next.length - 1];
-      if (last.label.trim() || last.url.trim()) next.push({ label: "", url: "" });
-      return next;
-    });
+  function addLink() {
+    const url = newUrl.trim();
+    if (!url) return;
+    setLinks((ls) => [...ls, { label: "", url }]);
+    setNewUrl("");
+  }
+
+  function removeLink(i: number) {
+    setLinks((ls) => ls.filter((_, j) => j !== i));
+    setEditing(null);
+  }
+
+  // Apply the open edit. Clearing the URL removes the link.
+  function commitEdit() {
+    if (!editing) return;
+    const { index, link } = editing;
+    if (!link.url.trim()) return removeLink(index);
+    setLinks((ls) => ls.map((l, j) => (j === index ? link : l)));
+    setEditing(null);
+  }
+
+  function editKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commitEdit();
+    } else if (e.key === "Escape") {
+      // Cancel just the link edit, not the whole card.
+      e.stopPropagation();
+      setEditing(null);
+    }
   }
 
   function save() {
+    // Keep an open edit or a typed-but-not-added URL rather than dropping it.
+    const final = links.map((l, i) => (editing?.index === i ? editing.link : l));
+    if (newUrl.trim()) final.push({ label: "", url: newUrl.trim() });
     onSave({
       ...draft,
-      links: links.filter((l) => l.url.trim()),
+      links: final.filter((l) => l.url.trim()),
     });
   }
 
@@ -192,28 +229,68 @@ export function CardEditor({
 
         <div className="field">
           <span>Links (GitHub PRs, Linear, Slack, Notion, Figma…)</span>
-          {links.map((l, i) => (
-            <div key={i} className="link-editor">
-              <input
-                placeholder="Label (optional)"
-                value={l.label}
-                onChange={(e) => updateLink(i, { label: e.target.value })}
-              />
-              <input
-                placeholder="https://…"
-                value={l.url}
-                onChange={(e) => updateLink(i, { url: e.target.value })}
-              />
-              {l.url.trim() && (
-                <span className="link-kind">{KIND_LABEL[linkKind(l.url)]}</span>
-              )}
-              {i < links.length - 1 && (
-                <button className="btn" onClick={() => setLinks((ls) => ls.filter((_, j) => j !== i))}>
+          {links.map((l, i) =>
+            editing?.index === i ? (
+              <div key={i} className="link-editor">
+                <input
+                  autoFocus
+                  placeholder="Title (optional)"
+                  value={editing.link.label}
+                  onChange={(e) =>
+                    setEditing({ index: i, link: { ...editing.link, label: e.target.value } })
+                  }
+                  onKeyDown={editKeyDown}
+                />
+                <input
+                  placeholder="https://…"
+                  value={editing.link.url}
+                  onChange={(e) =>
+                    setEditing({ index: i, link: { ...editing.link, url: e.target.value } })
+                  }
+                  onKeyDown={editKeyDown}
+                />
+                <button type="button" className="btn primary" onClick={commitEdit}>
+                  Done
+                </button>
+                <button type="button" className="btn" onClick={() => setEditing(null)}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div key={i} className="link-row">
+                <LinkChip url={l.url} label={l.label.trim() || chipFallback(l.url)} />
+                <span className="link-url" title={l.url}>
+                  {l.url}
+                </span>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setEditing({ index: i, link: { ...l } })}
+                >
+                  Edit
+                </button>
+                <button type="button" className="btn" title="Delete link" onClick={() => removeLink(i)}>
                   ✕
                 </button>
-              )}
-            </div>
-          ))}
+              </div>
+            ),
+          )}
+          <div className="link-editor">
+            <input
+              placeholder="https://…"
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addLink();
+                }
+              }}
+            />
+            <button type="button" className="btn" onClick={addLink} disabled={!newUrl.trim()}>
+              Add
+            </button>
+          </div>
         </div>
 
         <div className="modal-actions">

@@ -1,28 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
-import { linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
+import { domainName, linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
 import type { VercelDeployment } from "./types";
-import { IssueRow, PrRow } from "./Badges";
+import { IssueRow, LinkChip, PrRow } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { textOn } from "./colors";
 import { ComplexityBars } from "./Complexity";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
 import { Deployments } from "./Deployments";
+import { Settings } from "./Settings";
+import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
 
 // Virtual column id for the far-right "Hidden" column. Not a real user column;
 // membership is driven by each card's `hidden` flag rather than its `column`.
 const HIDDEN_COL = "__hidden__";
-
-// Cards quick-added from a pasted link or the inbox land at the TOP of this
-// column (matched case-insensitively), falling back to the first column.
-const BACKLOG_MATCH = /^backlog$/i;
-// The "Suggested by Claude" column is surfaced through a toolbar popover rather
-// than as a permanent board column.
-const CLAUDE_MATCH = /claude/i;
 
 // Insert a new card at the TOP of its column: just before the first card already
 // in that column, or at the front of the list if the column is empty.
@@ -32,18 +27,6 @@ function insertAtColumnTop(cards: Card[], card: Card): Card[] {
   if (at === -1) next.unshift(card);
   else next.splice(at, 0, card);
   return next;
-}
-
-// Fallback label for a link with no title: the site's second-level domain.
-// "https://www.figma.com/file/…" -> "figma", "docs.google.com" -> "google".
-function domainName(url: string): string {
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, "");
-    const parts = host.split(".");
-    return parts.length >= 2 ? parts[parts.length - 2] : host;
-  } catch {
-    return url.replace(/^https?:\/\//, "").split("/")[0] || "link";
-  }
 }
 
 export default function App() {
@@ -62,6 +45,7 @@ export default function App() {
   const [showInbox, setShowInbox] = useState(false);
   const [showDeployments, setShowDeployments] = useState(false);
   const [showClaude, setShowClaude] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [deploymentsPaused, setDeploymentsPaused] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -121,8 +105,11 @@ export default function App() {
   const cache = data.cache ?? { prs: {}, issues: {} };
 
   async function doRefresh() {
+    // Skip hidden cards; their cached status is left as-is.
     const urls = [
-      ...new Set(data.cards.flatMap((c) => c.links.map((l) => l.url))),
+      ...new Set(
+        data.cards.filter((c) => !c.hidden).flatMap((c) => c.links.map((l) => l.url)),
+      ),
     ];
     const prUrls = urls.filter((u) => linkKind(u) === "pr");
     const linearUrls = urls.filter((u) => linkKind(u) === "linear");
@@ -164,6 +151,24 @@ export default function App() {
       ...d,
       cards: d.cards.map((c) => (c.id === id ? { ...c, hidden: !c.hidden } : c)),
     }));
+  }
+
+  // Rename a column in place, moving its cards (hidden ones included) with it.
+  function renameColumn(from: string, to: string) {
+    setData((d) => ({
+      ...d,
+      columns: d.columns.map((c) => (c === from ? to : c)),
+      cards: d.cards.map((c) => (c.column === from ? { ...c, column: to } : c)),
+    }));
+  }
+
+  function addColumn(name: string) {
+    setData((d) => ({ ...d, columns: [...d.columns, name] }));
+  }
+
+  // Only offered for empty columns, so no cards need to move.
+  function deleteColumn(name: string) {
+    setData((d) => ({ ...d, columns: d.columns.filter((c) => c !== name) }));
   }
 
   // Name (or rename) an accent color globally. An empty name clears the tag.
@@ -388,6 +393,13 @@ export default function App() {
     [data.columns],
   );
 
+  // Cards per column, hidden ones included, for the Settings page.
+  const columnCardCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const c of data.cards) counts[c.column] = (counts[c.column] ?? 0) + 1;
+    return counts;
+  }, [data.cards]);
+
   const cardsByColumn = useMemo(() => {
     const map: Record<string, Card[]> = {};
     for (const col of data.columns) map[col] = [];
@@ -593,9 +605,7 @@ export default function App() {
       {otherLinks.length > 0 && (
         <div className="group links">
           {otherLinks.map((l, i) => (
-            <a key={i} href={l.url} target="_blank" rel="noreferrer" className="chip">
-              {l.label?.trim() || domainName(l.url)}
-            </a>
+            <LinkChip key={i} url={l.url} label={l.label?.trim() || domainName(l.url)} />
           ))}
         </div>
       )}
@@ -722,8 +732,29 @@ export default function App() {
             e.target.value = "";
           }}
         />
+        <button
+          className={`btn${showSettings ? " active" : ""}`}
+          onClick={() => setShowSettings((v) => !v)}
+          title="Settings"
+          aria-label="Settings"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+          </svg>
+        </button>
       </header>
 
+      {showSettings ? (
+        <Settings
+          columns={data.columns}
+          cardCounts={columnCardCounts}
+          onRenameColumn={renameColumn}
+          onAddColumn={addColumn}
+          onDeleteColumn={deleteColumn}
+          onClose={() => setShowSettings(false)}
+        />
+      ) : (
       <div className="app-body">
       {showClaude && claudeColumn && (
         <aside
@@ -838,6 +869,7 @@ export default function App() {
         </div>
       )}
       </div>
+      )}
 
       {editing && (
         <CardEditor
