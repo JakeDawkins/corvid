@@ -153,6 +153,7 @@ query($q:String!){
       ... on PullRequest {
         title number url isDraft state merged
         reviewDecision
+        repository{ isArchived }
         reviewThreads(first:100){ totalCount nodes { isResolved } }
         commits(last:1){ nodes { commit { statusCheckRollup { state } } } }
       }
@@ -175,7 +176,13 @@ async function fetchMyPrs() {
       { maxBuffer: 10 * 1024 * 1024 },
     );
     const nodes = JSON.parse(stdout)?.data?.search?.nodes || [];
-    return { prs: nodes.filter((n) => n && n.url).map(shapePr) };
+    // The search's archived:false qualifier isn't reliable (GitHub's index can
+    // lag behind a repo being archived), so also drop archived repos here.
+    return {
+      prs: nodes
+        .filter((n) => n && n.url && !n.repository?.isArchived)
+        .map(shapePr),
+    };
   } catch (e) {
     return { prs: [], githubError: cleanErr(e) };
   }

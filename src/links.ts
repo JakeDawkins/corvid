@@ -16,6 +16,12 @@ export function linkKind(url: string): LinkKind {
   return "generic";
 }
 
+// Case-insensitive membership test for name lists like data.hiddenRepos.
+export function hasName(list: string[] | undefined, name: string): boolean {
+  const n = name.toLowerCase();
+  return !!list?.some((x) => x.toLowerCase() === n);
+}
+
 // Parse a GitHub PR URL into its owner/repo/number. Mirrors the server's
 // parsePrUrl. Returns null for anything that isn't a PR link.
 export function parsePrUrl(

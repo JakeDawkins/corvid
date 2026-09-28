@@ -120,7 +120,9 @@ for the authoritative version):
   ],
   "cache": { "prs": {}, "issues": {} },
   "colorTags": { "#3b9eff": "sales" },
-  "repoNames": { "acme/acme-web": "web" }
+  "repoNames": { "acme/acme-web": "web" },
+  "hiddenRepos": ["acme/old-app"],
+  "hiddenVercelProjects": ["acme-docs"]
 }
 ```
 
@@ -129,6 +131,10 @@ Two conveniences worth knowing:
 - `repoNames` overrides the repo label on PR rows, keyed by `owner/repo`
   (case-insensitive). The example above shows `web #123` instead of
   `acme/acme-web #123`.
+- `hiddenRepos` (`owner/repo`) leaves those repos' PRs out of My work, and
+  `hiddenVercelProjects` (project names) leaves those projects out of
+  Deployments. Both are case-insensitive and editable on the Settings page.
+  PRs from archived repos are always left out of My work.
 - Any column whose name contains "claude" is treated as a suggestions column and
   moved out of the main board into its own toolbar popover with a count badge.
   It's an ordinary column otherwise, useful as a drop target for an agent that

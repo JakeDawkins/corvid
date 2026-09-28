@@ -181,6 +181,23 @@ export default function App() {
     });
   }
 
+  // Hide or unhide a repo (My work) or Vercel project (Deployments) by name,
+  // matched case-insensitively.
+  function setNameHidden(
+    key: "hiddenRepos" | "hiddenVercelProjects",
+    name: string,
+    hide: boolean,
+  ) {
+    setData((d) => {
+      const rest = (d[key] ?? []).filter((n) => n.toLowerCase() !== name.toLowerCase());
+      return { ...d, [key]: hide ? [...rest, name] : rest };
+    });
+  }
+  const setRepoHidden = (name: string, hide: boolean) =>
+    setNameHidden("hiddenRepos", name, hide);
+  const setProjectHidden = (name: string, hide: boolean) =>
+    setNameHidden("hiddenVercelProjects", name, hide);
+
   // Move a card to a column, placing it after the column's current last card so
   // it lands at the bottom of that list rather than keeping its old array slot.
   // Dropping onto the Hidden column hides the card (keeping its real column);
@@ -392,6 +409,23 @@ export default function App() {
     () => data.columns.filter((c) => !CLAUDE_MATCH.test(c)),
     [data.columns],
   );
+
+  // Repos seen on the board or in the status cache, suggested when hiding a repo.
+  const knownRepos = useMemo(() => {
+    const urls = [
+      ...data.cards.flatMap((c) => c.links.map((l) => l.url)),
+      ...Object.keys(data.cache?.prs ?? {}),
+    ];
+    const repos = new Map<string, string>();
+    for (const u of urls) {
+      const ref = parsePrUrl(u);
+      if (ref) {
+        const slug = `${ref.owner}/${ref.repo}`;
+        repos.set(slug.toLowerCase(), slug);
+      }
+    }
+    return [...repos.values()].sort((a, b) => a.localeCompare(b));
+  }, [data.cards, data.cache]);
 
   // Cards per column, hidden ones included, for the Settings page.
   const columnCardCounts = useMemo(() => {
@@ -752,6 +786,11 @@ export default function App() {
           onRenameColumn={renameColumn}
           onAddColumn={addColumn}
           onDeleteColumn={deleteColumn}
+          hiddenRepos={data.hiddenRepos ?? []}
+          knownRepos={knownRepos}
+          onSetRepoHidden={setRepoHidden}
+          hiddenVercelProjects={data.hiddenVercelProjects ?? []}
+          onSetProjectHidden={setProjectHidden}
           onClose={() => setShowSettings(false)}
         />
       ) : (
@@ -847,6 +886,7 @@ export default function App() {
             <Inbox
               targetColumn={backlogColumn}
               repoNames={data.repoNames}
+              hiddenRepos={data.hiddenRepos}
               existingPrUrls={existingPrUrls}
               existingLinearKeys={existingLinearKeys}
               onAddPr={addPrCard}
@@ -861,6 +901,8 @@ export default function App() {
             <Deployments
               paused={deploymentsPaused}
               onPausedChange={setDeploymentsPaused}
+              hiddenProjects={data.hiddenVercelProjects}
+              onSetProjectHidden={setProjectHidden}
               findCardForDeployment={findCardForDeployment}
               onLinkCard={highlightCard}
               onClose={() => setShowDeployments(false)}

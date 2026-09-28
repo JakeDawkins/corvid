@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
+import { loadVercelProjects } from "./api";
+import { hasName } from "./links";
+import type { VercelProject } from "./types";
 
 // Why a proposed column name can't be used, or null if it's fine. `current` is
 // the column being renamed, so keeping (or re-casing) its own name is allowed.
@@ -16,6 +19,11 @@ export function Settings({
   onRenameColumn,
   onAddColumn,
   onDeleteColumn,
+  hiddenRepos,
+  knownRepos,
+  onSetRepoHidden,
+  hiddenVercelProjects,
+  onSetProjectHidden,
   onClose,
 }: {
   columns: string[];
@@ -24,6 +32,12 @@ export function Settings({
   onRenameColumn: (from: string, to: string) => void;
   onAddColumn: (name: string) => void;
   onDeleteColumn: (name: string) => void;
+  hiddenRepos: string[];
+  // "owner/repo" slugs seen on the board, offered as suggestions.
+  knownRepos: string[];
+  onSetRepoHidden: (repo: string, hidden: boolean) => void;
+  hiddenVercelProjects: string[];
+  onSetProjectHidden: (name: string, hidden: boolean) => void;
   onClose: () => void;
 }) {
   const [newName, setNewName] = useState("");
@@ -77,7 +91,147 @@ export function Settings({
           {addError && <span className="hint error">{addError}</span>}
         </form>
       </section>
+
+      <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
+      <HiddenVercelProjects hidden={hiddenVercelProjects} onSetHidden={onSetProjectHidden} />
     </div>
+  );
+}
+
+// Accepts "owner/repo" or any github.com URL inside the repo.
+function parseRepo(input: string): string | null {
+  const m = input.trim().match(/^(?:https?:\/\/)?(?:www\.)?(?:github\.com\/)?([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:[/?#].*)?$/i);
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+function HiddenRepos({
+  hidden,
+  known,
+  onSetHidden,
+}: {
+  hidden: string[];
+  known: string[];
+  onSetHidden: (repo: string, hidden: boolean) => void;
+}) {
+  const [value, setValue] = useState("");
+  const repo = parseRepo(value);
+  const error = !value.trim()
+    ? null
+    : !repo
+      ? 'Enter a repo as "owner/repo" or paste a GitHub link.'
+      : hasName(hidden, repo)
+        ? "That repo is already hidden."
+        : null;
+
+  return (
+    <section className="settings-section">
+      <h3>Hidden repositories</h3>
+      <p className="hint">Open PRs from these repos are left out of My work.</p>
+      {hidden.length === 0 && <p className="hint">No hidden repositories.</p>}
+      {hidden.map((r) => (
+        <div className="settings-row" key={r}>
+          <div className="settings-row-main">
+            <span className="settings-name">{r}</span>
+            <button type="button" className="btn" onClick={() => onSetHidden(r, false)}>
+              Unhide
+            </button>
+          </div>
+        </div>
+      ))}
+      <form
+        className="settings-row settings-add"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (repo && !error) {
+            onSetHidden(repo, true);
+            setValue("");
+          }
+        }}
+      >
+        <div className="settings-row-main">
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="owner/repo"
+            aria-label="Repository to hide"
+            list="known-repos"
+          />
+          <datalist id="known-repos">
+            {known
+              .filter((r) => !hasName(hidden, r))
+              .map((r) => (
+                <option key={r} value={r} />
+              ))}
+          </datalist>
+          <button type="submit" className="btn" disabled={!repo || !!error}>
+            Hide repo
+          </button>
+        </div>
+        {error && <span className="hint error">{error}</span>}
+      </form>
+    </section>
+  );
+}
+
+function HiddenVercelProjects({
+  hidden,
+  onSetHidden,
+}: {
+  hidden: string[];
+  onSetHidden: (name: string, hidden: boolean) => void;
+}) {
+  const [projects, setProjects] = useState<VercelProject[] | null>(null);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    loadVercelProjects().then(({ projects, error }) => {
+      setProjects(projects);
+      setError(error);
+    });
+  }, []);
+
+  // Names in the data file that no loaded project matches (renamed, deleted, or
+  // Vercel unreachable), so they can still be unhidden.
+  const unmatched = hidden.filter((n) => !projects?.some((p) => p.name.toLowerCase() === n.toLowerCase()));
+
+  return (
+    <section className="settings-section">
+      <h3>Vercel projects</h3>
+      <p className="hint">Click a project to show or hide it in Deployments.</p>
+      {error && <p className="hint error">{error}</p>}
+      {projects === null ? (
+        <p className="hint">Loading…</p>
+      ) : (
+        <div className="settings-pills">
+          {projects.map((p) => {
+            const on = !hasName(hidden, p.name);
+            return (
+              <button
+                key={p.id}
+                className={`pill${on ? " active" : ""}`}
+                onClick={() => onSetHidden(p.name, on)}
+                title={on ? "Hide" : "Show"}
+              >
+                {p.name}
+              </button>
+            );
+          })}
+          {unmatched.map((n) => (
+            <button
+              key={n}
+              className="pill"
+              onClick={() => onSetHidden(n, false)}
+              title="Not found in Vercel. Click to remove from the hidden list."
+            >
+              {n}
+            </button>
+          ))}
+          {projects.length === 0 && unmatched.length === 0 && !error && (
+            <p className="hint">No Vercel projects.</p>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

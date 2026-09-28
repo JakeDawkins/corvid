@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { VercelDeployment, VercelProject } from "./types";
 import { loadVercelDeployments, loadVercelProjects } from "./api";
+import { hasName } from "./links";
 
 const REFRESH_MS = 15000;
 // Stop polling after this long without a manual resume, so a forgotten-open
 // sidebar doesn't hammer the API indefinitely.
 const AUTO_PAUSE_MS = 4 * 60 * 60 * 1000; // 4 hours
-// Which projects are hidden, persisted so toggles survive reloads. We store the
-// hidden set (not the shown set) so newly-appearing projects default to shown.
-const HIDDEN_KEY = "vercel_hidden_projects_v1";
+// Hidden projects used to live in localStorage as project ids. They now live in
+// data.hiddenVercelProjects (by name); this key is only read once to migrate.
+const LEGACY_HIDDEN_KEY = "vercel_hidden_projects_v1";
 
-function loadHidden(): Set<string> {
+function takeLegacyHidden(): string[] {
   try {
-    const raw = localStorage.getItem(HIDDEN_KEY);
+    const raw = localStorage.getItem(LEGACY_HIDDEN_KEY);
+    localStorage.removeItem(LEGACY_HIDDEN_KEY);
     const arr = raw ? (JSON.parse(raw) as string[]) : [];
-    return new Set(Array.isArray(arr) ? arr : []);
+    return Array.isArray(arr) ? arr : [];
   } catch {
-    return new Set();
+    return [];
   }
 }
 
@@ -44,12 +46,18 @@ function stateClass(s: string): string {
 export function Deployments({
   paused,
   onPausedChange,
+  hiddenProjects,
+  onSetProjectHidden,
   findCardForDeployment,
   onLinkCard,
   onClose,
 }: {
   paused: boolean;
   onPausedChange: (paused: boolean) => void;
+  // Project names from data.hiddenVercelProjects. Stored as a hidden list (not
+  // a shown list) so newly-appearing projects default to shown.
+  hiddenProjects?: string[];
+  onSetProjectHidden: (name: string, hidden: boolean) => void;
   findCardForDeployment: (dep: VercelDeployment) => string | null;
   onLinkCard: (cardId: string) => void;
   onClose: () => void;
@@ -58,7 +66,6 @@ export function Deployments({
   const [deployments, setDeployments] = useState<
     Record<string, VercelDeployment[]>
   >({});
-  const [hidden, setHidden] = useState<Set<string>>(loadHidden);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -66,14 +73,6 @@ export function Deployments({
 
   const projectsRef = useRef<VercelProject[]>([]);
   projectsRef.current = projects;
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
-    } catch {
-      // ignore storage failures
-    }
-  }, [hidden]);
 
   const refresh = useCallback(async () => {
     const ps = projectsRef.current;
@@ -98,6 +97,13 @@ export function Deployments({
         setProjects(projects);
         projectsRef.current = projects;
         if (error) setError(error);
+        // Only migrate once projects loaded, since ids map to names through them.
+        if (projects.length) {
+          for (const id of takeLegacyHidden()) {
+            const p = projects.find((p) => p.id === id);
+            if (p) onSetProjectHidden(p.name, true);
+          }
+        }
         await refresh();
       })
       .finally(() => setLoading(false));
@@ -127,16 +133,8 @@ export function Deployments({
     if (!paused) refresh();
   }, [paused, refresh]);
 
-  function toggle(id: string) {
-    setHidden((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  const visible = projects.filter((p) => !hidden.has(p.id));
+  const isHidden = (p: VercelProject) => hasName(hiddenProjects, p.name);
+  const visible = projects.filter((p) => !isHidden(p));
 
   return (
     <aside className={`sidebar${paused ? " paused" : ""}`}>
@@ -184,12 +182,12 @@ export function Deployments({
           {projects.length > 0 && (
             <div className="dep-toggles">
               {projects.map((p) => {
-                const on = !hidden.has(p.id);
+                const on = !isHidden(p);
                 return (
                   <button
                     key={p.id}
                     className={`pill${on ? " active" : ""}`}
-                    onClick={() => toggle(p.id)}
+                    onClick={() => onSetProjectHidden(p.name, on)}
                     title={on ? "Hide" : "Show"}
                   >
                     {p.name}

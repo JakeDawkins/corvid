@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { IssueStatus, PrStatus } from "./types";
 import { loadInbox } from "./api";
-import { linearKey } from "./links";
+import { hasName, linearKey, parsePrUrl } from "./links";
 import { IssueRow, PrRow } from "./Badges";
 
 export type DragItem =
@@ -14,6 +14,7 @@ export type DragItem =
 export function Inbox({
   targetColumn,
   repoNames,
+  hiddenRepos,
   existingPrUrls,
   existingLinearKeys,
   onAddPr,
@@ -24,6 +25,7 @@ export function Inbox({
 }: {
   targetColumn?: string;
   repoNames?: Record<string, string>;
+  hiddenRepos?: string[];
   existingPrUrls: Set<string>;
   existingLinearKeys: Set<string>;
   onAddPr: (status: PrStatus) => void;
@@ -66,7 +68,12 @@ export function Inbox({
   const onBoardPr = (url: string) => existingPrUrls.has(url) || added.has(url);
   const onBoardLinear = (url: string) =>
     existingLinearKeys.has(linearKey(url)) || added.has(url);
-  const openPrs = prs.filter((s) => !onBoardPr(s.url));
+  const repoHidden = (url: string) => {
+    const ref = parsePrUrl(url);
+    return !!ref && hasName(hiddenRepos, `${ref.owner}/${ref.repo}`);
+  };
+  const visiblePrs = prs.filter((s) => !repoHidden(s.url));
+  const openPrs = visiblePrs.filter((s) => !onBoardPr(s.url));
   const openIssues = issues.filter((s) => !onBoardLinear(s.url));
   const openProjects = projects.filter((s) => !onBoardLinear(s.url));
 
@@ -139,7 +146,7 @@ export function Inbox({
               </h3>
               {githubError && <p className="hint error">{githubError}</p>}
               {!githubError && openPrs.length === 0 && (
-                <p className="hint">{emptyMsg(prs.length, "open PRs")}</p>
+                <p className="hint">{emptyMsg(visiblePrs.length, "open PRs")}</p>
               )}
               {openPrs.map(prRow)}
             </section>

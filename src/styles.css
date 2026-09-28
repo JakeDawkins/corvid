@@ -641,4 +641,7 @@ textarea { resize: vertical; }
 .settings-row-main .btn { white-space: nowrap; }
 .settings-row-main > span { display: flex; }
 .settings-add { margin-top: 16px; }
+.settings-section + .settings-section { margin-top: 28px; }
+.settings-name { flex: 1; align-items: center; }
+.settings-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .btn.danger:disabled { color: var(--muted); cursor: not-allowed; }

@@ -67,6 +67,10 @@ export type Data = {
   // (case-insensitive, e.g. "acme/acme-web" -> "web"). When set, the
   // override replaces the "owner/repo" text shown on PR rows.
   repoNames?: Record<string, string>;
+  // GitHub repos ("owner/repo") whose PRs are left out of My work, and Vercel
+  // project names left out of Deployments. Both matched case-insensitively.
+  hiddenRepos?: string[];
+  hiddenVercelProjects?: string[];
 };
 
 // A Vercel project (personal or under a team), used for the Deployments sidebar.

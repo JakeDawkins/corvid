@@ -44,7 +44,9 @@ So:
   "cards": [ Card, ... ],          // array order = display order within a column
   "cache": { "prs": {...}, "issues": {...} },   // app-owned, never hand-edit
   "colorTags": { "#3b9eff": "Ops" },            // optional color -> name map
-  "repoNames": { "acme/acme-web": "web" }       // optional repo label overrides
+  "repoNames": { "acme/acme-web": "web" },      // optional repo label overrides
+  "hiddenRepos": ["acme/old-app"],              // optional, PRs left out of My work
+  "hiddenVercelProjects": ["acme-docs"]         // optional, projects left out of Deployments
 }
 ```
 
