@@ -41,7 +41,7 @@ function stateClass(s: string): string {
 }
 
 // A right-side sidebar listing recent Vercel deployments per project, with
-// per-project show/hide toggles. Opens alongside the "My work" sidebar. Polls
+// per-project hide toggles (unhide from Settings). Opens alongside the "My work" sidebar. Polls
 // every 15s while active; pausable, and auto-pauses after 4h.
 export function Deployments({
   paused,
@@ -73,9 +73,12 @@ export function Deployments({
 
   const projectsRef = useRef<VercelProject[]>([]);
   projectsRef.current = projects;
+  const hiddenRef = useRef(hiddenProjects);
+  hiddenRef.current = hiddenProjects;
 
   const refresh = useCallback(async () => {
-    const ps = projectsRef.current;
+    // Hidden projects are left out entirely, so don't fetch their deployments.
+    const ps = projectsRef.current.filter((p) => !hasName(hiddenRef.current, p.name));
     if (ps.length === 0) return;
     setRefreshing(true);
     try {
@@ -133,8 +136,7 @@ export function Deployments({
     if (!paused) refresh();
   }, [paused, refresh]);
 
-  const isHidden = (p: VercelProject) => hasName(hiddenProjects, p.name);
-  const visible = projects.filter((p) => !isHidden(p));
+  const visible = projects.filter((p) => !hasName(hiddenProjects, p.name));
 
   return (
     <aside className={`sidebar${paused ? " paused" : ""}`}>
@@ -179,27 +181,28 @@ export function Deployments({
               Paused — not auto-refreshing. Press ▶ to resume.
             </p>
           )}
-          {projects.length > 0 && (
+          {/* Hidden projects get no pill; they can only be shown again from Settings. */}
+          {visible.length > 0 && (
             <div className="dep-toggles">
-              {projects.map((p) => {
-                const on = !isHidden(p);
-                return (
-                  <button
-                    key={p.id}
-                    className={`pill${on ? " active" : ""}`}
-                    onClick={() => onSetProjectHidden(p.name, on)}
-                    title={on ? "Hide" : "Show"}
-                  >
-                    {p.name}
-                  </button>
-                );
-              })}
+              {visible.map((p) => (
+                <button
+                  key={p.id}
+                  className="pill active"
+                  onClick={() => onSetProjectHidden(p.name, true)}
+                  title="Hide (show it again from Settings)"
+                >
+                  {p.name}
+                </button>
+              ))}
             </div>
           )}
 
           <div className="sidebar-body">
             {projects.length === 0 && !error && (
               <p className="hint">No Vercel projects.</p>
+            )}
+            {projects.length > 0 && visible.length === 0 && (
+              <p className="hint">All projects are hidden. Show them from Settings.</p>
             )}
             {visible.map((p) => {
               const deps = deployments[p.id] ?? [];
