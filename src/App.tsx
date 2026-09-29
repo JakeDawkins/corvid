@@ -791,6 +791,8 @@ export default function App() {
           onSetRepoHidden={setRepoHidden}
           hiddenVercelProjects={data.hiddenVercelProjects ?? []}
           onSetProjectHidden={setProjectHidden}
+          colorTags={data.colorTags ?? {}}
+          onSetColorTag={setColorTag}
           onClose={() => setShowSettings(false)}
         />
       ) : (
@@ -918,7 +920,6 @@ export default function App() {
           card={editing}
           columns={data.columns}
           colorTags={data.colorTags ?? {}}
-          onSetColorTag={setColorTag}
           onCancel={() => setEditing(null)}
           onSave={(c) => {
             upsertCard(c);

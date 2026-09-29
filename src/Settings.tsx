@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
 import { loadVercelProjects } from "./api";
+import { COLORS } from "./colors";
 import { hasName } from "./links";
 import type { VercelProject } from "./types";
 
@@ -24,6 +25,8 @@ export function Settings({
   onSetRepoHidden,
   hiddenVercelProjects,
   onSetProjectHidden,
+  colorTags,
+  onSetColorTag,
   onClose,
 }: {
   columns: string[];
@@ -38,6 +41,8 @@ export function Settings({
   onSetRepoHidden: (repo: string, hidden: boolean) => void;
   hiddenVercelProjects: string[];
   onSetProjectHidden: (name: string, hidden: boolean) => void;
+  colorTags: Record<string, string>;
+  onSetColorTag: (color: string, name: string) => void;
   onClose: () => void;
 }) {
   const [newName, setNewName] = useState("");
@@ -92,9 +97,38 @@ export function Settings({
         </form>
       </section>
 
+      <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
       <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
       <HiddenVercelProjects hidden={hiddenVercelProjects} onSetHidden={onSetProjectHidden} />
     </div>
+  );
+}
+
+function ColorLabels({
+  tags,
+  onSetTag,
+}: {
+  tags: Record<string, string>;
+  onSetTag: (color: string, name: string) => void;
+}) {
+  return (
+    <section className="settings-section">
+      <h3>Color labels</h3>
+      <p className="hint">A label is shown on every card using that color. Leave blank for no label.</p>
+      {COLORS.filter((c) => c.value).map((c) => (
+        <div className="settings-row" key={c.value}>
+          <div className="settings-row-main settings-color">
+            <span className="swatch" style={{ background: c.value }} aria-hidden="true" />
+            <input
+              value={tags[c.value!] ?? ""}
+              onChange={(e) => onSetTag(c.value!, e.target.value)}
+              placeholder={`Label for ${c.name.toLowerCase()} (e.g. sales)`}
+              aria-label={`Label for ${c.name}`}
+            />
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 

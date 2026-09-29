@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Card, Link } from "./types";
 import { domainName, linkKind } from "./links";
 import { LinkChip } from "./Badges";
-import { COLORS } from "./colors";
+import { COLORS, textOn } from "./colors";
 import { COMPLEXITY_LEVELS } from "./Complexity";
 
 // Human label for a link's auto-detected kind, shown beside each link row.
@@ -23,7 +23,6 @@ export function CardEditor({
   card,
   columns,
   colorTags,
-  onSetColorTag,
   onSave,
   onCancel,
   onDelete,
@@ -31,7 +30,6 @@ export function CardEditor({
   card: Card;
   columns: string[];
   colorTags: Record<string, string>;
-  onSetColorTag: (color: string, name: string) => void;
   onSave: (c: Card) => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -204,27 +202,25 @@ export function CardEditor({
         <div className="field">
           <span>Color</span>
           <div className="color-swatches">
-            {COLORS.map((c) => (
-              <button
-                key={c.name}
-                type="button"
-                title={(c.value && colorTags[c.value]) || c.name}
-                className={`swatch${draft.color === c.value ? " selected" : ""}${
-                  c.value ? "" : " none"
-                }`}
-                style={c.value ? { background: c.value } : undefined}
-                onClick={() => set("color", c.value)}
-              />
-            ))}
+            {COLORS.map((c) => {
+              // Labeled colors render as a pill with the label inside.
+              const label = c.value && colorTags[c.value];
+              return (
+                <button
+                  key={c.name}
+                  type="button"
+                  title={label || c.name}
+                  className={`swatch${draft.color === c.value ? " selected" : ""}${
+                    c.value ? "" : " none"
+                  }${label ? " labeled" : ""}`}
+                  style={c.value ? { background: c.value, color: textOn(c.value) } : undefined}
+                  onClick={() => set("color", c.value)}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
-          {draft.color && (
-            <input
-              className="color-tag-input"
-              placeholder="Tag name for this color (e.g. sales)"
-              value={colorTags[draft.color] ?? ""}
-              onChange={(e) => onSetColorTag(draft.color!, e.target.value)}
-            />
-          )}
         </div>
 
         <div className="field">

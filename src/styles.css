@@ -190,6 +190,17 @@ body {
   transform: rotate(45deg);
 }
 .swatch.selected { outline: 2px solid var(--text); outline-offset: 2px; }
+.swatch.labeled {
+  width: auto;
+  min-width: 22px;
+  padding: 0 9px;
+  border-radius: 11px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
 
 .card-title-row { display: flex; align-items: flex-start; gap: 6px; }
 /* Colored header bleeds to the card edges and rounds with the card's top. */
@@ -221,7 +232,6 @@ body {
 }
 .card-actions button:hover { opacity: 1; }
 .card-actions button svg { display: block; }
-.color-tag-input { margin-top: 8px; }
 
 .card-notes { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
 
@@ -644,4 +654,6 @@ textarea { resize: vertical; }
 .settings-section + .settings-section { margin-top: 28px; }
 .settings-name { flex: 1; align-items: center; }
 .settings-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.settings-color { align-items: center; }
+.settings-color .swatch { flex: none; cursor: default; }
 .btn.danger:disabled { color: var(--muted); cursor: not-allowed; }
