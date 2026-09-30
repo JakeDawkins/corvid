@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), create a new card, or asks what's on the board / in a column.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card (do this when starting work on a card), create a new card, or asks what's on the board / in a column.
 ---
 
 # Corvid board edits
@@ -61,7 +61,8 @@ A `Card`:
   "notes": "",                      // optional, free text
   "color": "#3b9eff",               // optional, one of the preset hexes below
   "complexity": "M",                // optional, t-shirt size XS|S|M|L|XL
-  "links": [ { "label": "", "url": "https://..." } ]
+  "links": [ { "label": "", "url": "https://..." } ],
+  "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"]  // optional
 }
 ```
 
@@ -80,6 +81,11 @@ A `Card`:
   uppercase). It renders as a 1-5 bar meter under the card title; omit the field
   (or set `none`) to leave the card unsized and hide the meter. Input is
   case-insensitive, so `--complexity l` and `--complexity L` both set `L`.
+- **`workspaces`** is an optional list of Conductor workspace ids (UUIDs, the
+  value of `$CONDUCTOR_WORKSPACE_ID`). A card can have several, e.g. one per
+  repo. While an agent is working in any of them the board shows a spinning
+  Claude mark on the card. Use `link-workspace` / `unlink-workspace`; never
+  hand-edit it.
 - `cache` holds the last-fetched PR/Linear statuses. Adding a link does not
   populate it; the badge appears after the user hits **Refresh** in the app.
 
@@ -94,6 +100,8 @@ node $S list                         # visible cards; --column NAME, --hidden, -
 node $S show <query>                 # full JSON of one card
 node $S add-link <query> <url> [--label TEXT] [--first]
 node $S remove-link <query> <url>
+node $S link-workspace <query> [workspace-id]     # default: $CONDUCTOR_WORKSPACE_ID
+node $S unlink-workspace <query> [workspace-id]   # default: $CONDUCTOR_WORKSPACE_ID
 node $S set <query> [--title T] [--column C] [--color HEX|NAME|none]
                     [--complexity XS|S|M|L|XL|none]
                     [--notes N] [--append-notes N] [--hidden true|false]
@@ -104,7 +112,9 @@ node $S validate                     # schema + JSON check
 ```
 
 `<query>` picks the card by uuid, uuid prefix (4+ chars), a case-insensitive
-substring of the title, or a substring of any link URL. **Exactly one card must
+substring of the title, a substring of any link URL, or an exact linked
+workspace id (so `show $CONDUCTOR_WORKSPACE_ID` finds the card this workspace
+is working on). **Exactly one card must
 match** — zero or multiple aborts with the candidate list, so a vague query can
 never edit the wrong card.
 
@@ -123,6 +133,23 @@ Example — "add the web PR to the checkout redirect card":
 node $S show "checkout redirect"
 node $S add-link "checkout redirect" https://github.com/acme/acme-web/pull/317
 ```
+
+## Linking a Conductor workspace
+
+When you start working on a card from inside Conductor (`$CONDUCTOR_WORKSPACE_ID`
+is set), link the workspace to it so the board can show that an agent is
+actively on it:
+
+```bash
+node $S link-workspace <card id>
+```
+
+It defaults to `$CONDUCTOR_WORKSPACE_ID` and is a no-op if the card already has
+that workspace, so it's safe to run every time. Only link the card you were told
+to work on (the "Card ID" in a copied agent prompt, or one the user named). Don't
+link a workspace to a card you are merely reading or editing on the user's
+behalf, and don't guess a card from the branch name. Outside Conductor the
+variable is unset and the command fails; skip it there.
 
 ## Rules
 

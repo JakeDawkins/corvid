@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Card, Data, IssueStatus, PrStatus } from "./types";
+import type { AgentsStatus, Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
 import { domainName, linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
 import type { VercelDeployment } from "./types";
@@ -11,6 +11,7 @@ import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
 import { Deployments } from "./Deployments";
 import { Settings } from "./Settings";
+import { ClaudeLogo } from "./ClaudeLogo";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
 
@@ -50,6 +51,8 @@ export default function App() {
   const [deploymentsPaused, setDeploymentsPaused] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // Live Conductor status of workspaces linked on cards, pushed by the server.
+  const [agents, setAgents] = useState<AgentsStatus>({ workspaces: {} });
   const fileInput = useRef<HTMLInputElement>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -97,6 +100,9 @@ export default function App() {
       const fresh = await loadData();
       skipNextSave.current = true;
       setData(fresh);
+    });
+    es.addEventListener("agents", (e) => {
+      setAgents(JSON.parse((e as MessageEvent).data) as AgentsStatus);
     });
     return () => es.close();
   }, [loaded]);
@@ -552,6 +558,10 @@ export default function App() {
       .map((l) => l.url)
       .filter((u) => linkKind(u) === "pr");
     const otherLinks = card.links.filter((l) => linkKind(l.url) === "generic");
+    // Linked workspaces with an agent working right now.
+    const working = (card.workspaces ?? [])
+      .map((id) => agents.workspaces[id])
+      .filter((w) => w?.working);
 
     return (
     <div
@@ -614,6 +624,16 @@ export default function App() {
         >
           {m("cardTitles", card.title) || "(untitled)"}
         </span>
+        {working.length > 0 && (
+          <span
+            className="agent-working"
+            title={`Agent working in ${working
+              .map((w) => `${w.name ?? "workspace"}${w.repo ? ` (${m("repoNames", w.repo)})` : ""}`)
+              .join(", ")}`}
+          >
+            <ClaudeLogo className="claude-logo spinning" />
+          </span>
+        )}
         <div className="card-actions">
           <button
             onClick={() => copyCardId(card.id)}
@@ -741,13 +761,7 @@ export default function App() {
             onClick={() => setShowClaude((v) => !v)}
             title={m("columnNames", claudeColumn)}
           >
-            <svg
-              className="claude-logo"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path d="M12 2.2c.5 0 .9.4.9.9l.35 5.03 3.2-3.88a.9.9 0 0 1 1.42 1.1l-2.9 4.13 4.83-1.57a.9.9 0 0 1 .56 1.71l-4.83 1.57 4.83 1.57a.9.9 0 0 1-.56 1.71l-4.83-1.57 2.9 4.13a.9.9 0 0 1-1.42 1.1l-3.2-3.88-.35 5.03a.9.9 0 0 1-1.8 0l-.35-5.03-3.2 3.88a.9.9 0 0 1-1.42-1.1l2.9-4.13-4.83 1.57a.9.9 0 1 1-.56-1.71l4.83-1.57-4.83-1.57a.9.9 0 0 1 .56-1.71l4.83 1.57-2.9-4.13a.9.9 0 0 1 1.42-1.1l3.2 3.88.35-5.03c0-.5.4-.9.9-.9Z" />
-            </svg>
+            <ClaudeLogo />
             Suggested
             {claudeCount > 0 && (
               <span className="claude-count">{claudeCount}</span>
@@ -943,6 +957,7 @@ export default function App() {
           card={editing}
           columns={data.columns}
           colorTags={data.colorTags ?? {}}
+          agents={agents}
           onCancel={() => setEditing(null)}
           onSave={(c) => {
             upsertCard(c);

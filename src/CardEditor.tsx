@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import type { Card, Link } from "./types";
+import type { AgentsStatus, Card, Link } from "./types";
 import { domainName, linkKind } from "./links";
 import { LinkChip } from "./Badges";
 import { COLORS, textOn } from "./colors";
 import { COMPLEXITY_LEVELS } from "./Complexity";
 import { useMask } from "./mask";
+import { ClaudeLogo } from "./ClaudeLogo";
 
 // Human label for a link's auto-detected kind, shown beside each link row.
 const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
@@ -27,6 +28,7 @@ export function CardEditor({
   card,
   columns,
   colorTags,
+  agents,
   onSave,
   onCancel,
   onDelete,
@@ -34,6 +36,7 @@ export function CardEditor({
   card: Card;
   columns: string[];
   colorTags: Record<string, string>;
+  agents: AgentsStatus;
   onSave: (c: Card) => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -51,10 +54,14 @@ export function CardEditor({
   const [newUrl, setNewUrl] = useState("");
   // The link row currently open for editing, with its unsaved values.
   const [editing, setEditing] = useState<{ index: number; link: Link } | null>(null);
+  // Conductor workspace id typed into the add box, not yet on the card.
+  const [newWorkspace, setNewWorkspace] = useState("");
+  const workspaces = draft.workspaces ?? [];
 
   // Build a paste-ready instruction for an AI agent to work on this card: the
-  // task, its links (so the agent has full context), and a standing instruction
-  // to add any PR it opens back to this card (by id) on the Corvid board.
+  // task, its links (so the agent has full context), and standing instructions
+  // to link its Conductor workspace and any PR it opens back to this card (by
+  // id) on the Corvid board.
   function buildAgentPrompt(): string {
     const lines: string[] = [];
     lines.push("Work on the following task from my Corvid board.");
@@ -76,6 +83,10 @@ export function CardEditor({
         lines.push(`- ${label}${KIND_LABEL[linkKind(l.url)]}: ${l.url}`);
       }
     }
+    lines.push("");
+    lines.push(
+      `Before you start, if you are running in Conductor, link your workspace to this card so the board shows when you're working on it: with the corvid skill, run \`link-workspace ${draft.id}\`. It reads $CONDUCTOR_WORKSPACE_ID and does nothing if the card already has that workspace.`,
+    );
     lines.push("");
     lines.push(
       `Whenever you open a pull request for this work, add its URL to this card (Card ID: ${draft.id}) on the Corvid board so it stays in sync.`,
@@ -134,13 +145,28 @@ export function CardEditor({
     }
   }
 
+  function addWorkspace() {
+    const id = newWorkspace.trim().toLowerCase();
+    if (!id) return;
+    if (!workspaces.includes(id)) set("workspaces", [...workspaces, id]);
+    setNewWorkspace("");
+  }
+
+  function removeWorkspace(id: string) {
+    const rest = workspaces.filter((w) => w !== id);
+    set("workspaces", rest.length ? rest : undefined);
+  }
+
   function save() {
     // Keep an open edit or a typed-but-not-added URL rather than dropping it.
     const final = links.map((l, i) => (editing?.index === i ? editing.link : l));
     if (newUrl.trim()) final.push({ label: "", url: newUrl.trim() });
+    const ws = newWorkspace.trim().toLowerCase();
+    const finalWorkspaces = ws && !workspaces.includes(ws) ? [...workspaces, ws] : workspaces;
     onSave({
       ...draft,
       links: final.filter((l) => l.url.trim()),
+      workspaces: finalWorkspaces.length ? finalWorkspaces : undefined,
     });
   }
 
@@ -300,6 +326,68 @@ export function CardEditor({
               }}
             />
             <button type="button" className="btn" onClick={addLink} disabled={!newUrl.trim()}>
+              Add
+            </button>
+          </div>
+        </div>
+
+        <div className="field">
+          <span>Conductor workspaces</span>
+          {agents.error && workspaces.length > 0 && (
+            <div className="hint error">{agents.error}</div>
+          )}
+          {workspaces.map((id) => {
+            const w = agents.workspaces[id];
+            return (
+              <div key={id} className="link-row workspace-row">
+                {w?.working ? (
+                  <span className="agent-working" title="Agent working">
+                    <ClaudeLogo className="claude-logo spinning" />
+                  </span>
+                ) : (
+                  <span className="workspace-dot" title={w ? "Idle" : "Status unknown"} />
+                )}
+                <span className="link-url" title={id}>
+                  {w ? (
+                    <>
+                      {w.name ?? "workspace"}
+                      {w.repo && ` · ${m("repoNames", w.repo)}`}
+                      {w.branch && ` · ${m("branches", w.branch)}`}
+                      {w.state === "archived" && " (archived)"}
+                    </>
+                  ) : (
+                    <span className="workspace-id">{id}</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  className="btn"
+                  title="Unlink workspace"
+                  onClick={() => removeWorkspace(id)}
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+          <div className="link-editor">
+            <input
+              placeholder="Workspace ID ($CONDUCTOR_WORKSPACE_ID)"
+              value={newWorkspace}
+              onChange={(e) => setNewWorkspace(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addWorkspace();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="btn"
+              onClick={addWorkspace}
+              disabled={!newWorkspace.trim()}
+            >
               Add
             </button>
           </div>

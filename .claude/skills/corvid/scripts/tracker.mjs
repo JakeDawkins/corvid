@@ -11,6 +11,8 @@
 //   columns
 //   add-link <query> <url> [--label TEXT] [--first]
 //   remove-link <query> <url>
+//   link-workspace <query> [workspace-id]     // default: $CONDUCTOR_WORKSPACE_ID
+//   unlink-workspace <query> [workspace-id]   // default: $CONDUCTOR_WORKSPACE_ID
 //   set <query> [--title T] [--column C] [--color HEX|none]
 //              [--complexity XS|S|M|L|XL|none] [--notes N]
 //              [--append-notes N] [--hidden true|false]
@@ -297,6 +299,7 @@ function cardLine(c, i) {
     c.hidden ? '(hidden)' : '',
     JSON.stringify(c.title),
     `${c.links.length} link${c.links.length === 1 ? '' : 's'}`,
+    c.workspaces?.length ? `${c.workspaces.length} workspace${c.workspaces.length === 1 ? '' : 's'}` : '',
     c.color ? c.color : '',
     c.complexity ? c.complexity : '',
   ].filter(Boolean);
@@ -304,8 +307,9 @@ function cardLine(c, i) {
 }
 
 // A query matches a card by: exact id, id prefix (>=4 chars), a case-insensitive
-// substring of the title, or a substring of any of its link URLs. Exactly one
-// card must match; 0 or 2+ is an error listing the candidates.
+// substring of the title, a substring of any of its link URLs, or an exact
+// linked workspace id. Exactly one card must match; 0 or 2+ is an error listing
+// the candidates.
 function findCard(data, query) {
   if (!query) die('missing card query');
   const q = String(query).toLowerCase();
@@ -317,7 +321,8 @@ function findCard(data, query) {
   const byLink = data.cards.filter((c) =>
     (c.links || []).some((l) => String(l.url).toLowerCase().includes(q)),
   );
-  const hits = [...new Set([...idPrefix, ...byTitle, ...byLink])];
+  const byWorkspace = data.cards.filter((c) => (c.workspaces || []).includes(q));
+  const hits = [...new Set([...idPrefix, ...byTitle, ...byLink, ...byWorkspace])];
   if (hits.length === 1) return hits[0];
   if (hits.length === 0) die(`no card matches ${JSON.stringify(query)}`);
   console.error(`error: ${hits.length} cards match ${JSON.stringify(query)}; be more specific:`);
@@ -339,6 +344,18 @@ function requireColumn(data, column) {
 }
 
 const COMPLEXITY = ['XS', 'S', 'M', 'L', 'XL'];
+
+// Conductor workspace ids are UUIDs. Stored lowercase so matching is exact.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The workspace id from the command line, else the current Conductor workspace.
+function workspaceArg() {
+  const given = argv.shift();
+  const id = given && !given.startsWith('--') ? given : process.env.CONDUCTOR_WORKSPACE_ID;
+  if (!id) die('missing workspace id (pass one, or run inside Conductor so $CONDUCTOR_WORKSPACE_ID is set)');
+  if (!UUID_RE.test(id)) die(`workspace id must be a UUID, got ${JSON.stringify(id)}`);
+  return id.toLowerCase();
+}
 
 // Complexity is a t-shirt size (XS|S|M|L|XL), stored uppercase. "none"/"" clears
 // it (the card then shows no meter). Input is case-insensitive.
@@ -409,6 +426,7 @@ switch (cmd) {
     const card = findCard(data, argv.shift());
     console.log(JSON.stringify(card, null, 2));
     for (const l of card.links) console.log(`  ${linkKind(l.url)}: ${l.url}`);
+    for (const w of card.workspaces || []) console.log(`  workspace: ${w}`);
     break;
   }
   case 'add-link': {
@@ -449,6 +467,32 @@ switch (cmd) {
       die(`${matches.length} links on ${short(card.id)} match ${url}; pass the full URL`);
     card.links = card.links.filter((l) => l !== matches[0]);
     commit(before, data, card.id, `removed link from ${short(card.id)}:\n  ${matches[0].url}`);
+    break;
+  }
+  case 'link-workspace': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const card = findCard(data, argv.shift());
+    const id = workspaceArg();
+    if ((card.workspaces || []).includes(id)) {
+      console.log(`card ${short(card.id)} already has workspace ${id}`);
+      break;
+    }
+    card.workspaces = [...(card.workspaces || []), id];
+    commit(before, data, card.id, `linked workspace to ${short(card.id)} ${JSON.stringify(card.title)}:\n  ${id}`);
+    break;
+  }
+  case 'unlink-workspace': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const card = findCard(data, argv.shift());
+    const id = workspaceArg();
+    if (!(card.workspaces || []).includes(id)) die(`card ${short(card.id)} has no workspace ${id}`);
+    card.workspaces = card.workspaces.filter((w) => w !== id);
+    if (!card.workspaces.length) delete card.workspaces;
+    commit(before, data, card.id, `unlinked workspace from ${short(card.id)}:\n  ${id}`);
     break;
   }
   case 'set': {
@@ -615,6 +659,14 @@ switch (cmd) {
         problems.push(`${where}: bad color ${c.color}`);
       if (c.complexity !== undefined && !COMPLEXITY.includes(c.complexity))
         problems.push(`${where}: bad complexity ${c.complexity}`);
+      if (c.workspaces !== undefined) {
+        if (!Array.isArray(c.workspaces)) problems.push(`${where}: workspaces is not an array`);
+        else {
+          for (const w of c.workspaces)
+            if (typeof w !== 'string' || !UUID_RE.test(w)) problems.push(`${where}: bad workspace id ${JSON.stringify(w)}`);
+          if (new Set(c.workspaces).size !== c.workspaces.length) problems.push(`${where}: duplicate workspace id`);
+        }
+      }
     }
     if (problems.length) {
       console.error(problems.map((p) => `- ${p}`).join('\n'));
@@ -625,6 +677,6 @@ switch (cmd) {
     break;
   }
   default:
-    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 24).join('\n').replace(/^\/\/ ?/gm, ''));
+    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 26).join('\n').replace(/^\/\/ ?/gm, ''));
     process.exit(cmd ? 1 : 0);
 }

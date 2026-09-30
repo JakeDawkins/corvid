@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { homedir } from 'node:os';
 
 const execFileP = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -469,6 +470,70 @@ async function listVercelDeployments(projectId, teamId, limit = 5) {
   return (data.deployments || []).map(shapeDeployment);
 }
 
+// ---------------- Conductor (agent activity) ----------------
+// Conductor keeps its workspace and session state in a local SQLite file. We read
+// it (read-only, via the sqlite3 CLI that ships with macOS) to tell whether an
+// agent is working in any workspace linked on a card. The schema is internal to
+// Conductor, so any failure just means "no activity info", never a board error.
+const CONDUCTOR_DB =
+  process.env.CONDUCTOR_DB ||
+  join(homedir(), 'Library', 'Application Support', 'com.conductor.app', 'conductor.db');
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Status for each requested workspace id, keyed by that id. Ids Conductor
+// doesn't know (deleted, or from another machine) are simply absent.
+async function fetchWorkspaces(ids) {
+  // Ids are interpolated into SQL, so only well-formed UUIDs get through.
+  const wanted = [...new Set(ids)].filter((id) => UUID_RE.test(id));
+  if (!wanted.length) return { workspaces: {} };
+  if (!existsSync(CONDUCTOR_DB)) {
+    return { workspaces: {}, error: `Conductor database not found at ${CONDUCTOR_DB}` };
+  }
+  const list = wanted.map((id) => `'${id}'`).join(',');
+  const sql = `
+    select w.local_id as local_id, w.id as id, w.directory_name as name,
+      w.branch as branch, w.state as state, r.name as repo,
+      max(case when s.status = 'working' then 1 else 0 end) as working
+    from workspaces w
+    left join repos r on r.id = w.repository_id
+    left join sessions s on s.workspace_id = w.local_id
+    where w.local_id in (${list}) or w.id in (${list})
+    group by w.local_id`;
+  try {
+    const { stdout } = await execFileP('sqlite3', [
+      '-readonly',
+      '-json',
+      '-cmd',
+      '.timeout 2000',
+      CONDUCTOR_DB,
+      sql,
+    ]);
+    // sqlite3 prints nothing (not "[]") when there are no rows.
+    const rows = stdout.trim() ? JSON.parse(stdout) : [];
+    const out = {};
+    for (const r of rows) {
+      const status = {
+        name: r.name,
+        repo: r.repo,
+        branch: r.branch,
+        state: r.state,
+        working: r.working === 1,
+      };
+      for (const id of [r.local_id, r.id]) if (wanted.includes(id)) out[id] = status;
+    }
+    return { workspaces: out };
+  } catch (e) {
+    return { workspaces: {}, error: cleanErr(e) };
+  }
+}
+
+// Workspace ids linked on any card, read from disk so a link added by the UI or
+// a skill is picked up on the next poll.
+async function linkedWorkspaceIds() {
+  const data = await readData();
+  return (data.cards || []).flatMap((c) => (Array.isArray(c.workspaces) ? c.workspaces : []));
+}
+
 // ---------------- app ----------------
 const app = express();
 app.use(express.json({ limit: '5mb' }));
@@ -483,10 +548,25 @@ app.put('/api/data', async (req, res) => {
 });
 
 // Server-sent events stream. The browser subscribes and reloads data.json when
-// it changes on disk from outside the UI (e.g. a skill editing the file).
+// it changes on disk from outside the UI (e.g. a skill editing the file). It
+// also carries `agents` events with the Conductor status of linked workspaces.
 const sseClients = new Set();
 function broadcastDataChanged() {
   for (const res of sseClients) res.write('event: data\ndata: {}\n\n');
+}
+
+// Last agents payload sent, so a new subscriber gets it right away and pollers
+// only broadcast when something actually changed.
+let lastAgents = null;
+function writeAgents(res, payload) {
+  res.write(`event: agents\ndata: ${payload}\n\n`);
+}
+
+async function pollAgents() {
+  const payload = JSON.stringify(await fetchWorkspaces(await linkedWorkspaceIds()));
+  if (payload === lastAgents) return;
+  lastAgents = payload;
+  for (const res of sseClients) writeAgents(res, payload);
 }
 
 app.get('/api/events', (req, res) => {
@@ -496,6 +576,8 @@ app.get('/api/events', (req, res) => {
     Connection: 'keep-alive',
   });
   res.write('retry: 3000\n\n');
+  if (lastAgents) writeAgents(res, lastAgents);
+  else pollAgents();
   sseClients.add(res);
   const ping = setInterval(() => res.write(': ping\n\n'), 25000);
   req.on('close', () => {
@@ -519,6 +601,23 @@ setInterval(async () => {
     // file missing/mid-write; try again next tick
   }
 }, 1000);
+
+// Poll Conductor for agent activity while anyone is watching. Cleared when the
+// last subscriber leaves so a reconnect always starts from a fresh read.
+let agentsPolling = false;
+setInterval(async () => {
+  if (sseClients.size === 0) {
+    lastAgents = null;
+    return;
+  }
+  if (agentsPolling) return;
+  agentsPolling = true;
+  try {
+    await pollAgents();
+  } finally {
+    agentsPolling = false;
+  }
+}, 3000);
 
 // Resolve a single pasted link to its title + status, for quick-create.
 app.post('/api/resolve', async (req, res) => {

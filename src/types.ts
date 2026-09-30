@@ -23,6 +23,26 @@ export type Card = {
   // A flat list of links (GitHub PRs, Linear issues/projects, and misc URLs).
   // Each link's kind is derived from its URL via linkKind(), not stored.
   links: Link[];
+  // Conductor workspace ids (CONDUCTOR_WORKSPACE_ID) doing work for this card.
+  // A card can span several workspaces, e.g. one per repo. The board shows an
+  // activity indicator while an agent is working in any of them.
+  workspaces?: string[];
+};
+
+// Live Conductor status for one linked workspace, pushed by the server over SSE.
+export type WorkspaceStatus = {
+  name?: string;
+  repo?: string;
+  branch?: string;
+  // Conductor's workspace state, e.g. "ready" or "archived".
+  state?: string;
+  // True while any session in the workspace has an agent working.
+  working: boolean;
+};
+
+export type AgentsStatus = {
+  workspaces: Record<string, WorkspaceStatus>;
+  error?: string;
 };
 
 export type PrStatus = {

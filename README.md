@@ -67,6 +67,11 @@ npm run build && npm start   # http://localhost:8787
 - **Complexity** meter (XS–XL) and per-card color tags for grouping.
 - **Copy prompt for agents**: turns a card into a paste-ready prompt with its
   title, notes, and links, for handing to a coding agent.
+- **Agent activity**: link one or more Conductor
+  workspaces to a card and it shows a spinning Claude mark while an agent is
+  working in any of them. The copied agent prompt tells the agent to link its
+  own workspace via the skill. The server reads Conductor's local database
+  read-only every 3s (macOS; override the path with `CONDUCTOR_DB`).
 - **Hide/unhide** cards, with a toggle to reveal hidden ones.
 - **Import / Export** the full state as JSON.
 - **Masked mode** (Settings, or Shift+M): swaps titles, notes, and other
@@ -82,6 +87,7 @@ Express server (server/index.js, 127.0.0.1:8787)
    |-- gh CLI  -> GitHub GraphQL      (your existing gh auth)
    |-- fetch   -> api.linear.app      (LINEAR_API_KEY)
    |-- fetch   -> api.vercel.com      (Vercel CLI token or VERCEL_TOKEN)
+   |-- sqlite3 -> Conductor's DB      (read-only, agent activity)
    `-- tasks-data/data.json           (all state)
 ```
 
@@ -118,7 +124,8 @@ for the authoritative version):
       "links": [
         { "label": "PR", "url": "https://github.com/acme/acme-web/pull/123" },
         { "label": "Issue", "url": "https://linear.app/acme/issue/ENG-42/..." }
-      ]
+      ],
+      "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"]
     }
   ],
   "cache": { "prs": {}, "issues": {} },
@@ -160,6 +167,7 @@ node $S where                 # which data.json am I pointed at?
 node $S columns               # columns, card counts, color tags
 node $S list --all
 node $S add-link "checkout redirect" https://github.com/acme/acme-web/pull/317
+node $S link-workspace "checkout redirect"   # links $CONDUCTOR_WORKSPACE_ID
 node $S set "checkout redirect" --column "In Review" --complexity L
 node $S add-card --title "New task" --column Todo --top
 node $S add-column "Suggested by Claude"
