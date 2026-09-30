@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import type { AgentsStatus, Card, Link } from "./types";
 import { domainName, linkKind } from "./links";
-import { LinkChip } from "./Badges";
+import { LinkChip, WorkspaceBadge } from "./Badges";
 import { COLORS, textOn } from "./colors";
 import { COMPLEXITY_LEVELS } from "./Complexity";
 import { useMask } from "./mask";
-import { ClaudeLogo } from "./ClaudeLogo";
 
 // Human label for a link's auto-detected kind, shown beside each link row.
 const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
@@ -340,24 +339,13 @@ export function CardEditor({
             const w = agents.workspaces[id];
             return (
               <div key={id} className="link-row workspace-row">
-                {w?.working ? (
-                  <span className="agent-working" title="Agent working">
-                    <ClaudeLogo className="claude-logo spinning" />
-                  </span>
-                ) : (
-                  <span className="workspace-dot" title={w ? "Idle" : "Status unknown"} />
-                )}
+                <WorkspaceBadge id={id} status={w} />
                 <span className="link-url" title={id}>
-                  {w ? (
-                    <>
-                      {w.name ?? "workspace"}
-                      {w.repo && ` · ${m("repoNames", w.repo)}`}
-                      {w.branch && ` · ${m("branches", w.branch)}`}
-                      {w.state === "archived" && " (archived)"}
-                    </>
-                  ) : (
-                    <span className="workspace-id">{id}</span>
-                  )}
+                  {w
+                    ? [w.repo && m("repoNames", w.repo), w.branch && m("branches", w.branch)]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : id}
                 </span>
                 <button
                   type="button"

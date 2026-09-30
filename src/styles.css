@@ -406,22 +406,31 @@ textarea { resize: vertical; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.workspace-row .link-url { color: var(--text); }
-.workspace-id { color: var(--muted); font-family: ui-monospace, monospace; }
-.workspace-dot {
-  width: 8px;
-  height: 8px;
-  margin: 0 3.5px;
-  border-radius: 50%;
-  background: var(--muted);
-  flex: none;
-}
 
-/* Spinning Claude mark shown while an agent works in a linked workspace. */
-.agent-working { display: inline-flex; flex: none; align-self: center; }
+/* A linked Conductor workspace on a card. Neutral while idle, Claude orange
+   with a spinning mark while an agent is working in it. */
+.chip.workspace-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 9px;
+  color: var(--muted);
+}
+.chip.workspace-badge:hover { border-color: var(--border); }
+.chip.workspace-badge .claude-logo { width: 13px; height: 13px; fill: currentColor; }
+.chip.workspace-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.workspace-badge.working {
+  color: var(--claude);
+  background: color-mix(in srgb, var(--claude) 16%, var(--panel));
+  border-color: color-mix(in srgb, var(--claude) 55%, var(--border));
+}
+.chip.workspace-badge.working:hover { border-color: color-mix(in srgb, var(--claude) 55%, var(--border)); }
+.workspace-badge-state { font-weight: 700; }
+.workspace-badge-state::after { content: " ·"; font-weight: 500; }
 .claude-logo.spinning { animation: agent-spin 2.4s linear infinite; }
-/* On a colored header the Claude orange can vanish, so follow the text color. */
-.card-title-row.colored .claude-logo { fill: currentColor; }
 @keyframes agent-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .claude-logo.spinning { animation: none; }

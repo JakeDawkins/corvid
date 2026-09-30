@@ -1,5 +1,6 @@
-import type { IssueStatus, LinearResource, PrStatus } from "./types";
+import type { IssueStatus, LinearResource, PrStatus, WorkspaceStatus } from "./types";
 import { useMask } from "./mask";
+import { ClaudeLogo } from "./ClaudeLogo";
 
 // A small glyph per resource type so Figma designs and Notion specs are
 // scannable at a glance among a card's linked resources.
@@ -20,6 +21,32 @@ export function LinkChip({ url, label }: { url: string; label: string }) {
       </svg>
       <span>{label}</span>
     </a>
+  );
+}
+
+// A linked Conductor workspace. Always shown while linked; switches to a
+// Claude-orange "Working" state with a spinning mark while an agent is active.
+export function WorkspaceBadge({ id, status }: { id: string; status?: WorkspaceStatus }) {
+  const { m } = useMask();
+  const name = status?.name ?? id.slice(0, 8);
+  const archived = status?.state === "archived";
+  const detail = status
+    ? [status.repo && m("repoNames", status.repo), status.branch && m("branches", status.branch)]
+        .filter(Boolean)
+        .join(" · ")
+    : "Not found in Conductor";
+  return (
+    <span
+      className={`chip workspace-badge${status?.working ? " working" : ""}`}
+      title={`Conductor workspace ${name}${detail ? `\n${detail}` : ""}`}
+    >
+      <ClaudeLogo className={`claude-logo${status?.working ? " spinning" : ""}`} />
+      {status?.working && <span className="workspace-badge-state">Working</span>}
+      <span>
+        {name}
+        {archived && " (archived)"}
+      </span>
+    </span>
   );
 }
 

@@ -67,10 +67,11 @@ npm run build && npm start   # http://localhost:8787
 - **Complexity** meter (XS–XL) and per-card color tags for grouping.
 - **Copy prompt for agents**: turns a card into a paste-ready prompt with its
   title, notes, and links, for handing to a coding agent.
-- **Agent activity**: link one or more Conductor
-  workspaces to a card and it shows a spinning Claude mark while an agent is
-  working in any of them. The copied agent prompt tells the agent to link its
-  own workspace via the skill. The server reads Conductor's local database
+- **Agent activity**: link one or more Conductor workspaces to a card and each
+  shows as a badge at the top of the card. A badge turns Claude orange and reads
+  "Working", with a spinning Claude mark, while an agent is working in that
+  workspace. The copied agent prompt tells the agent to link its own workspace
+  via the skill. The server reads Conductor's local database
   read-only every 3s (macOS; override the path with `CONDUCTOR_DB`).
 - **Hide/unhide** cards, with a toggle to reveal hidden ones.
 - **Import / Export** the full state as JSON.

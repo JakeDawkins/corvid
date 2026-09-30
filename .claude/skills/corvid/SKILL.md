@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card (do this when starting work on a card), create a new card, or asks what's on the board / in a column.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card, create a new card, or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace to that card.
 ---
 
 # Corvid board edits
@@ -83,8 +83,8 @@ A `Card`:
   case-insensitive, so `--complexity l` and `--complexity L` both set `L`.
 - **`workspaces`** is an optional list of Conductor workspace ids (UUIDs, the
   value of `$CONDUCTOR_WORKSPACE_ID`). A card can have several, e.g. one per
-  repo. While an agent is working in any of them the board shows a spinning
-  Claude mark on the card. Use `link-workspace` / `unlink-workspace`; never
+  repo. Each shows as a badge at the top of the card, which turns into an
+  orange "Working" badge while an agent is working in that workspace. Use `link-workspace` / `unlink-workspace`; never
   hand-edit it.
 - `cache` holds the last-fetched PR/Linear statuses. Adding a link does not
   populate it; the badge appears after the user hits **Refresh** in the app.

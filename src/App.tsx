@@ -3,7 +3,7 @@ import type { AgentsStatus, Card, Data, IssueStatus, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
 import { domainName, linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
 import type { VercelDeployment } from "./types";
-import { IssueRow, LinkChip, PrRow } from "./Badges";
+import { IssueRow, LinkChip, PrRow, WorkspaceBadge } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { textOn } from "./colors";
 import { ComplexityBars } from "./Complexity";
@@ -558,10 +558,6 @@ export default function App() {
       .map((l) => l.url)
       .filter((u) => linkKind(u) === "pr");
     const otherLinks = card.links.filter((l) => linkKind(l.url) === "generic");
-    // Linked workspaces with an agent working right now.
-    const working = (card.workspaces ?? [])
-      .map((id) => agents.workspaces[id])
-      .filter((w) => w?.working);
 
     return (
     <div
@@ -624,16 +620,6 @@ export default function App() {
         >
           {m("cardTitles", card.title) || "(untitled)"}
         </span>
-        {working.length > 0 && (
-          <span
-            className="agent-working"
-            title={`Agent working in ${working
-              .map((w) => `${w.name ?? "workspace"}${w.repo ? ` (${m("repoNames", w.repo)})` : ""}`)
-              .join(", ")}`}
-          >
-            <ClaudeLogo className="claude-logo spinning" />
-          </span>
-        )}
         <div className="card-actions">
           <button
             onClick={() => copyCardId(card.id)}
@@ -667,6 +653,14 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {card.workspaces && card.workspaces.length > 0 && (
+        <div className="group links">
+          {card.workspaces.map((id) => (
+            <WorkspaceBadge key={id} id={id} status={agents.workspaces[id]} />
+          ))}
+        </div>
+      )}
 
       {card.complexity && (
         <ComplexityBars value={card.complexity} color={card.color} />
