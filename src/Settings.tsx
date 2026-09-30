@@ -3,6 +3,8 @@ import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
 import { loadVercelProjects } from "./api";
 import { COLORS } from "./colors";
 import { hasName } from "./links";
+import { MASK_CATEGORIES, categoryOn, useMask } from "./mask";
+import type { MaskSettings } from "./mask";
 import type { VercelProject } from "./types";
 
 // Why a proposed column name can't be used, or null if it's fine. `current` is
@@ -27,6 +29,8 @@ export function Settings({
   onSetProjectHidden,
   colorTags,
   onSetColorTag,
+  maskSettings,
+  onSetMaskSettings,
   onClose,
 }: {
   columns: string[];
@@ -43,6 +47,8 @@ export function Settings({
   onSetProjectHidden: (name: string, hidden: boolean) => void;
   colorTags: Record<string, string>;
   onSetColorTag: (color: string, name: string) => void;
+  maskSettings: MaskSettings;
+  onSetMaskSettings: (s: MaskSettings) => void;
   onClose: () => void;
 }) {
   const [newName, setNewName] = useState("");
@@ -97,10 +103,52 @@ export function Settings({
         </form>
       </section>
 
+      <MaskedMode settings={maskSettings} onChange={onSetMaskSettings} />
       <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
       <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
       <HiddenVercelProjects hidden={hiddenVercelProjects} onSetHidden={onSetProjectHidden} />
     </div>
+  );
+}
+
+function MaskedMode({
+  settings,
+  onChange,
+}: {
+  settings: MaskSettings;
+  onChange: (s: MaskSettings) => void;
+}) {
+  return (
+    <section className="settings-section">
+      <h3>Masked mode</h3>
+      <p className="hint">
+        Swaps sensitive text for placeholder words so the board can be shared in screenshots. Your
+        data isn't changed. Press Shift+M anywhere to toggle it.
+      </p>
+      <label className="settings-check">
+        <input
+          type="checkbox"
+          checked={settings.enabled}
+          onChange={(e) => onChange({ ...settings, enabled: e.target.checked })}
+        />
+        Mask sensitive text
+      </label>
+      <details className="settings-details">
+        <summary>Choose what to mask</summary>
+        {MASK_CATEGORIES.map((c) => (
+          <label className="settings-check" key={c.key}>
+            <input
+              type="checkbox"
+              checked={categoryOn(settings, c.key)}
+              onChange={(e) =>
+                onChange({ ...settings, categories: { ...settings.categories, [c.key]: e.target.checked } })
+              }
+            />
+            {c.label}
+          </label>
+        ))}
+      </details>
+    </section>
   );
 }
 
@@ -111,6 +159,7 @@ function ColorLabels({
   tags: Record<string, string>;
   onSetTag: (color: string, name: string) => void;
 }) {
+  const { m, on } = useMask();
   return (
     <section className="settings-section">
       <h3>Color labels</h3>
@@ -120,7 +169,8 @@ function ColorLabels({
           <div className="settings-row-main settings-color">
             <span className="swatch" style={{ background: c.value }} aria-hidden="true" />
             <input
-              value={tags[c.value!] ?? ""}
+              value={m("colorLabels", tags[c.value!] ?? "")}
+              readOnly={on("colorLabels")}
               onChange={(e) => onSetTag(c.value!, e.target.value)}
               placeholder={`Label for ${c.name.toLowerCase()} (e.g. sales)`}
               aria-label={`Label for ${c.name}`}
@@ -147,6 +197,7 @@ function HiddenRepos({
   known: string[];
   onSetHidden: (repo: string, hidden: boolean) => void;
 }) {
+  const { m } = useMask();
   const [value, setValue] = useState("");
   const repo = parseRepo(value);
   const error = !value.trim()
@@ -165,7 +216,7 @@ function HiddenRepos({
       {hidden.map((r) => (
         <div className="settings-row" key={r}>
           <div className="settings-row-main">
-            <span className="settings-name">{r}</span>
+            <span className="settings-name">{m("repoNames", r)}</span>
             <button type="button" className="btn" onClick={() => onSetHidden(r, false)}>
               Unhide
             </button>
@@ -214,6 +265,7 @@ function HiddenVercelProjects({
   hidden: string[];
   onSetHidden: (name: string, hidden: boolean) => void;
 }) {
+  const { m } = useMask();
   const [projects, setProjects] = useState<VercelProject[] | null>(null);
   const [error, setError] = useState<string>();
 
@@ -246,7 +298,7 @@ function HiddenVercelProjects({
                 onClick={() => onSetHidden(p.name, on)}
                 title={on ? "Hide" : "Show"}
               >
-                {p.name}
+                {m("repoNames", p.name)}
               </button>
             );
           })}
@@ -257,7 +309,7 @@ function HiddenVercelProjects({
               onClick={() => onSetHidden(n, false)}
               title="Not found in Vercel. Click to remove from the hidden list."
             >
-              {n}
+              {m("repoNames", n)}
             </button>
           ))}
           {projects.length === 0 && unmatched.length === 0 && !error && (
@@ -282,6 +334,7 @@ function ColumnRow({
   onRename: (from: string, to: string) => void;
   onDelete: (name: string) => void;
 }) {
+  const { m, on } = useMask();
   const [value, setValue] = useState(name);
   const next = value.trim();
   const changed = next !== name;
@@ -315,12 +368,13 @@ function ColumnRow({
     >
       <div className="settings-row-main">
         <input
-          value={value}
+          value={m("columnNames", value)}
+          readOnly={on("columnNames")}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Escape") setValue(name);
           }}
-          aria-label={`Rename column ${name}`}
+          aria-label={`Rename column ${m("columnNames", name)}`}
         />
         <button type="submit" className="btn primary" disabled={!changed || !!error}>
           Rename

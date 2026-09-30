@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { VercelDeployment, VercelProject } from "./types";
 import { loadVercelDeployments, loadVercelProjects } from "./api";
 import { hasName } from "./links";
+import { useMask } from "./mask";
 
 const REFRESH_MS = 15000;
 // Stop polling after this long without a manual resume, so a forgotten-open
@@ -62,6 +63,7 @@ export function Deployments({
   onLinkCard: (cardId: string) => void;
   onClose: () => void;
 }) {
+  const { m } = useMask();
   const [projects, setProjects] = useState<VercelProject[]>([]);
   const [deployments, setDeployments] = useState<
     Record<string, VercelDeployment[]>
@@ -191,7 +193,7 @@ export function Deployments({
                   onClick={() => onSetProjectHidden(p.name, true)}
                   title="Hide (show it again from Settings)"
                 >
-                  {p.name}
+                  {m("repoNames", p.name)}
                 </button>
               ))}
             </div>
@@ -209,7 +211,7 @@ export function Deployments({
               return (
                 <section className="inbox-section" key={p.id}>
                   <h3>
-                    {p.name} <span className="count">{deps.length}</span>
+                    {m("repoNames", p.name)} <span className="count">{deps.length}</span>
                   </h3>
                   {deps.length === 0 ? (
                     <p className="hint">No deployments.</p>
@@ -235,11 +237,13 @@ export function Deployments({
                             target="_blank"
                             rel="noreferrer"
                             className="dep-ref"
-                            title={d.url}
+                            title={m("urls", d.url)}
                           >
                             {d.target === "production"
                               ? "production"
-                              : d.branch ?? d.target ?? d.url}
+                              : d.branch
+                                ? m("branches", d.branch)
+                                : d.target ?? m("urls", d.url)}
                           </a>
                           <span className="hint dep-time">
                             {timeAgo(d.createdAt)}

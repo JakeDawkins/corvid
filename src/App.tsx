@@ -12,6 +12,7 @@ import type { DragItem } from "./Inbox";
 import { Deployments } from "./Deployments";
 import { Settings } from "./Settings";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
+import { MaskContext, makeMask, useMaskSettings } from "./mask";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
 
@@ -52,6 +53,9 @@ export default function App() {
   const fileInput = useRef<HTMLInputElement>(null);
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [maskSettings, setMaskSettings] = useMaskSettings();
+  const mask = useMemo(() => makeMask(maskSettings), [maskSettings]);
+  const { m } = mask;
 
   // initial load
   useEffect(() => {
@@ -96,6 +100,18 @@ export default function App() {
     });
     return () => es.close();
   }, [loaded]);
+
+  // Shift+M toggles masked mode, unless typing in a field.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "m" || !e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement;
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      setMaskSettings((s) => ({ ...s, enabled: !s.enabled }));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [setMaskSettings]);
 
   // Reopening the Deployments sidebar should always start actively polling.
   useEffect(() => {
@@ -581,7 +597,7 @@ export default function App() {
         style={card.color ? { background: card.color, color: textOn(card.color) } : undefined}
       >
         {card.color && data.colorTags?.[card.color] && (
-          <span className="card-tag">{data.colorTags[card.color]}</span>
+          <span className="card-tag">{m("colorLabels", data.colorTags[card.color])}</span>
         )}
         <span
           className="card-title"
@@ -596,7 +612,7 @@ export default function App() {
             }
           }}
         >
-          {card.title || "(untitled)"}
+          {m("cardTitles", card.title) || "(untitled)"}
         </span>
         <div className="card-actions">
           <button
@@ -639,12 +655,16 @@ export default function App() {
       {otherLinks.length > 0 && (
         <div className="group links">
           {otherLinks.map((l, i) => (
-            <LinkChip key={i} url={l.url} label={l.label?.trim() || domainName(l.url)} />
+            <LinkChip
+              key={i}
+              url={l.url}
+              label={l.label?.trim() ? m("linkLabels", l.label.trim()) : domainName(l.url)}
+            />
           ))}
         </div>
       )}
 
-      {card.notes && <div className="card-notes">{card.notes}</div>}
+      {card.notes && <div className="card-notes">{m("cardNotes", card.notes)}</div>}
 
       {linearUrls.length > 0 && (
         <div className="group linear">
@@ -677,6 +697,7 @@ export default function App() {
   };
 
   return (
+    <MaskContext.Provider value={mask}>
     <div className="app">
       <header className="toolbar">
         <div className="brand">
@@ -718,7 +739,7 @@ export default function App() {
               claudeCount > 0 ? " has-items" : ""
             }`}
             onClick={() => setShowClaude((v) => !v)}
-            title={claudeColumn}
+            title={m("columnNames", claudeColumn)}
           >
             <svg
               className="claude-logo"
@@ -793,6 +814,8 @@ export default function App() {
           onSetProjectHidden={setProjectHidden}
           colorTags={data.colorTags ?? {}}
           onSetColorTag={setColorTag}
+          maskSettings={maskSettings}
+          onSetMaskSettings={setMaskSettings}
           onClose={() => setShowSettings(false)}
         />
       ) : (
@@ -809,7 +832,7 @@ export default function App() {
         >
           <div className="sidebar-head">
             <h2>
-              {claudeColumn} <span className="count">{claudeCount}</span>
+              {m("columnNames", claudeColumn)} <span className="count">{claudeCount}</span>
             </h2>
             <button
               className="btn ghost"
@@ -844,7 +867,7 @@ export default function App() {
             }}
           >
             <div className="column-head">
-              <span>{col}</span>
+              <span>{m("columnNames", col)}</span>
               <span className="count">{cardsByColumn[col]?.length ?? 0}</span>
               <button className="add" onClick={() => newCard(col)} title="Add card">
                 +
@@ -932,5 +955,6 @@ export default function App() {
         />
       )}
     </div>
+    </MaskContext.Provider>
   );
 }

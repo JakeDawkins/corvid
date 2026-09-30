@@ -1,4 +1,5 @@
 import type { IssueStatus, LinearResource, PrStatus } from "./types";
+import { useMask } from "./mask";
 
 // A small glyph per resource type so Figma designs and Notion specs are
 // scannable at a glance among a card's linked resources.
@@ -10,8 +11,9 @@ const RESOURCE_ICON: Record<NonNullable<LinearResource["type"]>, string> = {
 
 // A card's freeform link (Slack, Notion, Figma, …) as a tinted chip with a link icon.
 export function LinkChip({ url, label }: { url: string; label: string }) {
+  const { m } = useMask();
   return (
-    <a href={url} target="_blank" rel="noreferrer" className="chip link-chip" title={url}>
+    <a href={url} target="_blank" rel="noreferrer" className="chip link-chip" title={m("urls", url)}>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -125,10 +127,11 @@ export function PrRow({
   url: string;
   repoNames?: Record<string, string>;
 }) {
+  const { m } = useMask();
   const parsed = repoFromUrl(url);
   const number = status?.number ?? parsed?.number;
   const label = parsed
-    ? `${repoLabel(parsed.repo, repoNames)}${number ? ` #${number}` : ""}`
+    ? `${m("repoNames", repoLabel(parsed.repo, repoNames))}${number ? ` #${number}` : ""}`
     : `PR ${number ? `#${number}` : url.split("/").slice(-1)[0]}`;
   const badges = status
     ? [
@@ -150,7 +153,7 @@ export function PrRow({
         target="_blank"
         rel="noreferrer"
         className={`pr-link${merged ? " merged" : ""}`}
-        title={status?.title || url}
+        title={m("prTitles", status?.title) || m("urls", url)}
       >
         {label}
       </a>
@@ -171,6 +174,7 @@ export function PrRow({
 // PrRow), with its external links shown as chips inside the card. The Linear
 // workflow-state color drives the card's left border and faint background.
 export function IssueRow({ status, url }: { status?: IssueStatus; url: string }) {
+  const { m } = useMask();
   const resources = status?.resources ?? [];
   const color = status?.error ? undefined : status?.stateColor;
   // Issues read best by identifier (PLA-655); projects have no number, so fall
@@ -178,7 +182,7 @@ export function IssueRow({ status, url }: { status?: IssueStatus; url: string })
   const label =
     status?.identifier && status.identifier !== "Project"
       ? status.identifier
-      : status?.title || "Linear";
+      : m("linearTitles", status?.title) || "Linear";
 
   return (
     <div
@@ -197,7 +201,7 @@ export function IssueRow({ status, url }: { status?: IssueStatus; url: string })
         target="_blank"
         rel="noreferrer"
         className="pr-link"
-        title={status?.title || url}
+        title={m("linearTitles", status?.title) || m("urls", url)}
       >
         {label}
       </a>
@@ -226,10 +230,10 @@ export function IssueRow({ status, url }: { status?: IssueStatus; url: string })
               target="_blank"
               rel="noreferrer"
               className={`chip resource ${r.type ?? "link"}`}
-              title={r.title || r.url}
+              title={m("linearResources", r.title) || m("urls", r.url)}
             >
               <span className="resource-icon">{RESOURCE_ICON[r.type ?? "link"]}</span>
-              {resourceLabel(r)}
+              {r.title?.trim() ? m("linearResources", resourceLabel(r)) : resourceLabel(r)}
             </a>
           ))}
         </div>

@@ -3,6 +3,7 @@ import type { IssueStatus, PrStatus } from "./types";
 import { loadInbox } from "./api";
 import { hasName, linearKey, parsePrUrl } from "./links";
 import { IssueRow, PrRow } from "./Badges";
+import { useMask } from "./mask";
 
 export type DragItem =
   | { kind: "pr"; status: PrStatus }
@@ -34,6 +35,7 @@ export function Inbox({
   onDragEnd: () => void;
   onClose: () => void;
 }) {
+  const { m } = useMask();
   const [loading, setLoading] = useState(true);
   const [prs, setPrs] = useState<PrStatus[]>([]);
   const [issues, setIssues] = useState<IssueStatus[]>([]);
@@ -99,7 +101,9 @@ export function Inbox({
       <div className="inbox-item" key={s.url}>
         {handle({ kind: "pr", status: s })}
         <div className="inbox-main">
-          <span className="inbox-title" title={s.title}>{s.title || s.url}</span>
+          <span className="inbox-title" title={m("prTitles", s.title)}>
+            {m("prTitles", s.title) || m("urls", s.url)}
+          </span>
           <PrRow url={s.url} status={s} repoNames={repoNames} />
         </div>
         <button className="btn" onClick={() => addPr(s)}>+ Add</button>
@@ -112,7 +116,9 @@ export function Inbox({
       <div className="inbox-item" key={s.url}>
         {handle({ kind: "linear", status: s })}
         <div className="inbox-main">
-          <span className="inbox-title" title={s.title}>{s.title || s.url}</span>
+          <span className="inbox-title" title={m("linearTitles", s.title)}>
+            {m("linearTitles", s.title) || m("urls", s.url)}
+          </span>
           <IssueRow url={s.url} status={s} />
         </div>
         <button className="btn" onClick={() => addLinear(s)}>+ Add</button>
@@ -132,7 +138,7 @@ export function Inbox({
       </div>
       <p className="hint sidebar-hint">
         Drag ⠿ onto a card to link, or + Add
-        {targetColumn ? ` to “${targetColumn}”` : ""}.
+        {targetColumn ? ` to “${m("columnNames", targetColumn)}”` : ""}.
       </p>
 
       <div className="sidebar-body">

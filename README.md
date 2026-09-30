@@ -69,6 +69,9 @@ npm run build && npm start   # http://localhost:8787
   title, notes, and links, for handing to a coding agent.
 - **Hide/unhide** cards, with a toggle to reveal hidden ones.
 - **Import / Export** the full state as JSON.
+- **Masked mode** (Settings, or Shift+M): swaps titles, notes, and other
+  sensitive text for placeholder words so the board can be screenshotted
+  publicly. Choose which kinds of text to mask; stored data is never changed.
 
 ## How it's wired
 

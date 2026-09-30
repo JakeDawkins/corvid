@@ -4,6 +4,7 @@ import { domainName, linkKind } from "./links";
 import { LinkChip } from "./Badges";
 import { COLORS, textOn } from "./colors";
 import { COMPLEXITY_LEVELS } from "./Complexity";
+import { useMask } from "./mask";
 
 // Human label for a link's auto-detected kind, shown beside each link row.
 const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
@@ -11,6 +12,9 @@ const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
   linear: "Linear",
   generic: "Link",
 };
+
+// Tooltip on fields made read-only by masked mode, which shows placeholder text.
+const MASKED_HINT = "Masked mode is on (Shift+M to turn off)";
 
 // Chip text for an untitled link: its kind for PRs/Linear, else its site name
 // (matching how the card itself labels untitled links).
@@ -34,6 +38,7 @@ export function CardEditor({
   onCancel: () => void;
   onDelete: () => void;
 }) {
+  const { m, on } = useMask();
   const [draft, setDraft] = useState<Card>({ ...card });
   const [promptCopied, setPromptCopied] = useState(false);
 
@@ -153,7 +158,9 @@ export function CardEditor({
           <span>Title</span>
           <input
             autoFocus
-            value={draft.title}
+            value={m("cardTitles", draft.title)}
+            readOnly={on("cardTitles")}
+            title={on("cardTitles") ? MASKED_HINT : undefined}
             onChange={(e) => set("title", e.target.value)}
             placeholder="What are you working on?"
           />
@@ -163,7 +170,7 @@ export function CardEditor({
           <span>Column</span>
           <select value={draft.column} onChange={(e) => set("column", e.target.value)}>
             {columns.map((c) => (
-              <option key={c} value={c}>{c}</option>
+              <option key={c} value={c}>{m("columnNames", c)}</option>
             ))}
           </select>
         </label>
@@ -193,7 +200,9 @@ export function CardEditor({
           <span>Notes</span>
           <textarea
             rows={2}
-            value={draft.notes ?? ""}
+            value={m("cardNotes", draft.notes ?? "")}
+            readOnly={on("cardNotes")}
+            title={on("cardNotes") ? MASKED_HINT : undefined}
             onChange={(e) => set("notes", e.target.value)}
             placeholder="Optional"
           />
@@ -204,7 +213,7 @@ export function CardEditor({
           <div className="color-swatches">
             {COLORS.map((c) => {
               // Labeled colors render as a pill with the label inside.
-              const label = c.value && colorTags[c.value];
+              const label = c.value && m("colorLabels", colorTags[c.value]);
               return (
                 <button
                   key={c.name}
@@ -231,7 +240,9 @@ export function CardEditor({
                 <input
                   autoFocus
                   placeholder="Title (optional)"
-                  value={editing.link.label}
+                  value={m("linkLabels", editing.link.label)}
+                  readOnly={on("linkLabels")}
+                  title={on("linkLabels") ? MASKED_HINT : undefined}
                   onChange={(e) =>
                     setEditing({ index: i, link: { ...editing.link, label: e.target.value } })
                   }
@@ -239,7 +250,9 @@ export function CardEditor({
                 />
                 <input
                   placeholder="https://…"
-                  value={editing.link.url}
+                  value={m("urls", editing.link.url)}
+                  readOnly={on("urls")}
+                  title={on("urls") ? MASKED_HINT : undefined}
                   onChange={(e) =>
                     setEditing({ index: i, link: { ...editing.link, url: e.target.value } })
                   }
@@ -254,9 +267,12 @@ export function CardEditor({
               </div>
             ) : (
               <div key={i} className="link-row">
-                <LinkChip url={l.url} label={l.label.trim() || chipFallback(l.url)} />
-                <span className="link-url" title={l.url}>
-                  {l.url}
+                <LinkChip
+                  url={l.url}
+                  label={l.label.trim() ? m("linkLabels", l.label.trim()) : chipFallback(l.url)}
+                />
+                <span className="link-url" title={m("urls", l.url)}>
+                  {m("urls", l.url)}
                 </span>
                 <button
                   type="button"

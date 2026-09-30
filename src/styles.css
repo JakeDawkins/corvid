@@ -657,3 +657,8 @@ textarea { resize: vertical; }
 .settings-color { align-items: center; }
 .settings-color .swatch { flex: none; cursor: default; }
 .btn.danger:disabled { color: var(--muted); cursor: not-allowed; }
+.settings-check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
+.settings-check input { width: auto; margin: 0; accent-color: var(--accent); }
+.settings-details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.settings-details summary:hover { color: var(--text); }
+.settings-details .settings-check { margin-left: 18px; }
