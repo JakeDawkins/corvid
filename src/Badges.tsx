@@ -24,8 +24,9 @@ export function LinkChip({ url, label }: { url: string; label: string }) {
   );
 }
 
-// A linked Conductor workspace. Always shown while linked; switches to a
-// Claude-orange "Working" state with a spinning mark while an agent is active.
+// A linked Conductor workspace, linking to it in the Conductor app. Always shown
+// while linked; switches to a Claude-orange "Working" state with a spinning
+// mark while an agent is active.
 export function WorkspaceBadge({ id, status }: { id: string; status?: WorkspaceStatus }) {
   const { m } = useMask();
   const name = status?.name ?? id.slice(0, 8);
@@ -36,9 +37,11 @@ export function WorkspaceBadge({ id, status }: { id: string; status?: WorkspaceS
         .join(" · ")
     : "Not found in Conductor";
   return (
-    <span
+    // No target: a custom-scheme link hands off to the app without opening a tab.
+    <a
+      href={`conductor://workspace?id=${encodeURIComponent(id)}`}
       className={`chip workspace-badge${status?.working ? " working" : ""}`}
-      title={`Conductor workspace ${name}${detail ? `\n${detail}` : ""}`}
+      title={`Open ${name} in Conductor${detail ? `\n${detail}` : ""}`}
     >
       <ClaudeLogo className={`claude-logo${status?.working ? " spinning" : ""}`} />
       {status?.working && <span className="workspace-badge-state">Working</span>}
@@ -46,7 +49,7 @@ export function WorkspaceBadge({ id, status }: { id: string; status?: WorkspaceS
         {name}
         {archived && " (archived)"}
       </span>
-    </span>
+    </a>
   );
 }
 
