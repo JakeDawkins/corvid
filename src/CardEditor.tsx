@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import type { AgentsStatus, Card, Link } from "./types";
+import type { AgentsStatus, Card, ConductorRepo, Link } from "./types";
+import { loadConductorRepos } from "./api";
 import { domainName, linkKind } from "./links";
 import { LinkChip, WorkspaceBadge } from "./Badges";
 import { COLORS, textOn } from "./colors";
@@ -21,6 +22,53 @@ const MASKED_HINT = "Masked mode is on (Shift+M to turn off)";
 function chipFallback(url: string): string {
   const kind = linkKind(url);
   return kind === "generic" ? domainName(url) : KIND_LABEL[kind];
+}
+
+// Last path segment, as a fallback name for a repo Conductor no longer lists.
+function baseName(path: string): string {
+  return path.replace(/\/+$/, "").split("/").pop() || path;
+}
+
+// Build a paste-ready instruction for an AI agent to work on this card: the
+// task, its links (so the agent has full context), and standing instructions
+// to link its Conductor workspace and any PR it opens back to this card (by
+// id) on the Corvid board.
+function buildAgentPrompt(card: Card): string {
+  const lines: string[] = [];
+  lines.push("Work on the following task from my Corvid board.");
+  lines.push("");
+  lines.push(`Task: ${card.title.trim() || "(untitled)"}`);
+  lines.push(`Card ID: ${card.id}`);
+  if (card.complexity) lines.push(`Estimated complexity: ${card.complexity}`);
+  if (card.notes?.trim()) {
+    lines.push("");
+    lines.push("Notes:");
+    lines.push(card.notes.trim());
+  }
+  const real = card.links.filter((l) => l.url.trim());
+  if (real.length) {
+    lines.push("");
+    lines.push("Relevant links:");
+    for (const l of real) {
+      const label = l.label.trim() ? `${l.label.trim()} — ` : "";
+      lines.push(`- ${label}${KIND_LABEL[linkKind(l.url)]}: ${l.url}`);
+    }
+  }
+  lines.push("");
+  lines.push(
+    `Before you start, if you are running in Conductor, link your workspace to this card so the board shows when you're working on it: with the corvid skill, run \`link-workspace ${card.id}\`. It reads $CONDUCTOR_WORKSPACE_ID and does nothing if the card already has that workspace.`,
+  );
+  lines.push("");
+  lines.push(
+    `Whenever you open a pull request for this work, add its URL to this card (Card ID: ${card.id}) on the Corvid board so it stays in sync.`,
+  );
+  return lines.join("\n");
+}
+
+// Deep link that opens Conductor's new-workspace flow in the repo at `path`,
+// with `prompt` as the first message. See conductor.build/docs/reference/deep-links.
+function conductorLink(prompt: string, path: string): string {
+  return `conductor://prompt=${encodeURIComponent(prompt)}&path=${encodeURIComponent(path)}`;
 }
 
 export function CardEditor({
@@ -56,42 +104,24 @@ export function CardEditor({
   // Conductor workspace id typed into the add box, not yet on the card.
   const [newWorkspace, setNewWorkspace] = useState("");
   const workspaces = draft.workspaces ?? [];
+  // Repos in Conductor, for the repo picker. null until loaded.
+  const [repos, setRepos] = useState<ConductorRepo[] | null>(null);
+  const [reposError, setReposError] = useState<string>();
+  // Set when "Start in Conductor" was clicked on a card with no repo, so the
+  // header asks for one before opening Conductor.
+  const [pickingRepo, setPickingRepo] = useState(false);
 
-  // Build a paste-ready instruction for an AI agent to work on this card: the
-  // task, its links (so the agent has full context), and standing instructions
-  // to link its Conductor workspace and any PR it opens back to this card (by
-  // id) on the Corvid board.
-  function buildAgentPrompt(): string {
-    const lines: string[] = [];
-    lines.push("Work on the following task from my Corvid board.");
-    lines.push("");
-    lines.push(`Task: ${draft.title.trim() || "(untitled)"}`);
-    lines.push(`Card ID: ${draft.id}`);
-    if (draft.complexity) lines.push(`Estimated complexity: ${draft.complexity}`);
-    if (draft.notes?.trim()) {
-      lines.push("");
-      lines.push("Notes:");
-      lines.push(draft.notes.trim());
-    }
-    const real = links.filter((l) => l.url.trim());
-    if (real.length) {
-      lines.push("");
-      lines.push("Relevant links:");
-      for (const l of real) {
-        const label = l.label.trim() ? `${l.label.trim()} — ` : "";
-        lines.push(`- ${label}${KIND_LABEL[linkKind(l.url)]}: ${l.url}`);
-      }
-    }
-    lines.push("");
-    lines.push(
-      `Before you start, if you are running in Conductor, link your workspace to this card so the board shows when you're working on it: with the corvid skill, run \`link-workspace ${draft.id}\`. It reads $CONDUCTOR_WORKSPACE_ID and does nothing if the card already has that workspace.`,
-    );
-    lines.push("");
-    lines.push(
-      `Whenever you open a pull request for this work, add its URL to this card (Card ID: ${draft.id}) on the Corvid board so it stays in sync.`,
-    );
-    return lines.join("\n");
-  }
+  useEffect(() => {
+    loadConductorRepos()
+      .then((r) => {
+        setRepos(r.repos);
+        setReposError(r.error);
+      })
+      .catch(() => {
+        setRepos([]);
+        setReposError("Couldn't load Conductor repos");
+      });
+  }, []);
 
   // Close on Escape, discarding any unsaved edits (same as clicking outside).
   useEffect(() => {
@@ -104,7 +134,7 @@ export function CardEditor({
 
   async function copyPrompt() {
     try {
-      await navigator.clipboard.writeText(buildAgentPrompt());
+      await navigator.clipboard.writeText(buildAgentPrompt(finalCard()));
       setPromptCopied(true);
       setTimeout(() => setPromptCopied(false), 1500);
     } catch {
@@ -156,17 +186,43 @@ export function CardEditor({
     set("workspaces", rest.length ? rest : undefined);
   }
 
-  function save() {
+  // The card as it would be saved now.
+  function finalCard(): Card {
     // Keep an open edit or a typed-but-not-added URL rather than dropping it.
     const final = links.map((l, i) => (editing?.index === i ? editing.link : l));
     if (newUrl.trim()) final.push({ label: "", url: newUrl.trim() });
     const ws = newWorkspace.trim().toLowerCase();
     const finalWorkspaces = ws && !workspaces.includes(ws) ? [...workspaces, ws] : workspaces;
-    onSave({
+    return {
       ...draft,
       links: final.filter((l) => l.url.trim()),
       workspaces: finalWorkspaces.length ? finalWorkspaces : undefined,
-    });
+    };
+  }
+
+  function save() {
+    onSave(finalCard());
+  }
+
+  // Open a new Conductor workspace for this card in the repo at `path`, seeded
+  // with the agent prompt. Saves and closes the editor first so the agent's
+  // link-workspace edit isn't overwritten by a later save of this stale draft.
+  function startInConductor(path: string) {
+    const card = { ...finalCard(), repo: path };
+    onSave(card);
+    window.location.href = conductorLink(buildAgentPrompt(card), path);
+  }
+
+  function onStartClick() {
+    if (draft.repo) startInConductor(draft.repo);
+    else setPickingRepo(true);
+  }
+
+  // Repo options: Conductor's repos, plus the card's repo if Conductor no
+  // longer lists it, so the select still shows what's stored.
+  const repoOptions = [...(repos ?? [])];
+  if (draft.repo && repos && !repos.some((r) => r.path === draft.repo)) {
+    repoOptions.push({ name: `${baseName(draft.repo)} (not in Conductor)`, path: draft.repo });
   }
 
   return (
@@ -174,9 +230,48 @@ export function CardEditor({
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{card.title ? "Edit card" : "New card"}</h2>
-          <button type="button" className="btn" onClick={copyPrompt}>
-            {promptCopied ? "Copied!" : "Copy prompt for agents"}
-          </button>
+          <div className="modal-head-actions">
+            <button type="button" className="btn" onClick={copyPrompt}>
+              {promptCopied ? "Copied!" : "Copy prompt for agents"}
+            </button>
+            {pickingRepo ? (
+              <select
+                autoFocus
+                className="repo-pick"
+                value=""
+                disabled={!repos?.length}
+                onChange={(e) => e.target.value && startInConductor(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    // Cancel just the picker, not the whole card.
+                    e.stopPropagation();
+                    setPickingRepo(false);
+                  }
+                }}
+                onBlur={() => setPickingRepo(false)}
+              >
+                <option value="">
+                  {repos === null ? "Loading repos…" : repos.length ? "Pick a repo…" : "No repos"}
+                </option>
+                {repoOptions.map((r) => (
+                  <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
+                ))}
+              </select>
+            ) : (
+              <button
+                type="button"
+                className="btn primary"
+                title={
+                  draft.repo
+                    ? `New Conductor workspace in ${draft.repo}`
+                    : "Pick a repo, then open a new Conductor workspace"
+                }
+                onClick={onStartClick}
+              >
+                Start in Conductor
+              </button>
+            )}
+          </div>
         </div>
 
         <label className="field">
@@ -198,6 +293,20 @@ export function CardEditor({
               <option key={c} value={c}>{m("columnNames", c)}</option>
             ))}
           </select>
+        </label>
+
+        <label className="field">
+          <span>Repo (for new Conductor workspaces)</span>
+          <select
+            value={draft.repo ?? ""}
+            onChange={(e) => set("repo", e.target.value || undefined)}
+          >
+            <option value="">{repos === null ? "Loading…" : "None"}</option>
+            {repoOptions.map((r) => (
+              <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
+            ))}
+          </select>
+          {reposError && <div className="hint error">{reposError}</div>}
         </label>
 
         <div className="field">

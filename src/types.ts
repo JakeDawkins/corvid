@@ -27,7 +27,13 @@ export type Card = {
   // A card can span several workspaces, e.g. one per repo. The board shows an
   // activity indicator while an agent is working in any of them.
   workspaces?: string[];
+  // Root path of the Conductor repo to start new workspaces for this card in
+  // (e.g. "/Users/jane/code/my-app"), as listed by /api/conductor/repos.
+  repo?: string;
 };
+
+// A repo added to Conductor. `path` is its root directory.
+export type ConductorRepo = { name: string; path: string };
 
 // Live Conductor status for one linked workspace, pushed by the server over SSE.
 export type WorkspaceStatus = {

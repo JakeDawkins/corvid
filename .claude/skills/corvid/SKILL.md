@@ -62,7 +62,8 @@ A `Card`:
   "color": "#3b9eff",               // optional, one of the preset hexes below
   "complexity": "M",                // optional, t-shirt size XS|S|M|L|XL
   "links": [ { "label": "", "url": "https://..." } ],
-  "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"]  // optional
+  "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"],  // optional
+  "repo": "/Users/jane/code/acme-web"  // optional, Conductor repo root path
 }
 ```
 
@@ -86,6 +87,9 @@ A `Card`:
   repo. Each shows as a badge at the top of the card, which turns into an
   orange "Working" badge while an agent is working in that workspace. Use `link-workspace` / `unlink-workspace`; never
   hand-edit it.
+- **`repo`** is an optional Conductor repo root path. The app's "Start in
+  Conductor" button opens new workspaces for the card there. It's set from the
+  app; leave it alone unless the user asks.
 - `cache` holds the last-fetched PR/Linear statuses. Adding a link does not
   populate it; the badge appears after the user hits **Refresh** in the app.
 

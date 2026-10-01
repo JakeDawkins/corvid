@@ -1,5 +1,6 @@
 import type {
   Cache,
+  ConductorRepo,
   Data,
   Inbox,
   IssueStatus,
@@ -75,6 +76,15 @@ export async function loadVercelDeployments(
     error?: string;
   };
   return { deployments: data.deployments ?? {}, error: data.error };
+}
+
+export async function loadConductorRepos(): Promise<{
+  repos: ConductorRepo[];
+  error?: string;
+}> {
+  const res = await fetch("/api/conductor/repos");
+  const data = (await res.json()) as { repos?: ConductorRepo[]; error?: string };
+  return { repos: data.repos ?? [], error: data.error };
 }
 
 export async function refresh(

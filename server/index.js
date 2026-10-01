@@ -527,6 +527,31 @@ async function fetchWorkspaces(ids) {
   }
 }
 
+// Repos added to Conductor, in sidebar order, for a card's repo picker. root_path
+// is what a conductor:// deep link's `path` matches to pick the repo.
+async function fetchConductorRepos() {
+  if (!existsSync(CONDUCTOR_DB)) {
+    return { repos: [], error: `Conductor database not found at ${CONDUCTOR_DB}` };
+  }
+  const sql = `
+    select name, root_path as path from repos
+    where coalesce(hidden, 0) = 0 and root_path is not null
+    order by display_order, name`;
+  try {
+    const { stdout } = await execFileP('sqlite3', [
+      '-readonly',
+      '-json',
+      '-cmd',
+      '.timeout 2000',
+      CONDUCTOR_DB,
+      sql,
+    ]);
+    return { repos: stdout.trim() ? JSON.parse(stdout) : [] };
+  } catch (e) {
+    return { repos: [], error: cleanErr(e) };
+  }
+}
+
 // Workspace ids linked on any card, read from disk so a link added by the UI or
 // a skill is picked up on the next poll.
 async function linkedWorkspaceIds() {
@@ -660,6 +685,11 @@ app.post('/api/refresh', async (req, res) => {
 app.get('/api/inbox', async (_req, res) => {
   const [gh, linear] = await Promise.all([fetchMyPrs(), fetchMyLinear()]);
   res.json({ ...gh, ...linear });
+});
+
+// Repos in Conductor, for picking where a card's workspace starts.
+app.get('/api/conductor/repos', async (_req, res) => {
+  res.json(await fetchConductorRepos());
 });
 
 // Vercel projects the token can see (for the Deployments sidebar toggles).

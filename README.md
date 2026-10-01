@@ -73,6 +73,10 @@ npm run build && npm start   # http://localhost:8787
   workspace. The copied agent prompt tells the agent to link its own workspace
   via the skill. The server reads Conductor's local database
   read-only every 3s (macOS; override the path with `CONDUCTOR_DB`).
+- **Start in Conductor**: pick a repo on the card (from the repos added to
+  Conductor) and the button opens a new Conductor workspace in it, seeded with
+  the agent prompt via a `conductor://` deep link. With no repo set, it asks for
+  one first and saves it on the card.
 - **Hide/unhide** cards, with a toggle to reveal hidden ones.
 - **Import / Export** the full state as JSON.
 - **Masked mode** (Settings, or Shift+M): swaps titles, notes, and other
@@ -126,7 +130,8 @@ for the authoritative version):
         { "label": "PR", "url": "https://github.com/acme/acme-web/pull/123" },
         { "label": "Issue", "url": "https://linear.app/acme/issue/ENG-42/..." }
       ],
-      "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"]
+      "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"],
+      "repo": "/Users/jane/code/acme-web"
     }
   ],
   "cache": { "prs": {}, "issues": {} },
