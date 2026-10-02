@@ -483,6 +483,14 @@ input, textarea, select {
 }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
 textarea { resize: vertical; }
+/* Single-line fields and dropdowns match a .btn's height (29px) so they line
+   up with the buttons beside them. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select {
+  height: 29px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
 .card-editor textarea { max-height: 40vh; }
 
 .link-editor { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
