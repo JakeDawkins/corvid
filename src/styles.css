@@ -758,20 +758,8 @@ select {
   }
 }
 
-/* settings page */
-.settings { flex: 1; overflow-y: auto; padding: 20px 24px; width: 100%; max-width: 640px; margin: 0 auto; }
-.settings-head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
-.settings-back {
-  background: none;
-  border: none;
-  padding: 0 4px;
-  color: var(--muted);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-.settings-back:hover { color: var(--text); }
-.settings-head h2 { margin: 0; font-size: 18px; }
+/* settings sidebar, docked right of the "My work" / "Deployments" stack */
+.settings-sidebar .sidebar-body { padding-top: 14px; }
 .settings-section h3 { margin: 0 0 4px; font-size: 14px; }
 .settings-section > .hint { margin: 0 0 12px; }
 .settings-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }

@@ -67,78 +67,78 @@ export function Settings({
   const addError = next ? nameError(next, columns) : null;
 
   return (
-    <div className="settings">
-      <div className="settings-head">
-        <button className="settings-back" onClick={onClose} title="Back to board" aria-label="Back to board">
-          ←
-        </button>
+    <aside className="sidebar settings-sidebar">
+      <div className="sidebar-head">
         <h2>Settings</h2>
+        <button className="btn ghost" onClick={onClose} title="Close">✕</button>
       </div>
 
-      <section className="settings-section">
-        <h3>Appearance</h3>
-        <p className="hint">Saved in this browser. System follows your OS light/dark setting.</p>
-        <div className="segmented" role="radiogroup" aria-label="Theme">
-          {THEMES.map((t) => (
-            <button
-              key={t.value}
-              type="button"
-              role="radio"
-              aria-checked={theme === t.value}
-              className={`segmented-option${theme === t.value ? " selected" : ""}`}
-              onClick={() => onSetTheme(t.value)}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h3>Columns</h3>
-        <p className="hint">Renaming a column keeps all of its cards in it. Only empty columns can be deleted.</p>
-        {columns.map((col) => (
-          // Keyed by name so the row resets to the new name after a rename.
-          <ColumnRow
-            key={col}
-            name={col}
-            columns={columns}
-            cardCount={cardCounts[col] ?? 0}
-            onRename={onRenameColumn}
-            onDelete={onDeleteColumn}
-          />
-        ))}
-        <form
-          className="settings-row settings-add"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (next && !addError) {
-              onAddColumn(next);
-              setNewName("");
-            }
-          }}
-        >
-          <div className="settings-row-main">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="New column name"
-              aria-label="New column name"
-            />
-            <button type="submit" className="btn" disabled={!next || !!addError}>
-              Add column
-            </button>
+      <div className="sidebar-body">
+        <section className="settings-section">
+          <h3>Appearance</h3>
+          <p className="hint">Saved in this browser. System follows your OS light/dark setting.</p>
+          <div className="segmented" role="radiogroup" aria-label="Theme">
+            {THEMES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                role="radio"
+                aria-checked={theme === t.value}
+                className={`segmented-option${theme === t.value ? " selected" : ""}`}
+                onClick={() => onSetTheme(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-          {addError && <span className="hint error">{addError}</span>}
-        </form>
-      </section>
+        </section>
 
-      <MaskedMode settings={maskSettings} onChange={onSetMaskSettings} />
-      <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
-      <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
-      <HiddenVercelProjects hidden={hiddenVercelProjects} onSetHidden={onSetProjectHidden} />
-      <ImportExport onExport={onExport} onImport={onImport} />
-    </div>
+        <section className="settings-section">
+          <h3>Columns</h3>
+          <p className="hint">Renaming a column keeps all of its cards in it. Only empty columns can be deleted.</p>
+          {columns.map((col) => (
+            // Keyed by name so the row resets to the new name after a rename.
+            <ColumnRow
+              key={col}
+              name={col}
+              columns={columns}
+              cardCount={cardCounts[col] ?? 0}
+              onRename={onRenameColumn}
+              onDelete={onDeleteColumn}
+            />
+          ))}
+          <form
+            className="settings-row settings-add"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (next && !addError) {
+                onAddColumn(next);
+                setNewName("");
+              }
+            }}
+          >
+            <div className="settings-row-main">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="New column name"
+                aria-label="New column name"
+              />
+              <button type="submit" className="btn" disabled={!next || !!addError}>
+                Add column
+              </button>
+            </div>
+            {addError && <span className="hint error">{addError}</span>}
+          </form>
+        </section>
+
+        <MaskedMode settings={maskSettings} onChange={onSetMaskSettings} />
+        <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
+        <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
+        <HiddenVercelProjects hidden={hiddenVercelProjects} onSetHidden={onSetProjectHidden} />
+        <ImportExport onExport={onExport} onImport={onImport} />
+      </div>
+    </aside>
   );
 }
 

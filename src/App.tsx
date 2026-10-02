@@ -805,29 +805,6 @@ export default function App() {
         </button>
       </header>
 
-      {showSettings ? (
-        <Settings
-          columns={data.columns}
-          cardCounts={columnCardCounts}
-          onRenameColumn={renameColumn}
-          onAddColumn={addColumn}
-          onDeleteColumn={deleteColumn}
-          hiddenRepos={data.hiddenRepos ?? []}
-          knownRepos={knownRepos}
-          onSetRepoHidden={setRepoHidden}
-          hiddenVercelProjects={data.hiddenVercelProjects ?? []}
-          onSetProjectHidden={setProjectHidden}
-          colorTags={data.colorTags ?? {}}
-          onSetColorTag={setColorTag}
-          maskSettings={maskSettings}
-          onSetMaskSettings={setMaskSettings}
-          theme={theme}
-          onSetTheme={setTheme}
-          onExport={exportJson}
-          onImport={importJson}
-          onClose={() => setShowSettings(false)}
-        />
-      ) : (
       <div className="app-body">
       {showClaude && claudeColumn && (
         <aside
@@ -944,8 +921,31 @@ export default function App() {
           )}
         </div>
       )}
-      </div>
+
+      {showSettings && (
+        <Settings
+          columns={data.columns}
+          cardCounts={columnCardCounts}
+          onRenameColumn={renameColumn}
+          onAddColumn={addColumn}
+          onDeleteColumn={deleteColumn}
+          hiddenRepos={data.hiddenRepos ?? []}
+          knownRepos={knownRepos}
+          onSetRepoHidden={setRepoHidden}
+          hiddenVercelProjects={data.hiddenVercelProjects ?? []}
+          onSetProjectHidden={setProjectHidden}
+          colorTags={data.colorTags ?? {}}
+          onSetColorTag={setColorTag}
+          maskSettings={maskSettings}
+          onSetMaskSettings={setMaskSettings}
+          theme={theme}
+          onSetTheme={setTheme}
+          onExport={exportJson}
+          onImport={importJson}
+          onClose={() => setShowSettings(false)}
+        />
       )}
+      </div>
 
       {editing && (
         <CardEditor
