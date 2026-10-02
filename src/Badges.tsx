@@ -24,6 +24,60 @@ export function LinkChip({ url, label }: { url: string; label: string }) {
   );
 }
 
+// A card link as plain muted text with a small icon: the link glyph for the
+// card's own links, or a resource glyph for docs pulled from its Linear items.
+export function CardLink({
+  url,
+  label,
+  type,
+}: {
+  url: string;
+  label: string;
+  type?: LinearResource["type"];
+}) {
+  const { m } = useMask();
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="card-link" title={m("urls", url)}>
+      {type ? (
+        <span className="resource-icon">{RESOURCE_ICON[type]}</span>
+      ) : (
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+      )}
+      <span>{label}</span>
+    </a>
+  );
+}
+
+// A linked Conductor workspace in a card's footer: muted name and mark while
+// idle, Claude orange with a spinning mark and "Working" while an agent is active.
+export function WorkspaceTag({ id, status }: { id: string; status?: WorkspaceStatus }) {
+  const { m } = useMask();
+  const name = status?.name ?? id.slice(0, 8);
+  const archived = status?.state === "archived";
+  const detail = status
+    ? [status.repo && m("repoNames", status.repo), status.branch && m("branches", status.branch)]
+        .filter(Boolean)
+        .join(" · ")
+    : "Not found in Conductor";
+  return (
+    <a
+      href={`conductor://workspace?id=${encodeURIComponent(id)}`}
+      className={`workspace-tag${status?.working ? " working" : ""}`}
+      title={`Open ${name} in Conductor${detail ? `\n${detail}` : ""}`}
+    >
+      <ClaudeLogo className={`claude-logo${status?.working ? " spinning" : ""}`} />
+      <span>
+        {status?.working && "Working · "}
+        {name}
+        {archived && " (archived)"}
+      </span>
+    </a>
+  );
+}
+
 // A linked Conductor workspace, linking to it in the Conductor app. Always shown
 // while linked; switches to a Claude-orange "Working" state with a spinning
 // mark while an agent is active.
@@ -54,7 +108,7 @@ export function WorkspaceBadge({ id, status }: { id: string; status?: WorkspaceS
 }
 
 // Label a resource by its title, falling back to the link's hostname.
-function resourceLabel(r: LinearResource): string {
+export function resourceLabel(r: LinearResource): string {
   if (r.title?.trim()) return r.title.trim();
   try {
     return new URL(r.url).hostname.replace(/^www\./, "");
@@ -146,6 +200,114 @@ function repoLabel(slug: string, repoNames?: Record<string, string>): string {
     if (key.toLowerCase() === lower) return name;
   }
   return slug;
+}
+
+// A card's PR as one flat line: a dot for its overall status, the repo (without
+// owner, unless renamed in data.repoNames) and number, then review, CI, and
+// unresolved threads on the right. Merged/closed PRs show just their state; the
+// full detail is always in the hover text.
+export function PrLine({
+  status,
+  url,
+  repoNames,
+}: {
+  status?: PrStatus;
+  url: string;
+  repoNames?: Record<string, string>;
+}) {
+  const { m } = useMask();
+  const parsed = repoFromUrl(url);
+  const number = status?.number ?? parsed?.number;
+  const repo = parsed
+    ? repoLabel(parsed.repo, repoNames) === parsed.repo
+      ? parsed.repo.split("/")[1]
+      : repoLabel(parsed.repo, repoNames)
+    : "PR";
+  const open = status?.state === "OPEN";
+  const ci = ciBadge(status?.ci);
+  const review = reviewBadge(status?.reviewDecision);
+  const state = stateBadge(status?.state, status?.isDraft);
+  const unresolved = status?.unresolvedThreads ?? 0;
+  const tip = [
+    m("prTitles", status?.title) || m("urls", url),
+    state?.text,
+    ci?.text,
+    review?.text,
+    unresolved ? `${unresolved} unresolved` : null,
+    status?.error,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className={`status-line${status?.state === "MERGED" ? " done" : ""}`}
+      title={tip}
+    >
+      <span className={`status-dot ${prCardClass(status)}`} />
+      <span className="status-label">
+        <span className="status-name">{m("repoNames", repo)}</span>
+        {number && <span className="status-num">#{number}</span>}
+      </span>
+      <span className="status-meta">
+        {status?.error ? (
+          <span className="bad">Error</span>
+        ) : (
+          <>
+            {state && state.text !== "Open" && <span>{state.text}</span>}
+            {open && review && (
+              <span className={review.cls}>
+                {review.cls === "bad" ? "Changes" : review.cls === "run" ? "Review" : review.text}
+              </span>
+            )}
+            {open && ci && <span className={`strong ${ci.cls}`}>{ci.text}</span>}
+            {unresolved > 0 && (
+              <span className="strong bad threads">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                {unresolved}
+              </span>
+            )}
+          </>
+        )}
+      </span>
+    </a>
+  );
+}
+
+// A card's Linear issue/project as one flat line: a dot in its workflow-state
+// color, its identifier (or project name), and the state name on the right.
+// Its linked resources render with the card's other links, not here.
+export function IssueLine({ status, url }: { status?: IssueStatus; url: string }) {
+  const { m } = useMask();
+  const label =
+    status?.identifier && status.identifier !== "Project"
+      ? status.identifier
+      : m("linearTitles", status?.title) || "Linear";
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="status-line"
+      title={[m("linearTitles", status?.title) || m("urls", url), status?.error].filter(Boolean).join("\n")}
+    >
+      <span
+        className="status-dot"
+        style={{ background: (!status?.error && status?.stateColor) || "var(--muted)" }}
+      />
+      <span className="status-label">
+        <span className="status-name">{label}</span>
+      </span>
+      <span className="status-meta">
+        {status?.error ? <span className="bad">Error</span> : status?.stateName}
+      </span>
+    </a>
+  );
 }
 
 export function PrRow({

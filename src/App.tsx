@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AgentsStatus, Card, Data, IssueStatus, PrStatus } from "./types";
+import type { AgentsStatus, Card, Data, IssueStatus, LinearResource, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
 import { domainName, linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
 import type { VercelDeployment } from "./types";
-import { IssueRow, LinkChip, PrRow, WorkspaceBadge } from "./Badges";
+import { CardLink, IssueLine, PrLine, WorkspaceTag, resourceLabel } from "./Badges";
 import { CardEditor } from "./CardEditor";
-import { textOn } from "./colors";
 import { ComplexityBars } from "./Complexity";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
@@ -549,15 +548,42 @@ export default function App() {
   }
 
   const renderCard = (card: Card) => {
-    // Group the flat link list by kind for display: Linear rows, then PR rows
-    // (merged sorted to the bottom), then misc links as chips.
+    // Group the flat link list by kind for display: Linear lines, then PR lines
+    // (merged sorted to the bottom), then misc links. Linear items' resources
+    // (Notion specs, Figma designs) join the misc links, deduped by URL.
     const linearUrls = card.links
       .map((l) => l.url)
       .filter((u) => linkKind(u) === "linear");
     const prUrls = card.links
       .map((l) => l.url)
-      .filter((u) => linkKind(u) === "pr");
-    const otherLinks = card.links.filter((l) => linkKind(l.url) === "generic");
+      .filter((u) => linkKind(u) === "pr")
+      .sort(
+        (a, b) =>
+          (cache.prs[a]?.state === "MERGED" ? 1 : 0) -
+          (cache.prs[b]?.state === "MERGED" ? 1 : 0),
+      );
+    const seenUrls = new Set<string>();
+    const otherLinks: { url: string; label: string; type?: LinearResource["type"] }[] = [];
+    for (const l of card.links) {
+      if (linkKind(l.url) !== "generic" || seenUrls.has(l.url)) continue;
+      seenUrls.add(l.url);
+      otherLinks.push({
+        url: l.url,
+        label: l.label?.trim() ? m("linkLabels", l.label.trim()) : domainName(l.url),
+      });
+    }
+    for (const u of linearUrls) {
+      for (const r of cache.issues[u]?.resources ?? []) {
+        if (seenUrls.has(r.url)) continue;
+        seenUrls.add(r.url);
+        otherLinks.push({
+          url: r.url,
+          label: r.title?.trim() ? m("linearResources", resourceLabel(r)) : resourceLabel(r),
+          type: r.type ?? "link",
+        });
+      }
+    }
+    const tag = card.color ? data.colorTags?.[card.color] : undefined;
 
     return (
     <div
@@ -568,12 +594,12 @@ export default function App() {
       className={`card${dragItem ? " link-target" : ""}${
         dragOverId === card.id ? " drop-before" : ""
       }${highlightId === card.id ? " highlight" : ""}`}
-      style={card.color ? { border: `2px solid ${card.color}` } : undefined}
-      // Clicking anywhere on the card opens it, except links, buttons, and
-      // PR/Linear rows, which keep their own behavior.
+      style={card.color ? { borderLeftColor: card.color } : undefined}
+      // Clicking anywhere on the card opens it, except links and buttons, which
+      // keep their own behavior.
       onClick={(e) => {
         const el = e.target as HTMLElement;
-        if (el.closest("a, button, input, select, textarea, [role=button], .pr-card")) return;
+        if (el.closest("a, button, input, select, textarea, [role=button]")) return;
         setEditing(card);
       }}
       draggable
@@ -605,13 +631,7 @@ export default function App() {
         }
       }}
     >
-      <div
-        className={`card-title-row${card.color ? " colored" : ""}`}
-        style={card.color ? { background: card.color, color: textOn(card.color) } : undefined}
-      >
-        {card.color && data.colorTags?.[card.color] && (
-          <span className="card-tag">{m("colorLabels", data.colorTags[card.color])}</span>
-        )}
+      <div className="card-title-row">
         <span
           className="card-title"
           role="button"
@@ -661,56 +681,39 @@ export default function App() {
         </div>
       </div>
 
-      {card.workspaces && card.workspaces.length > 0 && (
-        <div className="group links">
-          {card.workspaces.map((id) => (
-            <WorkspaceBadge key={id} id={id} status={agents.workspaces[id]} />
+      {card.notes && <div className="card-notes">{m("cardNotes", card.notes)}</div>}
+
+      {linearUrls.length + prUrls.length > 0 && (
+        <div className="status-lines">
+          {linearUrls.map((u) => (
+            <IssueLine key={u} url={u} status={cache.issues[u]} />
+          ))}
+          {prUrls.map((u) => (
+            <PrLine key={u} url={u} status={cache.prs[u]} repoNames={data.repoNames} />
           ))}
         </div>
-      )}
-
-      {card.complexity && (
-        <ComplexityBars value={card.complexity} color={card.color} />
       )}
 
       {otherLinks.length > 0 && (
-        <div className="group links">
+        <div className="card-links">
           {otherLinks.map((l, i) => (
-            <LinkChip
-              key={i}
-              url={l.url}
-              label={l.label?.trim() ? m("linkLabels", l.label.trim()) : domainName(l.url)}
-            />
+            <CardLink key={i} url={l.url} label={l.label} type={l.type} />
           ))}
         </div>
       )}
 
-      {card.notes && <div className="card-notes">{m("cardNotes", card.notes)}</div>}
-
-      {linearUrls.length > 0 && (
-        <div className="group linear">
-          {linearUrls.map((u) => (
-            <IssueRow key={u} url={u} status={cache.issues[u]} />
+      {(tag || card.complexity || !!card.workspaces?.length) && (
+        <div className="card-foot">
+          {tag && (
+            <span className="card-tag" style={{ color: card.color }}>
+              {m("colorLabels", tag)}
+            </span>
+          )}
+          {card.complexity && <ComplexityBars value={card.complexity} color={card.color} />}
+          <span className="spacer" />
+          {card.workspaces?.map((id) => (
+            <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
           ))}
-        </div>
-      )}
-
-      {prUrls.length > 0 && (
-        <div className="group prs">
-          {[...prUrls]
-            .sort(
-              (a, b) =>
-                (cache.prs[a]?.state === "MERGED" ? 1 : 0) -
-                (cache.prs[b]?.state === "MERGED" ? 1 : 0),
-            )
-            .map((u) => (
-              <PrRow
-                key={u}
-                url={u}
-                status={cache.prs[u]}
-                repoNames={data.repoNames}
-              />
-            ))}
         </div>
       )}
     </div>

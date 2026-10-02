@@ -138,32 +138,18 @@ body {
 
 .cards { padding: 10px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
 
+/* The card's accent color, when set, shows as its left stripe. */
 .card {
   background: var(--panel-2);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
   border-radius: 8px;
   padding: 12px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
 }
-
-/* A group of one link type (Linear / GitHub PRs / misc links). */
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-top: 9px;
-  border-top: 1px solid var(--border);
-}
-/* Misc links sit directly under the card title, with no divider above them. */
-.group.links { flex-direction: row; flex-wrap: wrap; gap: 6px 8px; border-top: none; padding-top: 0; }
-.card > .group:first-child { border-top: none; padding-top: 0; }
-/* Linear and PR mini-cards stack together as one block, with no divider
-   between them. */
-.group.linear,
-.group.prs { border-top: none; padding-top: 0; }
 .card:active { cursor: grabbing; }
 .card.dim { opacity: 0.5; }
 /* Insertion indicator when dragging a card above another to reorder it. */
@@ -203,28 +189,23 @@ body {
 }
 
 .card-title-row { display: flex; align-items: flex-start; gap: 6px; }
-/* Colored header bleeds to the card edges and rounds with the card's top. */
-.card-title-row.colored {
-  align-items: center;
-  margin: -12px -12px 0;
-  padding: 8px 12px;
-  border-radius: 6px 6px 0 0;
-}
-.card-title { font-weight: 600; flex: 1; cursor: pointer; }
+.card-title { font-weight: 500; line-height: 1.35; flex: 1; cursor: pointer; }
 .card-title:hover { text-decoration: underline; }
 .card-tag {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.75;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
-.card-actions { display: flex; gap: 2px; }
+/* Copy/hide actions stay out of the way until the card is hovered or focused. */
+.card-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+.card:hover .card-actions,
+.card:focus-within .card-actions { opacity: 1; }
 .card-actions button {
   background: none;
   border: none;
-  color: currentColor;
+  color: var(--muted);
   opacity: 0.55;
   cursor: pointer;
   font-size: 13px;
@@ -233,7 +214,103 @@ body {
 .card-actions button:hover { opacity: 1; }
 .card-actions button svg { display: block; }
 
-.card-notes { color: var(--muted); font-size: 12px; white-space: pre-wrap; }
+/* Notes clamp to 4 lines on the card; the editor shows them in full. */
+.card-notes {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* A card's Linear issues and PRs, one flat line each: status dot, label, and
+   status detail right-aligned. */
+.status-lines { display: flex; flex-direction: column; }
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 -4px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+.status-line:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.status-line.done .status-label { color: var(--muted); text-decoration: line-through; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); }
+.status-dot.ok { background: var(--ok); }
+.status-dot.bad { background: var(--bad); }
+.status-dot.run { background: var(--run); }
+.status-dot.merged { background: var(--merged); }
+.status-dot.muted { background: var(--muted); }
+.status-label { display: flex; gap: 4px; min-width: 0; }
+.status-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.status-num { flex: none; color: var(--muted); }
+.status-meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.status-meta .strong { font-weight: 600; }
+.status-meta .ok { color: var(--ok); }
+.status-meta .bad { color: var(--bad); }
+.status-meta .run { color: var(--run); }
+.status-meta .threads { display: inline-flex; align-items: center; gap: 3px; }
+
+/* Misc links and Linear resources, as plain muted text. */
+.card-links { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+}
+.card-link:hover { color: var(--text); }
+.card-link svg { flex: none; }
+.card-link .resource-icon { font-size: 10px; opacity: 0.85; }
+.card-link span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Footer: color tag, complexity, and linked workspaces. */
+.card-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 0;
+}
+.card-foot .complexity { gap: 5px; }
+.card-foot .complexity-bars { gap: 2px; }
+.card-foot .complexity-bar { width: 7px; height: 3px; }
+.workspace-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--muted);
+  text-decoration: none;
+}
+.workspace-tag:hover { color: var(--text); }
+.workspace-tag.working { color: var(--claude); }
+.workspace-tag .claude-logo { width: 12px; height: 12px; fill: currentColor; }
+.workspace-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Complexity meter on a card: five segments, filled to the size's rank. */
 .complexity { display: flex; align-items: center; gap: 8px; }
