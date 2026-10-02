@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
 import { loadVercelProjects } from "./api";
 import { COLORS } from "./colors";
 import { hasName } from "./links";
 import { MASK_CATEGORIES, categoryOn, useMask } from "./mask";
 import type { MaskSettings } from "./mask";
+import { THEMES } from "./theme";
+import type { Theme } from "./theme";
 import type { VercelProject } from "./types";
 
 // Why a proposed column name can't be used, or null if it's fine. `current` is
@@ -31,6 +33,10 @@ export function Settings({
   onSetColorTag,
   maskSettings,
   onSetMaskSettings,
+  theme,
+  onSetTheme,
+  onExport,
+  onImport,
   onClose,
 }: {
   columns: string[];
@@ -49,6 +55,11 @@ export function Settings({
   onSetColorTag: (color: string, name: string) => void;
   maskSettings: MaskSettings;
   onSetMaskSettings: (s: MaskSettings) => void;
+  theme: Theme;
+  onSetTheme: (t: Theme) => void;
+  onExport: () => void;
+  // Replaces the whole board with the file's contents.
+  onImport: (file: File) => void;
   onClose: () => void;
 }) {
   const [newName, setNewName] = useState("");
@@ -63,6 +74,25 @@ export function Settings({
         </button>
         <h2>Settings</h2>
       </div>
+
+      <section className="settings-section">
+        <h3>Appearance</h3>
+        <p className="hint">Saved in this browser. System follows your OS light/dark setting.</p>
+        <div className="segmented" role="radiogroup" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button
+              key={t.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === t.value}
+              className={`segmented-option${theme === t.value ? " selected" : ""}`}
+              onClick={() => onSetTheme(t.value)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section className="settings-section">
         <h3>Columns</h3>
@@ -107,7 +137,42 @@ export function Settings({
       <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
       <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
       <HiddenVercelProjects hidden={hiddenVercelProjects} onSetHidden={onSetProjectHidden} />
+      <ImportExport onExport={onExport} onImport={onImport} />
     </div>
+  );
+}
+
+function ImportExport({
+  onExport,
+  onImport,
+}: {
+  onExport: () => void;
+  onImport: (file: File) => void;
+}) {
+  const fileInput = useRef<HTMLInputElement>(null);
+  return (
+    <section className="settings-section">
+      <h3>Import and export</h3>
+      <p className="hint">
+        Export downloads the whole board as JSON. Importing a file replaces the current board with
+        its contents.
+      </p>
+      <div className="settings-row-main">
+        <button className="btn" onClick={onExport}>Export</button>
+        <button className="btn" onClick={() => fileInput.current?.click()}>Import</button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/json"
+          hidden
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onImport(f);
+            e.target.value = "";
+          }}
+        />
+      </div>
+    </section>
   );
 }
 

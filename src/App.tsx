@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import type { AgentsStatus, Card, Data, IssueStatus, LinearResource, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
 import { domainName, linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
@@ -13,6 +14,7 @@ import { Settings } from "./Settings";
 import { ClaudeLogo } from "./ClaudeLogo";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
+import { useTheme } from "./theme";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
 
@@ -52,7 +54,7 @@ export default function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Live Conductor status of workspaces linked on cards, pushed by the server.
   const [agents, setAgents] = useState<AgentsStatus>({ workspaces: {} });
-  const fileInput = useRef<HTMLInputElement>(null);
+  const [theme, setTheme] = useTheme();
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [maskSettings, setMaskSettings] = useMaskSettings();
@@ -705,7 +707,7 @@ export default function App() {
       {(tag || card.complexity || !!card.workspaces?.length) && (
         <div className="card-foot">
           {tag && (
-            <span className="card-tag" style={{ color: card.color }}>
+            <span className="card-tag" style={{ "--card-color": card.color } as CSSProperties}>
               {m("colorLabels", tag)}
             </span>
           )}
@@ -790,21 +792,6 @@ export default function App() {
           {refreshing ? "Refreshing…" : "↻ Refresh"}
         </button>
         {lastRefresh && <span className="hint">updated {lastRefresh}</span>}
-        <button className="btn" onClick={exportJson}>Export</button>
-        <button className="btn" onClick={() => fileInput.current?.click()}>
-          Import
-        </button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json"
-          hidden
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) importJson(f);
-            e.target.value = "";
-          }}
-        />
         <button
           className={`btn${showSettings ? " active" : ""}`}
           onClick={() => setShowSettings((v) => !v)}
@@ -834,6 +821,10 @@ export default function App() {
           onSetColorTag={setColorTag}
           maskSettings={maskSettings}
           onSetMaskSettings={setMaskSettings}
+          theme={theme}
+          onSetTheme={setTheme}
+          onExport={exportJson}
+          onImport={importJson}
           onClose={() => setShowSettings(false)}
         />
       ) : (

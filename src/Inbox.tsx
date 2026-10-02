@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { IssueStatus, PrStatus } from "./types";
 import { loadInbox } from "./api";
 import { hasName, linearKey, parsePrUrl } from "./links";
-import { IssueRow, PrRow } from "./Badges";
+import { CardLink, IssueLine, PrLine, resourceLabel } from "./Badges";
 import { useMask } from "./mask";
 
 export type DragItem =
@@ -104,7 +104,7 @@ export function Inbox({
           <span className="inbox-title" title={m("prTitles", s.title)}>
             {m("prTitles", s.title) || m("urls", s.url)}
           </span>
-          <PrRow url={s.url} status={s} repoNames={repoNames} />
+          <PrLine url={s.url} status={s} repoNames={repoNames} />
         </div>
         <button className="btn" onClick={() => addPr(s)}>+ Add</button>
       </div>
@@ -119,7 +119,24 @@ export function Inbox({
           <span className="inbox-title" title={m("linearTitles", s.title)}>
             {m("linearTitles", s.title) || m("urls", s.url)}
           </span>
-          <IssueRow url={s.url} status={s} />
+          {/* A project's name is already the title above, so its line just says "Project". */}
+          <IssueLine
+            url={s.url}
+            status={s}
+            label={s.identifier === "Project" ? "Project" : undefined}
+          />
+          {!!s.resources?.length && (
+            <div className="card-links">
+              {s.resources.map((r, i) => (
+                <CardLink
+                  key={i}
+                  url={r.url}
+                  label={r.title?.trim() ? m("linearResources", resourceLabel(r)) : resourceLabel(r)}
+                  type={r.type ?? "link"}
+                />
+              ))}
+            </div>
+          )}
         </div>
         <button className="btn" onClick={() => addLinear(s)}>+ Add</button>
       </div>

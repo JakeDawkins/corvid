@@ -14,6 +14,28 @@
   --highlight: #ff2d78;
   /* Claude brand clay/orange, used for the "Suggested by Claude" popover. */
   --claude: #d97757;
+  --backdrop: rgba(0, 0, 0, 0.55);
+  color-scheme: dark;
+}
+
+/* Light theme: same roles, with darker accent and status colors so text keeps
+   its contrast on white. Cards (--panel-2) sit brightest, on a gray board. */
+:root[data-theme="light"] {
+  --bg: #f4f5f7;
+  --panel: #fafbfc;
+  --panel-2: #ffffff;
+  --border: #d9dce2;
+  --text: #1c1f24;
+  --muted: #646a75;
+  --accent: #3a6f93;
+  --ok: #1a7f37;
+  --bad: #cf222e;
+  --run: #9a6700;
+  --merged: #8250df;
+  --highlight: #e0115f;
+  --claude: #c15f3c;
+  --backdrop: rgba(20, 24, 31, 0.3);
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -191,13 +213,17 @@ body {
 .card-title-row { display: flex; align-items: flex-start; gap: 6px; }
 .card-title { font-weight: 500; line-height: 1.35; flex: 1; cursor: pointer; }
 .card-title:hover { text-decoration: underline; }
+/* Tinted with the card's accent color, darkened in light mode so pale colors
+   like yellow stay readable. */
 .card-tag {
+  color: var(--card-color);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
+:root[data-theme="light"] .card-tag { color: color-mix(in srgb, var(--card-color) 62%, #000); }
 /* Copy/hide actions stay out of the way until the card is hovered or focused. */
 .card-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; }
 .card:hover .card-actions,
@@ -329,6 +355,26 @@ body {
   color: var(--muted);
 }
 
+/* Segmented single-choice control (theme picker in settings). */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 2px;
+  background: var(--panel-2);
+}
+.segmented-option {
+  background: none;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 14px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.segmented-option:hover { color: var(--text); }
+.segmented-option.selected { background: var(--accent); color: #fff; }
+
 /* Size picker in the card editor. */
 .complexity-picker { display: flex; gap: 6px; }
 .complexity-option {
@@ -347,35 +393,6 @@ body {
   background: var(--accent);
   color: #fff;
 }
-
-.pr-row { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
-
-/* Each PR renders as its own mini-card inside the main card, tinted by status:
-   a colored left border plus a faint status-colored background. */
-.pr-card {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 6px;
-  background: var(--panel);
-}
-.pr-card .pr-badges { display: flex; flex-wrap: wrap; gap: 6px 8px; }
-.pr-card.ok { border-left-color: var(--ok); background: color-mix(in srgb, var(--ok) 9%, var(--panel)); }
-.pr-card.bad { border-left-color: var(--bad); background: color-mix(in srgb, var(--bad) 9%, var(--panel)); }
-.pr-card.run { border-left-color: var(--run); background: color-mix(in srgb, var(--run) 9%, var(--panel)); }
-.pr-card.merged { border-left-color: var(--merged); background: color-mix(in srgb, var(--merged) 9%, var(--panel)); }
-.pr-card.muted { border-left-color: var(--muted); }
-.pr-card.neutral { border-left-color: var(--accent); }
-
-.pr-link { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 500; }
-.pr-link:hover { text-decoration: underline; }
-.pr-link.merged { text-decoration: line-through; opacity: 0.7; }
-.pr-link.merged:hover { text-decoration: line-through underline; }
-
-.error-msg { font-size: 11px; color: var(--bad); }
 
 .badge {
   font-size: 11px;
@@ -412,25 +429,17 @@ body {
   padding: 3px 9px;
   background: color-mix(in srgb, var(--accent) 16%, var(--panel));
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
-  color: color-mix(in srgb, var(--accent) 40%, #fff);
+  color: color-mix(in srgb, var(--accent) 40%, var(--text));
 }
 .chip.link-chip:hover { background: color-mix(in srgb, var(--accent) 28%, var(--panel)); border-color: var(--accent); }
 .chip.link-chip svg { flex: none; }
 .chip.link-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* A Linear issue/project's linked resources (Notion specs, Figma designs),
-   shown as chips inside its mini-card. */
-.resources { display: flex; flex-wrap: wrap; gap: 6px 8px; }
-.chip.resource { display: inline-flex; align-items: center; gap: 5px; }
-.chip.resource .resource-icon { font-size: 10px; opacity: 0.85; }
-.chip.resource.figma { border-color: color-mix(in srgb, #a259ff 50%, var(--border)); color: color-mix(in srgb, #a259ff 65%, var(--text)); }
-.chip.resource.notion { border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
-
 /* modal */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--backdrop);
   display: flex;
   align-items: center;
   justify-content: center;

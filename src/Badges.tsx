@@ -159,7 +159,7 @@ function stateBadge(s: PrStatus["state"], isDraft?: boolean) {
   }
 }
 
-// Pick a single status color for the PR mini-card, in priority order:
+// Pick a single status color for a PR's status dot, in priority order:
 // merged/closed/draft take precedence, then problems (red), then in-progress
 // (yellow), then healthy (green). Falls back to a neutral accent.
 function prCardClass(status?: PrStatus): string {
@@ -282,12 +282,22 @@ export function PrLine({
 // A card's Linear issue/project as one flat line: a dot in its workflow-state
 // color, its identifier (or project name), and the state name on the right.
 // Its linked resources render with the card's other links, not here.
-export function IssueLine({ status, url }: { status?: IssueStatus; url: string }) {
+export function IssueLine({
+  status,
+  url,
+  label: labelOverride,
+}: {
+  status?: IssueStatus;
+  url: string;
+  // Replaces the default identifier/project-name label.
+  label?: string;
+}) {
   const { m } = useMask();
   const label =
-    status?.identifier && status.identifier !== "Project"
+    labelOverride ??
+    (status?.identifier && status.identifier !== "Project"
       ? status.identifier
-      : m("linearTitles", status?.title) || "Linear";
+      : m("linearTitles", status?.title) || "Linear");
   return (
     <a
       href={url}
@@ -307,129 +317,5 @@ export function IssueLine({ status, url }: { status?: IssueStatus; url: string }
         {status?.error ? <span className="bad">Error</span> : status?.stateName}
       </span>
     </a>
-  );
-}
-
-export function PrRow({
-  status,
-  url,
-  repoNames,
-}: {
-  status?: PrStatus;
-  url: string;
-  repoNames?: Record<string, string>;
-}) {
-  const { m } = useMask();
-  const parsed = repoFromUrl(url);
-  const number = status?.number ?? parsed?.number;
-  const label = parsed
-    ? `${m("repoNames", repoLabel(parsed.repo, repoNames))}${number ? ` #${number}` : ""}`
-    : `PR ${number ? `#${number}` : url.split("/").slice(-1)[0]}`;
-  const badges = status
-    ? [
-        stateBadge(status.state, status.isDraft),
-        ciBadge(status.ci),
-        reviewBadge(status.reviewDecision),
-        status.unresolvedThreads
-          ? { text: `${status.unresolvedThreads} unresolved`, cls: "bad" }
-          : null,
-      ].filter(Boolean)
-    : [];
-
-  const merged = status?.state === "MERGED";
-
-  return (
-    <div className={`pr-card ${prCardClass(status)}`}>
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className={`pr-link${merged ? " merged" : ""}`}
-        title={m("prTitles", status?.title) || m("urls", url)}
-      >
-        {label}
-      </a>
-      {status?.error ? (
-        <span className="error-msg" title={status.error}>{status.error}</span>
-      ) : (
-        <div className="pr-badges">
-          {badges.map((b, i) => (
-            <span key={i} className={`badge ${b!.cls}`}>{b!.text}</span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// A Linear issue/project rendered as its own status-tinted mini-card (mirroring
-// PrRow), with its external links shown as chips inside the card. The Linear
-// workflow-state color drives the card's left border and faint background.
-export function IssueRow({ status, url }: { status?: IssueStatus; url: string }) {
-  const { m } = useMask();
-  const resources = status?.resources ?? [];
-  const color = status?.error ? undefined : status?.stateColor;
-  // Issues read best by identifier (PLA-655); projects have no number, so fall
-  // back to their name.
-  const label =
-    status?.identifier && status.identifier !== "Project"
-      ? status.identifier
-      : m("linearTitles", status?.title) || "Linear";
-
-  return (
-    <div
-      className={`pr-card linear-card${color ? "" : " neutral"}`}
-      style={
-        color
-          ? {
-              borderLeftColor: color,
-              background: `color-mix(in srgb, ${color} 9%, var(--panel))`,
-            }
-          : undefined
-      }
-    >
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        className="pr-link"
-        title={m("linearTitles", status?.title) || m("urls", url)}
-      >
-        {label}
-      </a>
-      {status?.error ? (
-        <span className="error-msg" title={status.error}>{status.error}</span>
-      ) : status?.stateName ? (
-        <div className="pr-badges">
-          <span
-            className="badge"
-            style={{
-              background: (status.stateColor || "#888") + "22",
-              color: status.stateColor || "#888",
-              borderColor: (status.stateColor || "#888") + "66",
-            }}
-          >
-            {status.stateName}
-          </span>
-        </div>
-      ) : null}
-      {resources.length > 0 && (
-        <div className="resources">
-          {resources.map((r, i) => (
-            <a
-              key={i}
-              href={r.url}
-              target="_blank"
-              rel="noreferrer"
-              className={`chip resource ${r.type ?? "link"}`}
-              title={m("linearResources", r.title) || m("urls", r.url)}
-            >
-              <span className="resource-icon">{RESOURCE_ICON[r.type ?? "link"]}</span>
-              {r.title?.trim() ? m("linearResources", resourceLabel(r)) : resourceLabel(r)}
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
