@@ -569,6 +569,13 @@ export default function App() {
         dragOverId === card.id ? " drop-before" : ""
       }${highlightId === card.id ? " highlight" : ""}`}
       style={card.color ? { border: `2px solid ${card.color}` } : undefined}
+      // Clicking anywhere on the card opens it, except links, buttons, and
+      // PR/Linear rows, which keep their own behavior.
+      onClick={(e) => {
+        const el = e.target as HTMLElement;
+        if (el.closest("a, button, input, select, textarea, [role=button], .pr-card")) return;
+        setEditing(card);
+      }}
       draggable
       onDragStart={() => setDragId(card.id)}
       onDragEnd={() => {

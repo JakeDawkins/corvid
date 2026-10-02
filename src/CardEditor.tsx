@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { AgentsStatus, Card, ConductorRepo, Link } from "./types";
 import { loadConductorRepos } from "./api";
 import { domainName, linkKind } from "./links";
@@ -103,6 +103,9 @@ export function CardEditor({
   const [editing, setEditing] = useState<{ index: number; link: Link } | null>(null);
   // Conductor workspace id typed into the add box, not yet on the card.
   const [newWorkspace, setNewWorkspace] = useState("");
+  // Whether the add-workspace box is shown (hidden behind a button by default).
+  const [addingWorkspace, setAddingWorkspace] = useState(false);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
   const workspaces = draft.workspaces ?? [];
   // Repos in Conductor, for the repo picker. null until loaded.
   const [repos, setRepos] = useState<ConductorRepo[] | null>(null);
@@ -122,6 +125,15 @@ export function CardEditor({
         setReposError("Couldn't load Conductor repos");
       });
   }, []);
+
+  // Grow the notes box to fit its text; CSS max-height caps it, then it scrolls.
+  const notesValue = m("cardNotes", draft.notes ?? "");
+  useLayoutEffect(() => {
+    const el = notesRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [notesValue]);
 
   // Close on Escape, discarding any unsaved edits (same as clicking outside).
   useEffect(() => {
@@ -179,6 +191,7 @@ export function CardEditor({
     if (!id) return;
     if (!workspaces.includes(id)) set("workspaces", [...workspaces, id]);
     setNewWorkspace("");
+    setAddingWorkspace(false);
   }
 
   function removeWorkspace(id: string) {
@@ -227,7 +240,7 @@ export function CardEditor({
 
   return (
     <div className="modal-backdrop" onClick={onCancel}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal card-editor" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{card.title ? "Edit card" : "New card"}</h2>
           <div className="modal-head-actions">
@@ -286,28 +299,30 @@ export function CardEditor({
           />
         </label>
 
-        <label className="field">
-          <span>Column</span>
-          <select value={draft.column} onChange={(e) => set("column", e.target.value)}>
-            {columns.map((c) => (
-              <option key={c} value={c}>{m("columnNames", c)}</option>
-            ))}
-          </select>
-        </label>
+        <div className="field-row">
+          <label className="field">
+            <span>Column</span>
+            <select value={draft.column} onChange={(e) => set("column", e.target.value)}>
+              {columns.map((c) => (
+                <option key={c} value={c}>{m("columnNames", c)}</option>
+              ))}
+            </select>
+          </label>
 
-        <label className="field">
-          <span>Repo (for new Conductor workspaces)</span>
-          <select
-            value={draft.repo ?? ""}
-            onChange={(e) => set("repo", e.target.value || undefined)}
-          >
-            <option value="">{repos === null ? "Loading…" : "None"}</option>
-            {repoOptions.map((r) => (
-              <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
-            ))}
-          </select>
-          {reposError && <div className="hint error">{reposError}</div>}
-        </label>
+          <label className="field">
+            <span>Repo (for new Conductor workspaces)</span>
+            <select
+              value={draft.repo ?? ""}
+              onChange={(e) => set("repo", e.target.value || undefined)}
+            >
+              <option value="">{repos === null ? "Loading…" : "None"}</option>
+              {repoOptions.map((r) => (
+                <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
+              ))}
+            </select>
+            {reposError && <div className="hint error">{reposError}</div>}
+          </label>
+        </div>
 
         <div className="field">
           <span>Complexity</span>
@@ -333,8 +348,9 @@ export function CardEditor({
         <label className="field">
           <span>Notes</span>
           <textarea
+            ref={notesRef}
             rows={2}
-            value={m("cardNotes", draft.notes ?? "")}
+            value={notesValue}
             readOnly={on("cardNotes")}
             title={on("cardNotes") ? MASKED_HINT : undefined}
             onChange={(e) => set("notes", e.target.value)}
@@ -467,27 +483,51 @@ export function CardEditor({
               </div>
             );
           })}
-          <div className="link-editor">
-            <input
-              placeholder="Workspace ID ($CONDUCTOR_WORKSPACE_ID)"
-              value={newWorkspace}
-              onChange={(e) => setNewWorkspace(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addWorkspace();
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="btn"
-              onClick={addWorkspace}
-              disabled={!newWorkspace.trim()}
-            >
-              Add
-            </button>
-          </div>
+          {addingWorkspace ? (
+            <div className="link-editor">
+              <input
+                autoFocus
+                placeholder="Workspace ID ($CONDUCTOR_WORKSPACE_ID)"
+                value={newWorkspace}
+                onChange={(e) => setNewWorkspace(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addWorkspace();
+                  } else if (e.key === "Escape") {
+                    // Cancel just the add box, not the whole card.
+                    e.stopPropagation();
+                    setNewWorkspace("");
+                    setAddingWorkspace(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="btn"
+                onClick={addWorkspace}
+                disabled={!newWorkspace.trim()}
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setNewWorkspace("");
+                  setAddingWorkspace(false);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <div>
+              <button type="button" className="btn" onClick={() => setAddingWorkspace(true)}>
+                + Add workspace
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="modal-actions">
