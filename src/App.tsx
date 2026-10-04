@@ -664,8 +664,6 @@ export default function App() {
         }
       }}
     >
-      {card.needsYou && <NeedsYouBanner value={card.needsYou} loud={loud} />}
-
       <div className="card-title-row">
         <span
           className="card-title"
@@ -715,6 +713,8 @@ export default function App() {
           </button>
         </div>
       </div>
+
+      {card.needsYou && <NeedsYouBanner value={card.needsYou} loud={loud} />}
 
       {card.notes && <div className="card-notes">{m("cardNotes", card.notes)}</div>}
 
