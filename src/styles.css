@@ -14,6 +14,9 @@
   --highlight: #ff2d78;
   /* Claude brand clay/orange, used for the "Suggested by Claude" popover. */
   --claude: #d97757;
+  /* "Needs you" flags: amber, with near-black text on the loud style. */
+  --needs-you: #ffb224;
+  --needs-you-text: #1a1300;
   --backdrop: rgba(0, 0, 0, 0.55);
   color-scheme: dark;
 }
@@ -34,6 +37,8 @@
   --merged: #8250df;
   --highlight: #e0115f;
   --claude: #c15f3c;
+  --needs-you: #ffb224;
+  --needs-you-text: #1a1300;
   --backdrop: rgba(20, 24, 31, 0.3);
   color-scheme: light;
 }
@@ -176,6 +181,57 @@ body {
 .card.dim { opacity: 0.5; }
 /* Insertion indicator when dragging a card above another to reorder it. */
 .card.drop-before { box-shadow: 0 -3px 0 var(--accent); }
+
+/* "Needs you": loud is a solid amber block and an amber card outline, for the
+   columns picked in Settings. Elsewhere it's a quiet tinted box. */
+.card.needs-you-loud {
+  border-color: var(--needs-you);
+  box-shadow: 0 0 0 1px var(--needs-you);
+}
+.needs-you {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--needs-you) 7%, transparent);
+  border: 1px solid color-mix(in srgb, var(--needs-you) 30%, var(--border));
+}
+.needs-you-head { display: flex; align-items: center; gap: 8px; }
+.needs-you-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--run);
+}
+.needs-you-since { font-size: 11px; }
+.needs-you-reason { white-space: pre-wrap; }
+.needs-you-action { white-space: pre-wrap; }
+.needs-you-action::before { content: "→ "; }
+.needs-you-clear {
+  margin-left: auto;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  padding: 1px 8px;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.needs-you-clear:hover { opacity: 1; }
+.needs-you.loud {
+  color: var(--needs-you-text);
+  background: var(--needs-you);
+  border-color: var(--needs-you);
+}
+.needs-you.loud .needs-you-label { color: var(--needs-you-text); }
+.needs-you.loud .needs-you-reason { font-weight: 600; }
 
 /* Card color picker in the editor. */
 .color-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -492,6 +548,7 @@ select {
   padding-bottom: 0;
 }
 .card-editor textarea { max-height: 40vh; }
+.card-editor .needs-you { margin-bottom: 14px; }
 
 .link-editor { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .link-editor input:first-child:not(:last-of-type) { max-width: 130px; }

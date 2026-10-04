@@ -6,6 +6,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 export const MASK_CATEGORIES = [
   { key: "cardTitles", label: "Card titles", on: true },
   { key: "cardNotes", label: "Card notes", on: true },
+  { key: "needsYou", label: "Needs you messages", on: true },
   { key: "prTitles", label: "PR titles", on: true },
   { key: "linearTitles", label: "Linear issue and project titles", on: true },
   { key: "linearResources", label: "Linear linked docs (Notion, Figma titles)", on: true },

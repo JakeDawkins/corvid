@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { AgentsStatus, Card, ConductorRepo, Link } from "./types";
+import type { AgentsStatus, Card, ConductorRepo, Link, NeedsYou } from "./types";
 import { loadConductorRepos } from "./api";
 import { domainName, linkKind } from "./links";
 import { LinkChip, WorkspaceBadge } from "./Badges";
 import { COLORS, textOn } from "./colors";
 import { COMPLEXITY_LEVELS } from "./Complexity";
+import { NeedsYouBanner } from "./NeedsYou";
 import { useMask } from "./mask";
 
 // Human label for a link's auto-detected kind, shown beside each link row.
@@ -32,7 +33,7 @@ function baseName(path: string): string {
 // Build a paste-ready instruction for an AI agent to work on this card: the
 // task, its links (so the agent has full context), and standing instructions
 // to link its Conductor workspace and any PR it opens back to this card (by
-// id) on the Corvid board.
+// id) on the Corvid board, and to flag the card when it's waiting on the user.
 function buildAgentPrompt(card: Card): string {
   const lines: string[] = [];
   lines.push("Work on the following task from my Corvid board.");
@@ -62,6 +63,10 @@ function buildAgentPrompt(card: Card): string {
   lines.push(
     `Whenever you open a pull request for this work, add its URL to this card (Card ID: ${card.id}) on the Corvid board so it stays in sync.`,
   );
+  lines.push("");
+  lines.push(
+    `Whenever you stop and something is waiting on me (a question, a review, a decision, a manual step), flag this card with the corvid skill before you end your turn: \`needs-you ${card.id} --reason "<why you stopped>" --action "<exactly what I should do>"\`. Whenever you start working again, clear it first: \`clear-needs-you ${card.id}\`.`,
+  );
   return lines.join("\n");
 }
 
@@ -76,6 +81,9 @@ export function CardEditor({
   columns,
   colorTags,
   agents,
+  needsYou,
+  needsYouLoud,
+  onClearNeedsYou,
   onSave,
   onCancel,
   onDelete,
@@ -84,6 +92,11 @@ export function CardEditor({
   columns: string[];
   colorTags: Record<string, string>;
   agents: AgentsStatus;
+  // The card's live "Needs you" message, which agents set and clear outside
+  // the editor, so it's read from the board rather than this draft.
+  needsYou?: NeedsYou;
+  needsYouLoud: boolean;
+  onClearNeedsYou: () => void;
   onSave: (c: Card) => void;
   onCancel: () => void;
   onDelete: () => void;
@@ -286,6 +299,10 @@ export function CardEditor({
             )}
           </div>
         </div>
+
+        {needsYou && (
+          <NeedsYouBanner value={needsYou} loud={needsYouLoud} onClear={onClearNeedsYou} />
+        )}
 
         <label className="field">
           <span>Title</span>

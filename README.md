@@ -73,6 +73,12 @@ npm run build && npm start   # http://localhost:8787
   workspace. The copied agent prompt tells the agent to link its own workspace
   via the skill. The server reads Conductor's local database
   read-only every 3s (macOS; override the path with `CONDUCTOR_DB`).
+- **Needs you**: when an agent stops and something is waiting on you, it flags
+  the card (via the skill) with why it stopped and what to do next, and clears
+  the flag when it starts working again. The flag is a solid amber banner in
+  the columns you pick in Settings and a muted one everywhere else, so the
+  columns you care about stand out without the whole board shouting. You can
+  also clear it yourself from the card editor.
 - **Start in Conductor**: pick a repo on the card (from the repos added to
   Conductor) and the button opens a new Conductor workspace in it, seeded with
   the agent prompt via a `conductor://` deep link. With no repo set, it asks for
@@ -138,7 +144,8 @@ for the authoritative version):
   "colorTags": { "#3b9eff": "sales" },
   "repoNames": { "acme/acme-web": "web" },
   "hiddenRepos": ["acme/old-app"],
-  "hiddenVercelProjects": ["acme-docs"]
+  "hiddenVercelProjects": ["acme-docs"],
+  "needsYouColumns": ["In Review"]
 }
 ```
 
@@ -175,6 +182,8 @@ node $S list --all
 node $S add-link "checkout redirect" https://github.com/acme/acme-web/pull/317
 node $S link-workspace "checkout redirect"   # links $CONDUCTOR_WORKSPACE_ID
 node $S set "checkout redirect" --column "In Review" --complexity L
+node $S needs-you "checkout redirect" --reason "Plan ready" --action "Approve it in the workspace"
+node $S clear-needs-you "checkout redirect"
 node $S add-card --title "New task" --column Todo --top
 node $S add-column "Suggested by Claude"
 ```

@@ -13,6 +13,8 @@
 //   remove-link <query> <url>
 //   link-workspace <query> [workspace-id]     // default: $CONDUCTOR_WORKSPACE_ID
 //   unlink-workspace <query> [workspace-id]   // default: $CONDUCTOR_WORKSPACE_ID
+//   needs-you <query> --reason TEXT --action TEXT
+//   clear-needs-you <query>
 //   set <query> [--title T] [--column C] [--color HEX|none]
 //              [--complexity XS|S|M|L|XL|none] [--notes N]
 //              [--append-notes N] [--hidden true|false]
@@ -302,6 +304,7 @@ function cardLine(c, i) {
     c.workspaces?.length ? `${c.workspaces.length} workspace${c.workspaces.length === 1 ? '' : 's'}` : '',
     c.color ? c.color : '',
     c.complexity ? c.complexity : '',
+    c.needsYou ? 'NEEDS YOU' : '',
   ].filter(Boolean);
   return `${String(i).padStart(3)}  ${bits.join('  ')}`;
 }
@@ -495,6 +498,39 @@ switch (cmd) {
     commit(before, data, card.id, `unlinked workspace from ${short(card.id)}:\n  ${id}`);
     break;
   }
+  // Flag a card as waiting on the user, with why the agent stopped and what to
+  // do next. Replaces any existing flag (and its timestamp).
+  case 'needs-you': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const card = findCard(data, argv.shift());
+    const reason = flag('reason');
+    const action = flag('action');
+    if (typeof reason !== 'string' || !reason.trim()) die('needs-you requires --reason TEXT');
+    if (typeof action !== 'string' || !action.trim()) die('needs-you requires --action TEXT');
+    card.needsYou = { reason: reason.trim(), action: action.trim(), since: new Date().toISOString() };
+    commit(
+      before,
+      data,
+      card.id,
+      `flagged ${short(card.id)} ${JSON.stringify(card.title)} as needing you:\n  reason: ${card.needsYou.reason}\n  action: ${card.needsYou.action}`,
+    );
+    break;
+  }
+  case 'clear-needs-you': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const card = findCard(data, argv.shift());
+    if (!card.needsYou) {
+      console.log(`card ${short(card.id)} has no needs-you flag`);
+      break;
+    }
+    delete card.needsYou;
+    commit(before, data, card.id, `cleared needs-you on ${short(card.id)} ${JSON.stringify(card.title)}`);
+    break;
+  }
   case 'set': {
     printTarget();
     const before = readFileSync(DATA_PATH, 'utf8');
@@ -667,6 +703,11 @@ switch (cmd) {
           if (new Set(c.workspaces).size !== c.workspaces.length) problems.push(`${where}: duplicate workspace id`);
         }
       }
+      if (c.needsYou !== undefined) {
+        const n = c.needsYou;
+        if (typeof n?.reason !== 'string' || typeof n?.action !== 'string' || typeof n?.since !== 'string')
+          problems.push(`${where}: needsYou must be {reason, action, since}`);
+      }
     }
     if (problems.length) {
       console.error(problems.map((p) => `- ${p}`).join('\n'));
@@ -677,6 +718,6 @@ switch (cmd) {
     break;
   }
   default:
-    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 26).join('\n').replace(/^\/\/ ?/gm, ''));
+    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 28).join('\n').replace(/^\/\/ ?/gm, ''));
     process.exit(cmd ? 1 : 0);
 }

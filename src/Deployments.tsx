@@ -3,6 +3,7 @@ import type { VercelDeployment, VercelProject } from "./types";
 import { loadVercelDeployments, loadVercelProjects } from "./api";
 import { hasName } from "./links";
 import { useMask } from "./mask";
+import { timeAgo } from "./time";
 
 const REFRESH_MS = 15000;
 // Stop polling after this long without a manual resume, so a forgotten-open
@@ -21,16 +22,6 @@ function takeLegacyHidden(): string[] {
   } catch {
     return [];
   }
-}
-
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
 }
 
 // Map a Vercel readyState to one of the shared badge tones.

@@ -11,6 +11,7 @@ import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
 import { Deployments } from "./Deployments";
 import { Settings } from "./Settings";
+import { NeedsYouBanner } from "./NeedsYou";
 import { ClaudeLogo } from "./ClaudeLogo";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
@@ -153,16 +154,27 @@ export default function App() {
     }
   }
 
+  // Save a card from the editor. `needsYou` always comes from the live board,
+  // not the editor's draft, so an agent setting or clearing it while the editor
+  // is open isn't undone by the save.
   function upsertCard(card: Card) {
     setData((d) => {
-      const exists = d.cards.some((c) => c.id === card.id);
+      const live = d.cards.find((c) => c.id === card.id);
+      const next = { ...card, needsYou: live?.needsYou };
       return {
         ...d,
-        cards: exists
-          ? d.cards.map((c) => (c.id === card.id ? card : c))
-          : [...d.cards, card],
+        cards: live
+          ? d.cards.map((c) => (c.id === card.id ? next : c))
+          : [...d.cards, next],
       };
     });
+  }
+
+  function clearNeedsYou(id: string) {
+    setData((d) => ({
+      ...d,
+      cards: d.cards.map((c) => (c.id === id ? { ...c, needsYou: undefined } : c)),
+    }));
   }
 
   function deleteCard(id: string) {
@@ -182,6 +194,7 @@ export default function App() {
       ...d,
       columns: d.columns.map((c) => (c === from ? to : c)),
       cards: d.cards.map((c) => (c.column === from ? { ...c, column: to } : c)),
+      needsYouColumns: d.needsYouColumns?.map((c) => (c === from ? to : c)),
     }));
   }
 
@@ -191,7 +204,19 @@ export default function App() {
 
   // Only offered for empty columns, so no cards need to move.
   function deleteColumn(name: string) {
-    setData((d) => ({ ...d, columns: d.columns.filter((c) => c !== name) }));
+    setData((d) => ({
+      ...d,
+      columns: d.columns.filter((c) => c !== name),
+      needsYouColumns: d.needsYouColumns?.filter((c) => c !== name),
+    }));
+  }
+
+  // Turn the high-contrast "Needs you" style on or off for a column.
+  function setNeedsYouColumn(column: string, loud: boolean) {
+    setData((d) => {
+      const rest = (d.needsYouColumns ?? []).filter((c) => c !== column);
+      return { ...d, needsYouColumns: loud ? [...rest, column] : rest };
+    });
   }
 
   // Name (or rename) an accent color globally. An empty name clears the tag.
@@ -549,6 +574,11 @@ export default function App() {
     );
   }
 
+  // Whether a card's "Needs you" message is shown high-contrast: only in the
+  // columns picked in Settings, and never while the card is hidden.
+  const isLoud = (card: Card) =>
+    !card.hidden && !!data.needsYouColumns?.includes(card.column);
+
   const renderCard = (card: Card) => {
     // Group the flat link list by kind for display: Linear lines, then PR lines
     // (merged sorted to the bottom), then misc links. Linear items' resources
@@ -586,6 +616,7 @@ export default function App() {
       }
     }
     const tag = card.color ? data.colorTags?.[card.color] : undefined;
+    const loud = !!card.needsYou && isLoud(card);
 
     return (
     <div
@@ -595,7 +626,7 @@ export default function App() {
       }}
       className={`card${dragItem ? " link-target" : ""}${
         dragOverId === card.id ? " drop-before" : ""
-      }${highlightId === card.id ? " highlight" : ""}`}
+      }${highlightId === card.id ? " highlight" : ""}${loud ? " needs-you-loud" : ""}`}
       style={card.color ? { borderLeftColor: card.color } : undefined}
       // Clicking anywhere on the card opens it, except links and buttons, which
       // keep their own behavior.
@@ -633,6 +664,8 @@ export default function App() {
         }
       }}
     >
+      {card.needsYou && <NeedsYouBanner value={card.needsYou} loud={loud} />}
+
       <div className="card-title-row">
         <span
           className="card-title"
@@ -929,6 +962,8 @@ export default function App() {
           onRenameColumn={renameColumn}
           onAddColumn={addColumn}
           onDeleteColumn={deleteColumn}
+          needsYouColumns={data.needsYouColumns ?? []}
+          onSetNeedsYouColumn={setNeedsYouColumn}
           hiddenRepos={data.hiddenRepos ?? []}
           knownRepos={knownRepos}
           onSetRepoHidden={setRepoHidden}
@@ -953,6 +988,9 @@ export default function App() {
           columns={data.columns}
           colorTags={data.colorTags ?? {}}
           agents={agents}
+          needsYou={data.cards.find((c) => c.id === editing.id)?.needsYou}
+          needsYouLoud={isLoud(editing)}
+          onClearNeedsYou={() => clearNeedsYou(editing.id)}
           onCancel={() => setEditing(null)}
           onSave={(c) => {
             upsertCard(c);

@@ -24,6 +24,8 @@ export function Settings({
   onRenameColumn,
   onAddColumn,
   onDeleteColumn,
+  needsYouColumns,
+  onSetNeedsYouColumn,
   hiddenRepos,
   knownRepos,
   onSetRepoHidden,
@@ -45,6 +47,8 @@ export function Settings({
   onRenameColumn: (from: string, to: string) => void;
   onAddColumn: (name: string) => void;
   onDeleteColumn: (name: string) => void;
+  needsYouColumns: string[];
+  onSetNeedsYouColumn: (column: string, loud: boolean) => void;
   hiddenRepos: string[];
   // "owner/repo" slugs seen on the board, offered as suggestions.
   knownRepos: string[];
@@ -132,6 +136,11 @@ export function Settings({
           </form>
         </section>
 
+        <NeedsYouColumns
+          columns={columns}
+          loud={needsYouColumns}
+          onSetLoud={onSetNeedsYouColumn}
+        />
         <MaskedMode settings={maskSettings} onChange={onSetMaskSettings} />
         <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
         <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
@@ -172,6 +181,37 @@ function ImportExport({
           }}
         />
       </div>
+    </section>
+  );
+}
+
+function NeedsYouColumns({
+  columns,
+  loud,
+  onSetLoud,
+}: {
+  columns: string[];
+  loud: string[];
+  onSetLoud: (column: string, loud: boolean) => void;
+}) {
+  const { m } = useMask();
+  return (
+    <section className="settings-section">
+      <h3>Needs you</h3>
+      <p className="hint">
+        Agents flag a card when they stop and something is waiting on you. Flags stand out in the
+        columns checked here and are muted everywhere else.
+      </p>
+      {columns.map((col) => (
+        <label className="settings-check" key={col}>
+          <input
+            type="checkbox"
+            checked={loud.includes(col)}
+            onChange={(e) => onSetLoud(col, e.target.checked)}
+          />
+          {m("columnNames", col)}
+        </label>
+      ))}
     </section>
   );
 }

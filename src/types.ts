@@ -12,6 +12,15 @@ export type LinearResource = {
   type?: "figma" | "notion" | "link";
 };
 
+// Set by an agent when it has stopped and something is waiting on the user:
+// why it stopped and what to do next. The agent clears it when it resumes.
+export type NeedsYou = {
+  reason: string;
+  action: string;
+  // ISO timestamp of when the agent set it.
+  since: string;
+};
+
 export type Card = {
   id: string;
   title: string;
@@ -30,6 +39,7 @@ export type Card = {
   // Root path of the Conductor repo to start new workspaces for this card in
   // (e.g. "/Users/jane/code/my-app"), as listed by /api/conductor/repos.
   repo?: string;
+  needsYou?: NeedsYou;
 };
 
 // A repo added to Conductor. `path` is its root directory.
@@ -97,6 +107,9 @@ export type Data = {
   // project names left out of Deployments. Both matched case-insensitively.
   hiddenRepos?: string[];
   hiddenVercelProjects?: string[];
+  // Columns where a card's "Needs you" message is shown high-contrast. In other
+  // columns it is shown muted.
+  needsYouColumns?: string[];
 };
 
 // A Vercel project (personal or under a team), used for the Deployments sidebar.

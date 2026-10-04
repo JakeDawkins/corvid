@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card, create a new card, or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace to that card.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card, flag a card as needing the user (or clear that flag), create a new card, or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace to that card.
 ---
 
 # Corvid board edits
@@ -63,7 +63,12 @@ A `Card`:
   "complexity": "M",                // optional, t-shirt size XS|S|M|L|XL
   "links": [ { "label": "", "url": "https://..." } ],
   "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"],  // optional
-  "repo": "/Users/jane/code/acme-web"  // optional, Conductor repo root path
+  "repo": "/Users/jane/code/acme-web",  // optional, Conductor repo root path
+  "needsYou": {                     // optional, set/cleared by agents
+    "reason": "Plan ready for review",
+    "action": "Open the workspace and approve or redirect the plan",
+    "since": "2026-10-04T16:52:16.084Z"
+  }
 }
 ```
 
@@ -90,6 +95,10 @@ A `Card`:
 - **`repo`** is an optional Conductor repo root path. The app's "Start in
   Conductor" button opens new workspaces for the card there. It's set from the
   app; leave it alone unless the user asks.
+- **`needsYou`** marks a card as waiting on the user: why the agent stopped
+  and what the user should do. It shows as a banner on the card, high-contrast
+  in the columns the user picked in Settings (`needsYouColumns`) and muted
+  elsewhere. Use `needs-you` / `clear-needs-you`; never hand-edit it.
 - `cache` holds the last-fetched PR/Linear statuses. Adding a link does not
   populate it; the badge appears after the user hits **Refresh** in the app.
 
@@ -106,6 +115,8 @@ node $S add-link <query> <url> [--label TEXT] [--first]
 node $S remove-link <query> <url>
 node $S link-workspace <query> [workspace-id]     # default: $CONDUCTOR_WORKSPACE_ID
 node $S unlink-workspace <query> [workspace-id]   # default: $CONDUCTOR_WORKSPACE_ID
+node $S needs-you <query> --reason TEXT --action TEXT
+node $S clear-needs-you <query>
 node $S set <query> [--title T] [--column C] [--color HEX|NAME|none]
                     [--complexity XS|S|M|L|XL|none]
                     [--notes N] [--append-notes N] [--hidden true|false]
@@ -154,6 +165,32 @@ to work on (the "Card ID" in a copied agent prompt, or one the user named). Don'
 link a workspace to a card you are merely reading or editing on the user's
 behalf, and don't guess a card from the branch name. Outside Conductor the
 variable is unset and the command fails; skip it there.
+
+## Flagging a card that needs the user
+
+When you are working on a card (you linked your workspace to it, or were given
+its Card ID) and you stop because something is waiting on the user, flag it
+before ending your turn:
+
+```bash
+node $S needs-you <card id> --reason "<why you stopped>" --action "<what to do>"
+```
+
+- `--reason` is one short sentence on why you stopped, e.g. "Plan ready for
+  review" or "Tests need a staging API key I don't have".
+- `--action` is the concrete next step for the user, e.g. "Approve or redirect
+  the plan in the workspace" or "Add STAGING_KEY to .env.local, then tell me
+  to continue". Name the place to do it.
+- Running it again replaces the message and resets its timestamp.
+
+Whenever you start working on the card again, clear it first:
+
+```bash
+node $S clear-needs-you <card id>
+```
+
+It's a no-op if there's no flag, so it's safe to run at the start of every
+turn. Don't flag a card when you're finished and nothing is waiting on the user.
 
 ## Rules
 
