@@ -65,7 +65,7 @@ function buildAgentPrompt(card: Card): string {
   );
   lines.push("");
   lines.push(
-    `Whenever you stop and something is waiting on me (a question, a review, a decision, a manual step), flag this card with the corvid skill before you end your turn: \`needs-you ${card.id} --reason "<why you stopped>" --action "<exactly what I should do>"\`. Whenever you start working again, clear it first: \`clear-needs-you ${card.id}\`.`,
+    `Whenever you stop and something is waiting on me (a question, a review, a decision, a manual step), flag this card with the corvid skill before you end your turn: \`needs-you ${card.id} --reason "<why you stopped>" --action "<exactly what I should do>"\`. Keep each to one short sentence, and make the action concrete (what to do and where). Whenever you start working again, clear it first: \`clear-needs-you ${card.id}\`. Don't flag the card when you're done and nothing is waiting on me.`,
   );
   return lines.join("\n");
 }

@@ -627,7 +627,11 @@ export default function App() {
       className={`card${dragItem ? " link-target" : ""}${
         dragOverId === card.id ? " drop-before" : ""
       }${highlightId === card.id ? " highlight" : ""}${loud ? " needs-you-loud" : ""}`}
-      style={card.color ? { borderLeftColor: card.color } : undefined}
+      style={
+        card.color
+          ? ({ borderLeftColor: card.color, "--card-color": card.color } as CSSProperties)
+          : undefined
+      }
       // Clicking anywhere on the card opens it, except links and buttons, which
       // keep their own behavior.
       onClick={(e) => {

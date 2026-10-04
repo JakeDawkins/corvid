@@ -182,11 +182,12 @@ body {
 /* Insertion indicator when dragging a card above another to reorder it. */
 .card.drop-before { box-shadow: 0 -3px 0 var(--accent); }
 
-/* "Needs you": loud is a solid amber block and an amber card outline, for the
-   columns picked in Settings. Elsewhere it's a quiet tinted box. */
+/* "Needs you": loud is a solid amber block and a card outline (in the card's
+   color if it has one, else amber), for the columns picked in Settings.
+   Elsewhere it's a quiet tinted box. */
 .card.needs-you-loud {
-  border-color: var(--needs-you);
-  box-shadow: 0 0 0 1px var(--needs-you);
+  border-color: var(--card-color, var(--needs-you));
+  box-shadow: 0 0 0 1px var(--card-color, var(--needs-you));
 }
 .needs-you {
   display: flex;
@@ -548,7 +549,7 @@ select {
   padding-bottom: 0;
 }
 .card-editor textarea { max-height: 40vh; }
-.card-editor .needs-you { margin-bottom: 14px; }
+.card-editor .needs-you { margin: 10px 0 14px; }
 
 .link-editor { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .link-editor input:first-child:not(:last-of-type) { max-width: 130px; }
