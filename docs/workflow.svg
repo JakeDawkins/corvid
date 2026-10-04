@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3280" height="1788" viewBox="0 0 1640 894" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif">
+<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#646a75"/></marker><marker id="arrO" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#d97757"/></marker></defs>
+<rect width="1640" height="894" fill="#ffffff"/>
+<text x="20" y="40" font-size="24" font-weight="700" fill="#1c1f24">Development workflow with Corvid</text>
+<text x="20" y="62" font-size="14" fill="#646a75">Amber boxes are the human gates that move a project forward. Everything else runs on its own.</text>
+<rect x="180" y="84" width="190" height="54" rx="27" fill="#1c1f24"/>
+<circle cx="207" cy="111.0" r="15" fill="#ffffff"/>
+<text x="207" y="116.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1f24">0</text>
+<text x="232" y="116.0" font-size="15" font-weight="600" fill="#ffffff">Intake</text>
+<line x1="371" y1="111.0" x2="389" y2="111.0" stroke="#646a75" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="390" y="84" width="190" height="54" rx="27" fill="#1c1f24"/>
+<circle cx="417" cy="111.0" r="15" fill="#ffffff"/>
+<text x="417" y="116.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1f24">1</text>
+<text x="442" y="116.0" font-size="15" font-weight="600" fill="#ffffff">Kick off</text>
+<line x1="581" y1="111.0" x2="599" y2="111.0" stroke="#646a75" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="600" y="84" width="190" height="54" rx="27" fill="#1c1f24"/>
+<circle cx="627" cy="111.0" r="15" fill="#ffffff"/>
+<text x="627" y="116.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1f24">2</text>
+<text x="652" y="116.0" font-size="15" font-weight="600" fill="#ffffff">Build</text>
+<line x1="791" y1="111.0" x2="809" y2="111.0" stroke="#646a75" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="810" y="84" width="190" height="54" rx="27" fill="#1c1f24"/>
+<circle cx="837" cy="111.0" r="15" fill="#ffffff"/>
+<text x="837" y="116.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1f24">3</text>
+<text x="862" y="116.0" font-size="15" font-weight="600" fill="#ffffff">QA handoff</text>
+<line x1="1001" y1="111.0" x2="1019" y2="111.0" stroke="#646a75" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="1020" y="84" width="190" height="54" rx="27" fill="#1c1f24"/>
+<circle cx="1047" cy="111.0" r="15" fill="#ffffff"/>
+<text x="1047" y="116.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1f24">4</text>
+<text x="1072" y="116.0" font-size="15" font-weight="600" fill="#ffffff">QA + review</text>
+<line x1="1211" y1="111.0" x2="1229" y2="111.0" stroke="#646a75" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="1230" y="84" width="190" height="54" rx="27" fill="#1c1f24"/>
+<circle cx="1257" cy="111.0" r="15" fill="#ffffff"/>
+<text x="1257" y="116.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1f24">5</text>
+<text x="1282" y="116.0" font-size="15" font-weight="600" fill="#ffffff">Ship</text>
+<line x1="1421" y1="111.0" x2="1439" y2="111.0" stroke="#646a75" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="1440" y="84" width="190" height="54" rx="27" fill="#1c1f24"/>
+<circle cx="1467" cy="111.0" r="15" fill="#ffffff"/>
+<text x="1467" y="116.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1c1f24">6</text>
+<text x="1492" y="116.0" font-size="15" font-weight="600" fill="#ffffff">Close out</text>
+<rect x="20" y="154" width="1600" height="190" rx="10" fill="#f7f8fa" stroke="#e3e6eb"/>
+<text x="36" y="255.0" font-size="16" font-weight="700" fill="#b07800">Human</text>
+<rect x="180" y="166" width="190" height="166" rx="8" fill="#fff6dd" stroke="#d9a320" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="192" y="190" font-size="13.5" font-weight="400" fill="#5c4300">Pick what to work on</text>
+<text x="192" y="209" font-size="13.5" font-weight="400" fill="#5c4300">Add from My work</text>
+<text x="192" y="228" font-size="13.5" font-weight="400" fill="#5c4300">or paste a link</text>
+<rect x="390" y="166" width="190" height="166" rx="8" fill="#ffb224" stroke="#d48c00" stroke-width="1.5"/>
+<text x="402" y="190" font-size="13.5" font-weight="600" fill="#1a1300">Click Start in</text>
+<text x="402" y="209" font-size="13.5" font-weight="600" fill="#1a1300">Conductor</text>
+<rect x="600" y="166" width="190" height="166" rx="8" fill="#fff6dd" stroke="#d9a320" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="612" y="190" font-size="13.5" font-weight="400" fill="#5c4300">Answer blocking</text>
+<text x="612" y="209" font-size="13.5" font-weight="400" fill="#5c4300">product or design</text>
+<text x="612" y="228" font-size="13.5" font-weight="400" fill="#5c4300">questions</text>
+<rect x="810" y="166" width="190" height="166" rx="8" fill="#ffb224" stroke="#d48c00" stroke-width="1.5"/>
+<text x="822" y="190" font-size="13.5" font-weight="600" fill="#1a1300">Post handoff in Slack</text>
+<text x="822" y="209" font-size="13.5" font-weight="600" fill="#1a1300">Linear to In QA</text>
+<text x="822" y="228" font-size="13.5" font-weight="600" fill="#1a1300">PR ready for review</text>
+<text x="822" y="247" font-size="13.5" font-weight="600" fill="#1a1300">Request reviewers</text>
+<rect x="1020" y="166" width="190" height="166" rx="8" fill="#ffb224" stroke="#d48c00" stroke-width="1.5"/>
+<text x="1032" y="190" font-size="13.5" font-weight="600" fill="#1a1300">Send drafted replies</text>
+<text x="1032" y="209" font-size="13.5" font-weight="600" fill="#1a1300">Make product calls</text>
+<text x="1032" y="228" font-size="13.5" font-weight="600" fill="#1a1300">Resolve human threads</text>
+<rect x="1230" y="166" width="190" height="166" rx="8" fill="#ffb224" stroke="#d48c00" stroke-width="1.5"/>
+<text x="1242" y="190" font-size="13.5" font-weight="600" fill="#1a1300">Merge the PR</text>
+<text x="1242" y="209" font-size="13.5" font-weight="600" fill="#1a1300">Deploy to production</text>
+<text x="1242" y="228" font-size="13.5" font-weight="600" fill="#1a1300">Start or ship the</text>
+<text x="1242" y="247" font-size="13.5" font-weight="600" fill="#1a1300">experiment</text>
+<text x="1242" y="266" font-size="13.5" font-weight="600" fill="#1a1300">Close the Linear issue</text>
+<rect x="1440" y="166" width="190" height="166" rx="8" fill="#ffb224" stroke="#d48c00" stroke-width="1.5"/>
+<text x="1452" y="190" font-size="13.5" font-weight="600" fill="#1a1300">Move card to Done</text>
+<text x="1452" y="209" font-size="13.5" font-weight="600" fill="#1a1300">or hide it</text>
+<rect x="20" y="354" width="1600" height="220" rx="10" fill="#fbfbfc" stroke="#e3e6eb"/>
+<text x="36" y="470.0" font-size="16" font-weight="700" fill="#c15f3c">Agent</text>
+<rect x="180" y="366" width="190" height="196" rx="8" fill="#fbe9e2" stroke="#d97757" stroke-width="1.5"/>
+<text x="192" y="390" font-size="13.5" font-weight="400" fill="#4a2414">Scheduled routine</text>
+<text x="192" y="409" font-size="13.5" font-weight="400" fill="#4a2414">suggests cards</text>
+<rect x="190" y="534" width="56.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="197" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">corvid</text>
+<rect x="390" y="366" width="190" height="196" rx="8" fill="#fbe9e2" stroke="#d97757" stroke-width="1.5"/>
+<text x="402" y="390" font-size="13.5" font-weight="400" fill="#4a2414">Link workspace</text>
+<text x="402" y="409" font-size="13.5" font-weight="400" fill="#4a2414">to the card</text>
+<rect x="400" y="534" width="56.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="407" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">corvid</text>
+<rect x="600" y="366" width="190" height="196" rx="8" fill="#fbe9e2" stroke="#d97757" stroke-width="1.5"/>
+<text x="612" y="390" font-size="13.5" font-weight="400" fill="#4a2414">Implement + test</text>
+<text x="612" y="409" font-size="13.5" font-weight="400" fill="#4a2414">Draft PR, add to card</text>
+<text x="612" y="428" font-size="13.5" font-weight="400" fill="#4a2414">Set up Statsig exp</text>
+<text x="612" y="447" font-size="13.5" font-weight="400" fill="#4a2414">Test in a browser</text>
+<text x="612" y="466" font-size="13.5" font-weight="400" fill="#4a2414">Fix CI + bot comments</text>
+<rect x="610" y="534" width="105.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="617" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">watch-and-fix</text>
+<rect x="721.0" y="534" width="56.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="728.0" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">corvid</text>
+<rect x="810" y="366" width="190" height="196" rx="8" fill="#fbe9e2" stroke="#d97757" stroke-width="1.5"/>
+<text x="822" y="390" font-size="13.5" font-weight="400" fill="#4a2414">Draft handoff message</text>
+<text x="822" y="409" font-size="13.5" font-weight="400" fill="#4a2414">with previews and</text>
+<text x="822" y="428" font-size="13.5" font-weight="400" fill="#4a2414">Statsig overrides</text>
+<text x="822" y="447" font-size="13.5" font-weight="400" fill="#4a2414">Flag the card</text>
+<rect x="820" y="534" width="105.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="827" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">watch-and-fix</text>
+<rect x="820" y="508" width="84.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="827" y="522" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">qa-handoff</text>
+<rect x="1020" y="366" width="190" height="196" rx="8" fill="#fbe9e2" stroke="#d97757" stroke-width="1.5"/>
+<text x="1032" y="390" font-size="13.5" font-weight="400" fill="#4a2414">Watch Slack, PRs, Linear</text>
+<text x="1032" y="409" font-size="13.5" font-weight="400" fill="#4a2414">Fix bugs + push</text>
+<text x="1032" y="428" font-size="13.5" font-weight="400" fill="#4a2414">Re-test in a browser</text>
+<text x="1032" y="447" font-size="13.5" font-weight="400" fill="#4a2414">Draft replies</text>
+<rect x="1030" y="534" width="105.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="1037" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">watch-and-fix</text>
+<rect x="1230" y="366" width="190" height="196" rx="8" fill="#fbe9e2" stroke="#d97757" stroke-width="1.5"/>
+<text x="1242" y="390" font-size="13.5" font-weight="400" fill="#4a2414">Flag ready to merge</text>
+<text x="1242" y="409" font-size="13.5" font-weight="400" fill="#4a2414">Detect merge</text>
+<text x="1242" y="428" font-size="13.5" font-weight="400" fill="#4a2414">Stop loop, clear flag</text>
+<rect x="1240" y="534" width="105.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="1247" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">watch-and-fix</text>
+<rect x="1351.0" y="534" width="56.0" height="20" rx="10" fill="#ffffff" stroke="#d97757"/>
+<text x="1358.0" y="548" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">corvid</text>
+<rect x="1440" y="366" width="190" height="196" rx="8" fill="#f4f5f7" stroke="#b8bec8" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="1452" y="390" font-size="13.5" font-weight="400" fill="#7a808b">Not automated</text>
+<text x="1452" y="409" font-size="13.5" font-weight="400" fill="#7a808b">yet</text>
+<rect x="20" y="584" width="1600" height="120" rx="10" fill="#f7f8fa" stroke="#e3e6eb"/>
+<text x="36" y="650.0" font-size="16" font-weight="700" fill="#3a6f93">Corvid shows</text>
+<rect x="180" y="596" width="190" height="96" rx="8" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="192" y="620" font-size="13.5" font-weight="400" fill="#1f3a4d">Suggested popover</text>
+<text x="192" y="639" font-size="13.5" font-weight="400" fill="#1f3a4d">Backlog cards</text>
+<rect x="390" y="596" width="190" height="96" rx="8" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="402" y="620" font-size="13.5" font-weight="400" fill="#1f3a4d">Working badge</text>
+<rect x="600" y="596" width="190" height="96" rx="8" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="612" y="620" font-size="13.5" font-weight="400" fill="#1f3a4d">PR + Linear status</text>
+<text x="612" y="639" font-size="13.5" font-weight="400" fill="#1f3a4d">Needs you if blocked</text>
+<rect x="810" y="596" width="190" height="96" rx="8" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="822" y="620" font-size="13.5" font-weight="400" fill="#1f3a4d">Needs you:</text>
+<text x="822" y="639" font-size="13.5" font-weight="400" fill="#1f3a4d">Ready for QA</text>
+<rect x="1020" y="596" width="190" height="96" rx="8" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="1032" y="620" font-size="13.5" font-weight="400" fill="#1f3a4d">Needs you: N drafts</text>
+<text x="1032" y="639" font-size="13.5" font-weight="400" fill="#1f3a4d">Preview deployments</text>
+<rect x="1230" y="596" width="190" height="96" rx="8" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="1242" y="620" font-size="13.5" font-weight="400" fill="#1f3a4d">Needs you:</text>
+<text x="1242" y="639" font-size="13.5" font-weight="400" fill="#1f3a4d">Ready to merge</text>
+<text x="1242" y="658" font-size="13.5" font-weight="400" fill="#1f3a4d">Prod deployments</text>
+<rect x="1440" y="596" width="190" height="96" rx="8" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="1452" y="620" font-size="13.5" font-weight="400" fill="#1f3a4d">Card leaves</text>
+<text x="1452" y="639" font-size="13.5" font-weight="400" fill="#1f3a4d">the board</text>
+<path d="M 1210 534 C 1228 534, 1228 394, 1210 394" fill="none" stroke="#d97757" stroke-width="2" marker-end="url(#arrO)"/>
+<text x="1026" y="576" font-size="11" fill="#c15f3c" font-style="italic">loops until QA passes and the PR is approved</text>
+<rect x="20" y="728" width="22" height="16" rx="4" fill="#ffb224" stroke="#d48c00" stroke-width="1.5"/>
+<text x="50" y="741" font-size="13" fill="#1c1f24">Human gate: blocks progress until you act</text>
+<rect x="379.2" y="728" width="22" height="16" rx="4" fill="#fff6dd" stroke="#d9a320" stroke-width="1.5" stroke-dasharray="5 4"/>
+<text x="409.2" y="741" font-size="13" fill="#1c1f24">Human, only when the agent asks</text>
+<rect x="666.4000000000001" y="728" width="22" height="16" rx="4" fill="#fbe9e2" stroke="#d97757" stroke-width="1.5"/>
+<text x="696.4000000000001" y="741" font-size="13" fill="#1c1f24">Agent work (never messages a person)</text>
+<rect x="989.6000000000001" y="728" width="22" height="16" rx="4" fill="#e9f1f8" stroke="#5b8fb0" stroke-width="1.5"/>
+<text x="1019.6000000000001" y="741" font-size="13" fill="#1c1f24">What the Corvid board shows</text>
+<rect x="1248.0" y="727" width="90" height="18" rx="9" fill="#ffffff" stroke="#d97757"/>
+<text x="1256.0" y="740" font-size="11.5" font-family="SFMono-Regular, Menlo, monospace" fill="#c15f3c">skill-name</text>
+<text x="1346.0" y="741" font-size="13" fill="#1c1f24">Skill the agent uses</text>
+<rect x="20" y="772" width="1600" height="104" rx="10" fill="#fff8f5" stroke="#f0c9b8"/>
+<text x="36" y="798" font-size="15" font-weight="700" fill="#4a2414">Still manual, could be automated</text>
+<circle cx="42" cy="818" r="3" fill="#d97757"/>
+<text x="54" y="823" font-size="13.5" fill="#4a2414">PR and Linear status lines only update when you click Refresh.</text>
+<circle cx="42" cy="838" r="3" fill="#d97757"/>
+<text x="54" y="843" font-size="13.5" fill="#4a2414">Cards don't move columns as work progresses, so high-contrast Needs you columns depend on you moving cards.</text>
+<circle cx="42" cy="858" r="3" fill="#d97757"/>
+<text x="54" y="863" font-size="13.5" fill="#4a2414">Close-out is manual, even when the agent knows the PR is merged and the Linear issue is done.</text>
+</svg>
