@@ -73,9 +73,9 @@ npm run build && npm start   # http://localhost:8787
   workspace. The copied agent prompt tells the agent to link its own workspace
   via the skill. The server reads Conductor's local database
   read-only every 3s (macOS; override the path with `CONDUCTOR_DB`).
-- **Needs you**: when an agent stops and something is waiting on you, it flags
-  the card (via the skill) with why it stopped and what to do next, and clears
-  the flag when it starts working again. The flag is a solid amber banner in
+- **Needs you**: when something is waiting on you, the agent flags
+  the card (via the skill) with what's waiting and what to do next, and clears
+  the flag once nothing is waiting on you anymore. The flag is a solid amber banner in
   the columns you pick in Settings and a muted one everywhere else, so the
   columns you care about stand out without the whole board shouting. You can
   also clear it yourself from the card editor.
@@ -194,6 +194,13 @@ guessing. It refuses to write if any other card or the card ordering would
 change, backs the file up to `~/.pr-tracker-backups/` first (last 20 kept), and
 takes `--dry` to preview. Because the server watches `data.json`, an open board
 picks up these edits on its own.
+
+The repo also ships a `watch-and-fix` skill at `.claude/skills/watch-and-fix/`
+for working on a card's project autonomously: it builds the change, drafts the
+QA handoff, then watches Slack, GitHub PRs, and Linear for feedback and fixes
+what's relevant until the project is done. It never messages a real person on
+its own; it drafts the reply and flags the card as **Needs you** instead. The
+copied agent prompt asks agents to use it.
 
 There's also an optional scheduled routine that fills a "Suggested by Claude"
 column with work worth picking up — see

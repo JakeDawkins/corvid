@@ -183,14 +183,16 @@ node $S needs-you <card id> --reason "<why you stopped>" --action "<what to do>"
   to continue". Name the place to do it.
 - Running it again replaces the message and resets its timestamp.
 
-Whenever you start working on the card again, clear it first:
+Clear it as soon as nothing is waiting on the user anymore. Usually that's
+when they reply and you start working again; an agent that keeps working while
+waiting (like `watch-and-fix`) clears it once the user has dealt with
+everything:
 
 ```bash
 node $S clear-needs-you <card id>
 ```
 
-It's a no-op if there's no flag, so it's safe to run at the start of every
-turn. Don't flag a card when you're finished and nothing is waiting on the user.
+It's a no-op if there's no flag, so it's safe to run whenever you resume. Don't flag a card when you're finished and nothing is waiting on the user.
 
 ## Rules
 

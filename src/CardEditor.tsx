@@ -65,7 +65,11 @@ function buildAgentPrompt(card: Card): string {
   );
   lines.push("");
   lines.push(
-    `Whenever you stop and something is waiting on me (a question, a review, a decision, a manual step), flag this card with the corvid skill before you end your turn: \`needs-you ${card.id} --reason "<why you stopped>" --action "<exactly what I should do>"\`. Keep each to one short sentence, and make the action concrete (what to do and where). Whenever you start working again, clear it first: \`clear-needs-you ${card.id}\`. Don't flag the card when you're done and nothing is waiting on me.`,
+    `Whenever something is waiting on me (a question, a review, a decision, a drafted message to send, a manual step), flag this card with the corvid skill: \`needs-you ${card.id} --reason "<what's waiting>" --action "<exactly what I should do>"\`. Keep each to one short sentence, and make the action concrete (what to do and where). Clear it as soon as nothing is waiting on me anymore: \`clear-needs-you ${card.id}\`. Don't flag the card when you're done and nothing is waiting on me.`,
+  );
+  lines.push("");
+  lines.push(
+    "Work on this autonomously with the watch-and-fix skill: build it, draft the QA handoff for me, then watch Slack, the GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project is done. Never send a Slack message, Linear comment, or GitHub comment to a real person unless I ask you to. Draft it and flag this card instead.",
   );
   return lines.join("\n");
 }
