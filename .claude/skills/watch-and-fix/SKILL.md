@@ -1,6 +1,6 @@
 ---
 name: watch-and-fix
-description: Work on a project autonomously from start to done. Build it, keep its PRs green, draft the QA handoff, then watch Slack, GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project ships. Never messages a real person; it drafts replies and flags the user instead. Use when the user says "work on this autonomously", "watch and fix", "watch this PR", "keep an eye on my PR", "watch for QA feedback", "babysit this until it's done", or a Corvid agent prompt asks for it.
+description: Work on a project autonomously from start to done. Build it (setting up a Statsig experiment if one is needed and testing UI in a browser), keep its PRs green, draft the QA handoff, then watch Slack, GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project ships. Never messages a real person; it drafts replies and flags the user instead. Use when the user says "work on this autonomously", "watch and fix", "watch this PR", "keep an eye on my PR", "watch for QA feedback", "babysit this until it's done", or a Corvid agent prompt asks for it.
 ---
 
 # Watch and Fix
@@ -41,7 +41,8 @@ Fine without asking, since no person receives a message:
 Some actions aren't messages but still signal people. Don't do these yourself.
 Put them in the user's next steps instead: marking a PR ready for review,
 requesting or re-requesting reviewers, changing a Linear issue's status or
-assignee, merging, and deploying to production.
+assignee, merging, deploying to production, and starting, changing allocation
+of, or shipping a Statsig experiment.
 
 ## Setup (first run)
 
@@ -57,6 +58,7 @@ assignee, merging, and deploying to production.
    `.git/info/exclude`. Track:
    - `phase`: `build` | `handoff` | `watch` | `done`
    - Linear issue ids, PR URLs, branch, preview URLs
+   - Statsig experiment id, and the test overrides you added
    - QA: the Slack channel and the people doing QA (Slack user ids). The
      channel is where to post the handoff, not the only place to watch.
    - search terms: ticket id, PR number, branch, preview domains, feature name
@@ -73,19 +75,23 @@ assignee, merging, and deploying to production.
 ### 1. Build
 
 Do the work: plan, implement, write tests, and open a draft PR. Add the PR to
-the Corvid card. While building, handle CI failures and bot reviews as they come
-in (see [Each poll](#each-poll)). If a product or design decision blocks you,
-flag the user and keep working on whatever isn't blocked.
+the Corvid card. If the change ships behind an experiment, set it up (see
+[Statsig experiments](#statsig-experiments)). While building, handle CI failures
+and bot reviews as they come in (see [Each poll](#each-poll)). If a product or
+design decision blocks you, flag the user and keep working on whatever isn't
+blocked.
 
-Move on when the spec is implemented, CI is green, and you've checked the
-change yourself (on the preview deployment if there is one).
+Move on when the spec is implemented, CI is green, and you've tested the change
+yourself, in a browser if it has a UI (see
+[Testing in a browser](#testing-in-a-browser)).
 
 ### 2. Hand off to QA
 
 Draft the Slack message that hands the project to QA. If the `qa-handoff` skill
 is installed, follow its format. Otherwise include the ticket link, a one-line
 summary of what changed, the preview URLs (from the PR's deployment checks or
-bot comments), and a short list of what to check. Show it in a fenced code block
+bot comments), the Statsig experiment link and which test ids are overridden
+into which group (if there's an experiment), and a short list of what to check. Show it in a fenced code block
 so it copies cleanly.
 
 Then flag the user, for example: reason "Ready for QA", action "Post the QA
@@ -142,7 +148,7 @@ of creating a duplicate.
 
 | Kind | What to do |
 | --- | --- |
-| **Bug** (broken, wrong, or not matching the spec) | Reproduce it, find the root cause, fix it with a test where practical, commit, push, and confirm CI passes. Draft a reply saying what was wrong and that the fix is deploying. |
+| **Bug** (broken, wrong, or not matching the spec) | Reproduce it (in a browser if it's a UI bug), find the root cause, fix it with a test where practical, commit, push, confirm CI passes, and re-check it in the browser once the preview redeploys. Draft a reply saying what was wrong and that the fix is deploying. |
 | **Change request** from a person on the PR | Decide whether it's valid (correct, actionable, matches the code as written). If valid, fix it, push, and draft a reply saying what changed. If not, draft a reply explaining why, without arguing. Either way, leave the thread unresolved for the user. |
 | **Question** | Answer it from the spec, code, and config, and draft the reply. If the answer is a product decision, don't invent one. Flag it for the user. |
 | **Can't reproduce / working as intended** | Draft a reply asking for the missing details (device, browser, account, steps), or explaining the intended behavior with a link to the spec. If the spec is ambiguous, tell the user instead. |
@@ -169,6 +175,83 @@ the ticket.
 - Never force-push over commits you didn't make, and don't rewrite history
   beyond your own fix commits.
 - After two failed attempts at the same failure, stop retrying and flag it.
+
+## Statsig experiments
+
+Set up an experiment when the spec, Linear issue, or user says the change ships
+as an A/B test, experiment, or behind Statsig, and none exists yet. Don't invent
+experiments for bug fixes or changes nobody asked to test.
+
+**Use the team's skill if there is one.** If a Statsig experiment skill is
+installed (for example `statsig-experiment-builder`, or
+`statsig-experiment-maker` to go from a spec to a full experiment design), use
+it, and follow its rules, including any approval it requires before writing.
+When it needs approval, flag the user with the exact payload and keep working
+on everything else. Otherwise, do it yourself:
+
+1. **Check it doesn't already exist.** Search existing experiments (Statsig MCP
+   `Get_List_of_Experiments`, or the Console API
+   `GET https://statsigapi.net/console/v1/experiments`) for the feature, the
+   ticket id, and likely names.
+2. **Copy the conventions of experiments on the same surface.** Find recent
+   experiments for the same product area and match them:
+   - **Name:** lowercase snake_case, starting with the surface prefix those
+     experiments use, such as `customer_`, `deal_`, or `fcf_`, then a short
+     description (for example `customer_checkout_one_page`). Never create an
+     experiment without the prefix. If you can't tell which surface or prefix
+     applies, ask the user.
+   - **Id type** (for example `customerID`, `userID`, or `stableID`), target
+     apps, layer, tags, and team.
+   - **Group names and splits** (usually `Control` and `Variant`, 50/50) and
+     parameter names and types.
+   - **Hypothesis, primary metrics, and guardrails**, in the same shape as
+     siblings. Take the hypothesis and success metric from the spec.
+3. **Create it in Setup, not started** (`Create_Experiment`, or
+   `POST /console/v1/experiments`). Read it back and check every field. Add its
+   link to the Corvid card and the PR description.
+4. **Wire it into the code** the way the repo already reads experiments: find
+   existing experiment checks for the same SDK and copy the pattern. Control is
+   the current behavior; only the variant gets the new behavior. Test both
+   paths.
+
+Starting, changing allocation of, or shipping an experiment is a human gate.
+Flag it in the user's next steps; never do it yourself.
+
+**Test overrides.** To see a specific group in the browser, add your test
+user's id to that group's overrides. Don't override real customers.
+
+- `GET` then `PATCH`
+  `https://statsigapi.net/console/v1/experiments/<id>/overrides`. The `PATCH`
+  **replaces the whole override list**, so always GET the current list, add
+  your id to the right group's entry without removing anything, and PATCH the
+  merged list. A bare payload silently deletes everyone else's overrides.
+- `groupID` is the group's display name (`"Variant"`), and `unitType` is the
+  experiment's id type, with the matching id (for example the customer's model
+  id for `customerID`, not their auth user id).
+- A read-only console key returns `401`. If that happens, flag the user with
+  the ids and groups to add.
+- Keep a list of the overrides you added in the state file, and include them in
+  the QA handoff.
+
+If a team tool handles overrides or reports live assignments (for example
+`homey-cli` and `homey-browser`), prefer it.
+
+## Testing in a browser
+
+If the change has a UI or a user-facing flow, test it in a real browser before
+the QA handoff and after every UI fix. Don't rely on unit tests alone.
+
+- Use the team's browser tool if one is installed (for example
+  `homey-browser`), otherwise the `agent-browser` skill.
+- Test the deployment people will use: the PR preview if there is one, else a
+  local dev server.
+- Walk the whole flow from the spec, including edge cases and error states. If
+  there's an experiment, use overrides to check both Control and Variant, and
+  confirm the page reports the group you expect.
+- Check the browser console and network requests for errors.
+- Save screenshots (and recordings, if your tool makes them) to `.context/`
+  or another git-ignored folder. Include them in your notification to the user
+  when they show the result.
 
 ## Needing the user
 

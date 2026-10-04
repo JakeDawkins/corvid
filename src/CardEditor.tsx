@@ -69,7 +69,7 @@ function buildAgentPrompt(card: Card): string {
   );
   lines.push("");
   lines.push(
-    "Work on this autonomously with the watch-and-fix skill: build it, draft the QA handoff for me, then watch Slack, the GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project is done. Never send a Slack message, Linear comment, or GitHub comment to a real person unless I ask you to. Draft it and flag this card instead.",
+    "Work on this autonomously with the watch-and-fix skill: build it, draft the QA handoff for me, then watch Slack, the GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project is done. If the change should ship behind a Statsig experiment and none exists yet, set one up following the conventions of other experiments on the same surface, and test UI changes in a browser (the skill covers both). Never send a Slack message, Linear comment, or GitHub comment to a real person unless I ask you to. Draft it and flag this card instead.",
   );
   return lines.join("\n");
 }
