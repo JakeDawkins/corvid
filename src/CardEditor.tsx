@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { MutableRefObject } from "react";
 import type { AgentsStatus, Card, ConductorRepo, Link, NeedsYou } from "./types";
 import { loadConductorRepos } from "./api";
 import { domainName, linkKind } from "./links";
@@ -28,6 +29,20 @@ function chipFallback(url: string): string {
 // Last path segment, as a fallback name for a repo Conductor no longer lists.
 function baseName(path: string): string {
   return path.replace(/\/+$/, "").split("/").pop() || path;
+}
+
+// The fields of `next` that differ from `prev`, so saving only writes what the
+// user edited and leaves fields an agent changed meanwhile (e.g. a linked
+// workspace or PR) alone.
+function changedFields(prev: Card, next: Card): Partial<Card> {
+  const changes: Partial<Card> = {};
+  const keys = new Set([...Object.keys(prev), ...Object.keys(next)] as (keyof Card)[]);
+  for (const k of keys) {
+    if (JSON.stringify(prev[k]) !== JSON.stringify(next[k])) {
+      (changes as Record<string, unknown>)[k] = next[k];
+    }
+  }
+  return changes;
 }
 
 // Build a paste-ready instruction for an AI agent to work on this card: the
@@ -91,6 +106,7 @@ export function CardEditor({
   onSave,
   onCancel,
   onDelete,
+  closeRef,
 }: {
   card: Card;
   columns: string[];
@@ -101,9 +117,14 @@ export function CardEditor({
   needsYou?: NeedsYou;
   needsYouLoud: boolean;
   onClearNeedsYou: () => void;
-  onSave: (c: Card) => void;
+  // Receives only the fields changed from `card`.
+  onSave: (changes: Partial<Card>) => void;
+  // Closes without saving (the Cancel button).
   onCancel: () => void;
   onDelete: () => void;
+  // Set to this editor's close(), so the parent can close it with a save (e.g.
+  // when search opens another card).
+  closeRef?: MutableRefObject<(() => void) | null>;
 }) {
   const { m, on } = useMask();
   const [draft, setDraft] = useState<Card>({ ...card });
@@ -152,14 +173,25 @@ export function CardEditor({
     el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
   }, [notesValue]);
 
-  // Close on Escape, discarding any unsaved edits (same as clicking outside).
+  // Latest close(), for the Escape listener and the parent's closeRef.
+  const closeLatest = useRef(close);
+  closeLatest.current = close;
+  useEffect(() => {
+    if (!closeRef) return;
+    closeRef.current = () => closeLatest.current();
+    return () => {
+      closeRef.current = null;
+    };
+  }, [closeRef]);
+
+  // Close on Escape, saving any edits (same as clicking outside).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") closeLatest.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  }, []);
 
   async function copyPrompt() {
     try {
@@ -231,16 +263,24 @@ export function CardEditor({
   }
 
   function save() {
-    onSave(finalCard());
+    onSave(changedFields(card, finalCard()));
+  }
+
+  // Escape or a click outside: save if anything was edited, otherwise just
+  // close, so an untouched new card isn't added to the board.
+  function close() {
+    const changes = changedFields(card, finalCard());
+    if (Object.keys(changes).length) onSave(changes);
+    else onCancel();
   }
 
   // Open a new Conductor workspace for this card in the repo at `path`, seeded
   // with the agent prompt. Saves and closes the editor first so the agent's
   // link-workspace edit isn't overwritten by a later save of this stale draft.
   function startInConductor(path: string) {
-    const card = { ...finalCard(), repo: path };
-    onSave(card);
-    window.location.href = conductorLink(buildAgentPrompt(card), path);
+    const next = { ...finalCard(), repo: path };
+    onSave(changedFields(card, next));
+    window.location.href = conductorLink(buildAgentPrompt(next), path);
   }
 
   function onStartClick() {
@@ -256,7 +296,7 @@ export function CardEditor({
   }
 
   return (
-    <div className="modal-backdrop" onClick={onCancel}>
+    <div className="modal-backdrop" onClick={close}>
       <div className="modal card-editor" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{card.title ? "Edit card" : "New card"}</h2>

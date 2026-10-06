@@ -87,6 +87,12 @@ npm run build && npm start   # http://localhost:8787
   one first and saves it on the card. Once a card has a linked workspace, the
   header shows a link to it instead of this button and Copy prompt.
 - **Hide/unhide** cards, with a toggle to reveal hidden ones.
+- **Search** (Cmd+K, or the magnifying glass): find any card by title, Linear
+  task id, link title, or URL, in that order of priority. Arrow keys pick a
+  result and Return opens it, saving and replacing any card already open in
+  the editor.
+- **Auto-save**: closing the card editor with Escape or a click outside saves
+  your edits. Only the Cancel button discards them.
 - **Import / Export** the full state as JSON.
 - **Masked mode** (Settings, or Shift+M): swaps titles, notes, and other
   sensitive text for placeholder words so the board can be screenshotted

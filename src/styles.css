@@ -849,3 +849,100 @@ select {
 .settings-details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 .settings-details summary:hover { color: var(--text); }
 .settings-details .settings-check { margin-left: 18px; }
+
+/* Cmd+K search: a Spotlight-style panel near the top, over a dimmed page.
+   Sits above the card editor so it can swap the open card. */
+.search-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 14vh;
+  background: var(--backdrop);
+  backdrop-filter: blur(2px);
+}
+.search {
+  width: 640px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+.search-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+.search-input svg { flex: none; }
+/* Beats the global single-line input rule (same specificity, declared later). */
+.search .search-input input[type="text"] {
+  height: 60px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 22px;
+}
+.search-results { overflow-y: auto; padding: 6px; }
+.search-empty { padding: 18px 12px; color: var(--muted); text-align: center; }
+.search-hit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.search-hit.selected { background: color-mix(in srgb, var(--accent) 20%, var(--panel)); }
+.search-hit-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--card-color, var(--border));
+}
+.search-hit-main { flex: 1; min-width: 0; }
+.search-hit-title,
+.search-hit-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-hit-title { font-size: 15px; }
+.search-hit-detail { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.search-hit-kind {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+}
+.search-hit-col { flex: none; max-width: 30%; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search mark { background: none; color: var(--accent); font-weight: 600; }
+.search-foot {
+  display: flex;
+  gap: 16px;
+  padding: 8px 18px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+}
+.search kbd {
+  display: inline-block;
+  min-width: 18px;
+  margin-right: 3px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel-2);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+}
+.search-input kbd { flex: none; }
