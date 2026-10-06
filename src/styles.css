@@ -392,6 +392,8 @@ body {
 }
 .workspace-tag:hover { color: var(--text); }
 .workspace-tag.working { color: var(--claude); }
+.workspace-tag.waiting { color: var(--text); }
+.workspace-tag.waiting .claude-logo { fill: var(--claude); }
 .workspace-tag .claude-logo { width: 12px; height: 12px; fill: currentColor; }
 .workspace-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -433,23 +435,25 @@ body {
 .segmented-option.selected { background: var(--accent); color: #fff; }
 
 /* Size picker in the card editor. */
-.complexity-picker { display: flex; gap: 6px; }
-.complexity-option {
-  padding: 5px 11px;
-  border: 1px solid var(--border);
-  background: var(--panel-2);
-  color: var(--text);
-  border-radius: 6px;
+/* Editor complexity picker: the card's meter, scaled up, with each bar a
+   button. Each button is a 44x44px tap target (WCAG 2.5.5 / Apple HIG) around
+   a thin bar; the negative margin keeps the first bar aligned with the field.
+   Hover previews the fill at reduced opacity. */
+.complexity-picker .complexity-bars { gap: 0; margin-left: -4px; }
+.complexity-hit {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.complexity-option:hover { border-color: var(--accent); }
-.complexity-option.selected {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
+.complexity-picker .complexity-bar { width: 36px; height: 6px; border-radius: 3px; }
+.complexity-picker .complexity-bar.on.preview { opacity: 0.6; }
+.complexity-picker .complexity-label { min-width: 32px; font-size: 11px; }
 
 .badge {
   font-size: 11px;
@@ -526,6 +530,7 @@ body {
 
 .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
 .field > span { font-size: 12px; color: var(--muted); }
+.field-inline { flex-direction: row; align-items: center; gap: 12px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .field-row > .field { min-width: 0; }
 
@@ -566,7 +571,9 @@ select {
 }
 
 /* A linked Conductor workspace on a card. Neutral while idle, Claude orange
-   with a spinning mark while an agent is working in it. */
+   with a spinning mark while an agent is working in it, and a softer orange
+   with a pulsing orange mark and dashed border while it's waiting to resume
+   on its own. */
 .chip.workspace-badge {
   display: inline-flex;
   align-items: center;
@@ -585,12 +592,18 @@ select {
   border-color: color-mix(in srgb, var(--claude) 55%, var(--border));
 }
 .chip.workspace-badge.working:hover { border-color: var(--claude); }
+.chip.workspace-badge.waiting { border-style: dashed; }
+.chip.workspace-badge.waiting .claude-logo { fill: var(--claude); }
+.chip.workspace-badge.waiting:hover { border-color: var(--claude); }
 .workspace-badge-state { font-weight: 700; }
 .workspace-badge-state::after { content: " ·"; font-weight: 500; }
 .claude-logo.spinning { animation: agent-spin 2.4s linear infinite; }
 @keyframes agent-spin { to { transform: rotate(360deg); } }
+.claude-logo.pulsing { animation: agent-pulse 2.4s ease-in-out infinite; }
+@keyframes agent-pulse { 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) {
-  .claude-logo.spinning { animation: none; }
+  .claude-logo.spinning,
+  .claude-logo.pulsing { animation: none; }
 }
 
 .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }

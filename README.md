@@ -70,7 +70,9 @@ npm run build && npm start   # http://localhost:8787
 - **Agent activity**: link one or more Conductor workspaces to a card and each
   shows as a badge at the top of the card. A badge turns Claude orange and reads
   "Working", with a spinning Claude mark, while an agent is working in that
-  workspace. The copied agent prompt tells the agent to link its own workspace
+  workspace, and "Waiting", with a pulsing mark, while the agent is idle but
+  will resume on its own (a background task or Monitor is running, or a `/loop`
+  wakeup is scheduled; hover for what it's waiting on). The copied agent prompt tells the agent to link its own workspace
   via the skill. The server reads Conductor's local database
   read-only every 3s (macOS; override the path with `CONDUCTOR_DB`).
 - **Needs you**: when something is waiting on you, the agent flags
@@ -82,7 +84,8 @@ npm run build && npm start   # http://localhost:8787
 - **Start in Conductor**: pick a repo on the card (from the repos added to
   Conductor) and the button opens a new Conductor workspace in it, seeded with
   the agent prompt via a `conductor://` deep link. With no repo set, it asks for
-  one first and saves it on the card.
+  one first and saves it on the card. Once a card has a linked workspace, the
+  header shows a link to it instead of this button and Copy prompt.
 - **Hide/unhide** cards, with a toggle to reveal hidden ones.
 - **Import / Export** the full state as JSON.
 - **Masked mode** (Settings, or Shift+M): swaps titles, notes, and other

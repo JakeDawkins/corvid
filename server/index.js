@@ -480,6 +480,93 @@ const CONDUCTOR_DB =
   join(homedir(), 'Library', 'Application Support', 'com.conductor.app', 'conductor.db');
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Run a read-only query against Conductor's database and parse its rows.
+async function queryConductor(sql) {
+  const { stdout } = await execFileP(
+    'sqlite3',
+    ['-readonly', '-json', '-cmd', '.timeout 2000', CONDUCTOR_DB, sql],
+    { maxBuffer: 32 * 1024 * 1024 },
+  );
+  // sqlite3 prints nothing (not "[]") when there are no rows.
+  return stdout.trim() ? JSON.parse(stdout) : [];
+}
+
+// How far back to look for scheduled wakeups and background tasks. Claude Code
+// caps a wakeup at 1h and a background command at 2h, so anything older has
+// fired or ended (or its session died without saying so).
+const WAIT_LOOKBACK_MS = 2 * 60 * 60 * 1000;
+// A wakeup counts as pending a little past its due time, so the gap between it
+// firing and the session flipping to "working" doesn't flash "idle".
+const WAKE_GRACE_MS = 2 * 60 * 1000;
+
+// What idle sessions in these workspaces are waiting on, keyed by workspace
+// local_id: background tasks (Bash run_in_background, Monitor, background
+// agents) that haven't ended, and the next ScheduleWakeup of a /loop. Either
+// re-invokes the agent on its own, so the workspace is "waiting", not "idle".
+async function fetchWaits(localIds) {
+  if (!localIds.length) return {};
+  const list = localIds.map((id) => `'${id}'`).join(',');
+  const since = new Date(Date.now() - WAIT_LOOKBACK_MS).toISOString();
+  const rows = await queryConductor(`
+    select s.workspace_id as ws, s.id as session, m.sent_at as at, m.content as content
+    from sessions s join session_messages m on m.session_id = s.id
+    where s.workspace_id in (${list}) and m.sent_at > '${since}'
+      and (m.content like '{"type":"system","subtype":"task_started"%'
+        or m.content like '{"type":"system","subtype":"task_updated"%'
+        or m.content like '{"type":"system","subtype":"task_notification"%'
+        or m.content like '%"name":"ScheduleWakeup"%')
+    order by m.sent_at`);
+  const tasks = new Map(); // task_id -> { ws, description, background, done }
+  const wakeups = new Map(); // session id -> { ws, at (ms) } for its latest wakeup
+  for (const r of rows) {
+    let msg;
+    try {
+      msg = JSON.parse(r.content);
+    } catch {
+      continue;
+    }
+    if (msg.type === 'system') {
+      const task = tasks.get(msg.task_id);
+      if (msg.subtype === 'task_started') {
+        tasks.set(msg.task_id, {
+          ws: r.ws,
+          description: msg.description,
+          background: msg.is_backgrounded === true,
+          done: false,
+        });
+      } else if (task && msg.subtype === 'task_updated') {
+        if (msg.patch?.is_backgrounded) task.background = true;
+        if (msg.patch?.status) task.done = true;
+      } else if (task && msg.subtype === 'task_notification') {
+        task.done = true;
+      }
+    } else if (msg.type === 'assistant') {
+      for (const c of msg.message?.content || []) {
+        if (c.type !== 'tool_use' || c.name !== 'ScheduleWakeup') continue;
+        // A newer call replaces the session's pending wakeup; stop cancels it.
+        if (c.input?.stop) {
+          wakeups.delete(r.session);
+        } else {
+          const delay = Math.min(3600, Math.max(60, Number(c.input?.delaySeconds) || 0));
+          wakeups.set(r.session, { ws: r.ws, at: Date.parse(r.at) + delay * 1000 });
+        }
+      }
+    }
+  }
+  const out = {};
+  const entry = (ws) => (out[ws] ||= { waitingOn: [] });
+  for (const t of tasks.values()) {
+    if (t.background && !t.done) entry(t.ws).waitingOn.push(t.description || 'Background task');
+  }
+  const now = Date.now();
+  for (const w of wakeups.values()) {
+    if (w.at + WAKE_GRACE_MS < now) continue;
+    const e = entry(w.ws);
+    if (!e.wakeAt || w.at < e.wakeAt) e.wakeAt = w.at;
+  }
+  return out;
+}
+
 // Status for each requested workspace id, keyed by that id. Ids Conductor
 // doesn't know (deleted, or from another machine) are simply absent.
 async function fetchWorkspaces(ids) {
@@ -500,25 +587,25 @@ async function fetchWorkspaces(ids) {
     where w.local_id in (${list}) or w.id in (${list})
     group by w.local_id`;
   try {
-    const { stdout } = await execFileP('sqlite3', [
-      '-readonly',
-      '-json',
-      '-cmd',
-      '.timeout 2000',
-      CONDUCTOR_DB,
-      sql,
-    ]);
-    // sqlite3 prints nothing (not "[]") when there are no rows.
-    const rows = stdout.trim() ? JSON.parse(stdout) : [];
+    const rows = await queryConductor(sql);
+    // Waits are a refinement of "idle"; if reading them fails, fall back to
+    // working/idle rather than dropping the whole status.
+    const waits = await fetchWaits(
+      rows.filter((r) => r.working !== 1 && r.state !== 'archived').map((r) => r.local_id),
+    ).catch(() => ({}));
     const out = {};
     for (const r of rows) {
+      const wait = r.working === 1 ? undefined : waits[r.local_id];
       const status = {
         name: r.name,
         repo: r.repo,
         branch: r.branch,
         state: r.state,
+        activity: r.working === 1 ? 'working' : wait ? 'waiting' : 'idle',
         working: r.working === 1,
       };
+      if (wait?.waitingOn.length) status.waitingOn = wait.waitingOn;
+      if (wait?.wakeAt) status.wakeAt = new Date(wait.wakeAt).toISOString();
       for (const id of [r.local_id, r.id]) if (wanted.includes(id)) out[id] = status;
     }
     return { workspaces: out };
@@ -538,15 +625,7 @@ async function fetchConductorRepos() {
     where coalesce(hidden, 0) = 0 and root_path is not null
     order by display_order, name`;
   try {
-    const { stdout } = await execFileP('sqlite3', [
-      '-readonly',
-      '-json',
-      '-cmd',
-      '.timeout 2000',
-      CONDUCTOR_DB,
-      sql,
-    ]);
-    return { repos: stdout.trim() ? JSON.parse(stdout) : [] };
+    return { repos: await queryConductor(sql) };
   } catch (e) {
     return { repos: [], error: cleanErr(e) };
   }
