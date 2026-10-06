@@ -11,6 +11,7 @@ import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
 import { Deployments } from "./Deployments";
 import { Settings } from "./Settings";
+import { Search } from "./Search";
 import { NeedsYouBanner } from "./NeedsYou";
 import { ClaudeLogo } from "./ClaudeLogo";
 import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
@@ -50,6 +51,7 @@ export default function App() {
   const [showDeployments, setShowDeployments] = useState(false);
   const [showClaude, setShowClaude] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [deploymentsPaused, setDeploymentsPaused] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -58,6 +60,8 @@ export default function App() {
   const [theme, setTheme] = useTheme();
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The open card editor's close-and-save, set by CardEditor.
+  const closeEditor = useRef<(() => void) | null>(null);
   const [maskSettings, setMaskSettings] = useMaskSettings();
   const mask = useMemo(() => makeMask(maskSettings), [maskSettings]);
   const { m } = mask;
@@ -121,6 +125,17 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [setMaskSettings]);
 
+  // Cmd+K (Ctrl+K elsewhere) toggles search, even from a field in the card editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "k" || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      setShowSearch((v) => !v);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Reopening the Deployments sidebar should always start actively polling.
   useEffect(() => {
     if (!showDeployments) setDeploymentsPaused(false);
@@ -154,13 +169,13 @@ export default function App() {
     }
   }
 
-  // Save a card from the editor. `needsYou` always comes from the live board,
-  // not the editor's draft, so an agent setting or clearing it while the editor
-  // is open isn't undone by the save.
-  function upsertCard(card: Card) {
+  // Save the fields edited in the editor onto the live card (or add `card` as
+  // new), so anything else an agent changed while the editor was open, like
+  // `needsYou` or a linked workspace, isn't undone by the save.
+  function upsertCard(card: Card, changes: Partial<Card>) {
     setData((d) => {
       const live = d.cards.find((c) => c.id === card.id);
-      const next = { ...card, needsYou: live?.needsYou };
+      const next = { ...(live ?? card), ...changes, needsYou: live?.needsYou };
       return {
         ...d,
         cards: live
@@ -796,6 +811,17 @@ export default function App() {
         </form>
         {quickError && <span className="hint error">{quickError}</span>}
         <div className="spacer" />
+        <button
+          className={`btn${showSearch ? " active" : ""}`}
+          onClick={() => setShowSearch(true)}
+          title="Search (⌘K)"
+          aria-label="Search"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </button>
         {claudeColumn && (
           <button
             className={`btn claude-btn${showClaude ? " active" : ""}${
@@ -988,6 +1014,8 @@ export default function App() {
 
       {editing && (
         <CardEditor
+          // Remount when search swaps in another card, so the draft resets.
+          key={editing.id}
           card={editing}
           columns={data.columns}
           colorTags={data.colorTags ?? {}}
@@ -996,14 +1024,32 @@ export default function App() {
           needsYouLoud={isLoud(editing)}
           onClearNeedsYou={() => clearNeedsYou(editing.id)}
           onCancel={() => setEditing(null)}
-          onSave={(c) => {
-            upsertCard(c);
+          closeRef={closeEditor}
+          onSave={(changes) => {
+            upsertCard(editing, changes);
             setEditing(null);
           }}
           onDelete={() => {
             deleteCard(editing.id);
             setEditing(null);
           }}
+        />
+      )}
+
+      {showSearch && (
+        <Search
+          cards={data.cards}
+          columns={data.columns}
+          cache={cache}
+          // Opening a card replaces any card already open in the editor,
+          // saving its edits first (same as closing it with Escape).
+          onOpen={(card) => {
+            setShowSearch(false);
+            if (card.id === editing?.id) return;
+            closeEditor.current?.();
+            setEditing(card);
+          }}
+          onClose={() => setShowSearch(false)}
         />
       )}
     </div>
