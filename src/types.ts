@@ -52,8 +52,16 @@ export type WorkspaceStatus = {
   branch?: string;
   // Conductor's workspace state, e.g. "ready" or "archived".
   state?: string;
+  // working: an agent is mid-turn. waiting: idle, but a background task or a
+  // scheduled wakeup (/loop) will re-invoke it on its own. idle: neither.
+  // Absent from servers that predate it; fall back to `working`.
+  activity?: "working" | "waiting" | "idle";
   // True while any session in the workspace has an agent working.
   working: boolean;
+  // While waiting: descriptions of the background tasks it's waiting on.
+  waitingOn?: string[];
+  // While waiting: when the next scheduled wakeup fires (ISO).
+  wakeAt?: string;
 };
 
 export type AgentsStatus = {

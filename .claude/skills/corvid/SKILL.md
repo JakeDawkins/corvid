@@ -90,7 +90,8 @@ A `Card`:
 - **`workspaces`** is an optional list of Conductor workspace ids (UUIDs, the
   value of `$CONDUCTOR_WORKSPACE_ID`). A card can have several, e.g. one per
   repo. Each shows as a badge at the top of the card, which turns into an
-  orange "Working" badge while an agent is working in that workspace. Use `link-workspace` / `unlink-workspace`; never
+  orange "Working" badge while an agent is working in that workspace, or a softer "Waiting" badge while the agent is
+  idle but has a background task or scheduled wakeup pending. Use `link-workspace` / `unlink-workspace`; never
   hand-edit it.
 - **`repo`** is an optional Conductor repo root path. The app's "Start in
   Conductor" button opens new workspaces for the card there. It's set from the

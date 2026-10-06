@@ -4,7 +4,7 @@ import { loadConductorRepos } from "./api";
 import { domainName, linkKind } from "./links";
 import { LinkChip, WorkspaceBadge } from "./Badges";
 import { COLORS, textOn } from "./colors";
-import { COMPLEXITY_LEVELS } from "./Complexity";
+import { ComplexityPicker } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
 import { useMask } from "./mask";
 
@@ -261,45 +261,55 @@ export function CardEditor({
         <div className="modal-head">
           <h2>{card.title ? "Edit card" : "New card"}</h2>
           <div className="modal-head-actions">
-            <button type="button" className="btn" onClick={copyPrompt}>
-              {promptCopied ? "Copied!" : "Copy prompt for agents"}
-            </button>
-            {pickingRepo ? (
-              <select
-                autoFocus
-                className="repo-pick"
-                value=""
-                disabled={!repos?.length}
-                onChange={(e) => e.target.value && startInConductor(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    // Cancel just the picker, not the whole card.
-                    e.stopPropagation();
-                    setPickingRepo(false);
-                  }
-                }}
-                onBlur={() => setPickingRepo(false)}
-              >
-                <option value="">
-                  {repos === null ? "Loading repos…" : repos.length ? "Pick a repo…" : "No repos"}
-                </option>
-                {repoOptions.map((r) => (
-                  <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
-                ))}
-              </select>
+            {/* A card already being worked on links to its workspace(s) instead
+                of offering to start a new one. */}
+            {workspaces.length > 0 ? (
+              workspaces.map((id) => (
+                <WorkspaceBadge key={id} id={id} status={agents.workspaces[id]} />
+              ))
             ) : (
-              <button
-                type="button"
-                className="btn primary"
-                title={
-                  draft.repo
-                    ? `New Conductor workspace in ${draft.repo}`
-                    : "Pick a repo, then open a new Conductor workspace"
-                }
-                onClick={onStartClick}
-              >
-                Start in Conductor
-              </button>
+              <>
+                <button type="button" className="btn" onClick={copyPrompt}>
+                  {promptCopied ? "Copied!" : "Copy prompt for agents"}
+                </button>
+                {pickingRepo ? (
+                  <select
+                    autoFocus
+                    className="repo-pick"
+                    value=""
+                    disabled={!repos?.length}
+                    onChange={(e) => e.target.value && startInConductor(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        // Cancel just the picker, not the whole card.
+                        e.stopPropagation();
+                        setPickingRepo(false);
+                      }
+                    }}
+                    onBlur={() => setPickingRepo(false)}
+                  >
+                    <option value="">
+                      {repos === null ? "Loading repos…" : repos.length ? "Pick a repo…" : "No repos"}
+                    </option>
+                    {repoOptions.map((r) => (
+                      <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn primary"
+                    title={
+                      draft.repo
+                        ? `New Conductor workspace in ${draft.repo}`
+                        : "Pick a repo, then open a new Conductor workspace"
+                    }
+                    onClick={onStartClick}
+                  >
+                    Start in Conductor
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -345,25 +355,13 @@ export function CardEditor({
           </label>
         </div>
 
-        <div className="field">
+        <div className="field field-inline">
           <span>Complexity</span>
-          <div className="complexity-picker">
-            {COMPLEXITY_LEVELS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`complexity-option${
-                  draft.complexity === c ? " selected" : ""
-                }`}
-                // Clicking the active size again clears it (unset = hidden on card).
-                onClick={() =>
-                  set("complexity", draft.complexity === c ? undefined : c)
-                }
-              >
-                {c}
-              </button>
-            ))}
-          </div>
+          <ComplexityPicker
+            value={draft.complexity}
+            color={draft.color}
+            onChange={(c) => set("complexity", c)}
+          />
         </div>
 
         <label className="field">

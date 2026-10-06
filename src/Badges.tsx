@@ -51,26 +51,61 @@ export function CardLink({
   );
 }
 
-// A linked Conductor workspace in a card's footer: muted name and mark while
-// idle, Claude orange with a spinning mark and "Working" while an agent is active.
-export function WorkspaceTag({ id, status }: { id: string; status?: WorkspaceStatus }) {
+type Activity = NonNullable<WorkspaceStatus["activity"]>;
+
+const ACTIVITY_LABEL: Record<Activity, string> = {
+  working: "Working",
+  waiting: "Waiting",
+  idle: "",
+};
+
+// The mark's motion per state: spinning while working, a slow pulse while
+// waiting on a background task or scheduled wakeup, still while idle.
+const LOGO_MOTION: Record<Activity, string> = {
+  working: " spinning",
+  waiting: " pulsing",
+  idle: "",
+};
+
+// Shared bits of a workspace's status for the tag and badge.
+function useWorkspaceInfo(id: string, status?: WorkspaceStatus) {
   const { m } = useMask();
+  const activity: Activity = status?.activity ?? (status?.working ? "working" : "idle");
   const name = status?.name ?? id.slice(0, 8);
   const archived = status?.state === "archived";
-  const detail = status
-    ? [status.repo && m("repoNames", status.repo), status.branch && m("branches", status.branch)]
-        .filter(Boolean)
-        .join(" · ")
-    : "Not found in Conductor";
+  const lines = status
+    ? [
+        [status.repo && m("repoNames", status.repo), status.branch && m("branches", status.branch)]
+          .filter(Boolean)
+          .join(" · "),
+      ]
+    : ["Not found in Conductor"];
+  if (activity === "waiting") {
+    if (status?.wakeAt) {
+      const at = new Date(status.wakeAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      lines.push(`Next check at ${at}`);
+    }
+    for (const w of status?.waitingOn ?? []) lines.push(`Waiting on: ${w}`);
+  }
+  const title = [`Open ${name} in Conductor`, ...lines.filter(Boolean)].join("\n");
+  return { activity, name, archived, title };
+}
+
+// A linked Conductor workspace in a card's footer: muted name and mark while
+// idle, Claude orange with a spinning mark and "Working" while an agent is
+// active, and a dimmer orange with a pulsing mark and "Waiting" while it's
+// idle but due to resume on its own (background task or scheduled wakeup).
+export function WorkspaceTag({ id, status }: { id: string; status?: WorkspaceStatus }) {
+  const { activity, name, archived, title } = useWorkspaceInfo(id, status);
   return (
     <a
       href={`conductor://workspace?id=${encodeURIComponent(id)}`}
-      className={`workspace-tag${status?.working ? " working" : ""}`}
-      title={`Open ${name} in Conductor${detail ? `\n${detail}` : ""}`}
+      className={`workspace-tag ${activity}`}
+      title={title}
     >
-      <ClaudeLogo className={`claude-logo${status?.working ? " spinning" : ""}`} />
+      <ClaudeLogo className={`claude-logo${LOGO_MOTION[activity]}`} />
       <span>
-        {status?.working && "Working · "}
+        {activity !== "idle" && `${ACTIVITY_LABEL[activity]} · `}
         {name}
         {archived && " (archived)"}
       </span>
@@ -80,25 +115,19 @@ export function WorkspaceTag({ id, status }: { id: string; status?: WorkspaceSta
 
 // A linked Conductor workspace, linking to it in the Conductor app. Always shown
 // while linked; switches to a Claude-orange "Working" state with a spinning
-// mark while an agent is active.
+// mark while an agent is active, or a softer "Waiting" state with a pulsing
+// mark while it's due to resume on its own.
 export function WorkspaceBadge({ id, status }: { id: string; status?: WorkspaceStatus }) {
-  const { m } = useMask();
-  const name = status?.name ?? id.slice(0, 8);
-  const archived = status?.state === "archived";
-  const detail = status
-    ? [status.repo && m("repoNames", status.repo), status.branch && m("branches", status.branch)]
-        .filter(Boolean)
-        .join(" · ")
-    : "Not found in Conductor";
+  const { activity, name, archived, title } = useWorkspaceInfo(id, status);
   return (
     // No target: a custom-scheme link hands off to the app without opening a tab.
     <a
       href={`conductor://workspace?id=${encodeURIComponent(id)}`}
-      className={`chip workspace-badge${status?.working ? " working" : ""}`}
-      title={`Open ${name} in Conductor${detail ? `\n${detail}` : ""}`}
+      className={`chip workspace-badge ${activity}`}
+      title={title}
     >
-      <ClaudeLogo className={`claude-logo${status?.working ? " spinning" : ""}`} />
-      {status?.working && <span className="workspace-badge-state">Working</span>}
+      <ClaudeLogo className={`claude-logo${LOGO_MOTION[activity]}`} />
+      {activity !== "idle" && <span className="workspace-badge-state">{ACTIVITY_LABEL[activity]}</span>}
       <span>
         {name}
         {archived && " (archived)"}
