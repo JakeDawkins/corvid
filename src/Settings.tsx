@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
+import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH } from "./columns";
 import { loadVercelProjects } from "./api";
 import { COLORS } from "./colors";
 import { hasName } from "./links";
@@ -475,8 +475,12 @@ function ColumnRow({
       : 'Without "claude" in the name, this becomes a regular board column and the suggested-tasks routine can\'t find it.';
   } else if (BACKLOG_MATCH.test(name)) {
     hint = BACKLOG_MATCH.test(next)
-      ? "Quick-added and My work cards land here."
-      : 'Quick-added and My work cards land here only while it\'s named "Backlog"; otherwise they go to the first column.';
+      ? "My work cards land here."
+      : 'My work cards land here only while it\'s named "Backlog"; otherwise they go to the first column.';
+  } else if (TODO_MATCH.test(name)) {
+    hint = TODO_MATCH.test(next)
+      ? "Quick-added cards land at the top of this column."
+      : 'Quick-added cards land here only while it\'s named "Todo"; otherwise they go to Backlog.';
   }
 
   return (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { AgentsStatus, Card, Data, IssueStatus, LinearResource, PrStatus } from "./types";
 import { loadData, refresh, resolveLink, saveData } from "./api";
-import { domainName, linearKey, linkKind, normalizeCard, parsePrUrl } from "./links";
+import { domainName, linearKey, linkKind, linkTitle, normalizeCard, parsePrUrl, toUrl } from "./links";
 import type { VercelDeployment } from "./types";
 import { CardLink, IssueLine, PrLine, WorkspaceTag, resourceLabel } from "./Badges";
 import { CardEditor } from "./CardEditor";
@@ -14,7 +14,7 @@ import { Settings } from "./Settings";
 import { Search } from "./Search";
 import { NeedsYouBanner } from "./NeedsYou";
 import { ClaudeLogo } from "./ClaudeLogo";
-import { BACKLOG_MATCH, CLAUDE_MATCH } from "./columns";
+import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
 import { useTheme } from "./theme";
 
@@ -321,52 +321,47 @@ export default function App() {
     });
   }
 
-  // Quick-create a card from a pasted GitHub PR or Linear link. The card's
-  // title is set to the resolved PR/issue title and its status is pre-cached.
+  // Quick-create a card from any pasted link, at the top of the Todo column,
+  // and flash it. PRs and Linear items start with their resolved title and
+  // pre-cached status; other links, or ones that can't be resolved, start
+  // with a placeholder title like "Slack link" to rename later.
   async function quickCreate() {
-    const url = quickLink.trim();
-    if (!url || quickBusy) return;
-    const column = backlogColumn;
+    const text = quickLink.trim();
+    if (!text || quickBusy) return;
+    const url = toUrl(text);
+    if (!url) {
+      setQuickError("That doesn't look like a link.");
+      return;
+    }
+    const column = quickAddColumn;
     if (!column) return;
     setQuickBusy(true);
     setQuickError(null);
     try {
-      const result = await resolveLink(url);
-      if (result.kind === "unknown" || result.status.error) {
-        setQuickError(
-          result.kind === "unknown" ? result.error : result.status.error!,
-        );
-        return;
-      }
-      const base: Card = {
+      const result =
+        linkKind(url) === "generic" ? null : await resolveLink(url).catch(() => null);
+      const status = result && result.kind !== "unknown" ? result.status : undefined;
+      const card: Card = {
         id: crypto.randomUUID(),
-        title: result.status.title || url,
+        title: (!status?.error && status?.title) || linkTitle(url),
         column,
         hidden: false,
         links: [{ label: "", url }],
       };
-      if (result.kind === "pr") {
-        setData((d) => ({
-          ...d,
-          cards: insertAtColumnTop(d.cards, base),
-          cache: {
-            prs: { ...d.cache?.prs, [url]: result.status },
-            issues: { ...d.cache?.issues },
+      setData((d) => ({
+        ...d,
+        cards: insertAtColumnTop(d.cards, card),
+        cache: {
+          prs: { ...d.cache?.prs, ...(result?.kind === "pr" && { [url]: result.status }) },
+          issues: {
+            ...d.cache?.issues,
+            ...(result?.kind === "linear" && { [url]: result.status }),
           },
-        }));
-      } else {
-        setData((d) => ({
-          ...d,
-          cards: insertAtColumnTop(d.cards, base),
-          cache: {
-            prs: { ...d.cache?.prs },
-            issues: { ...d.cache?.issues, [url]: result.status },
-          },
-        }));
-      }
+        },
+      }));
+      flashCard(card.id);
+      scrollToCard.current = card.id;
       setQuickLink("");
-    } catch {
-      setQuickError("Failed to resolve link");
     } finally {
       setQuickBusy(false);
     }
@@ -470,11 +465,13 @@ export default function App() {
     reader.readAsText(file);
   }
 
-  // Quick-add/inbox target: the Backlog column, falling back to the first column.
+  // Inbox target: the Backlog column, falling back to the first column.
   const backlogColumn = useMemo(
     () => data.columns.find((c) => BACKLOG_MATCH.test(c)) ?? data.columns[0],
     [data.columns],
   );
+  // Quick-add target: the Todo column, falling back to the inbox's.
+  const quickAddColumn = data.columns.find((c) => TODO_MATCH.test(c)) ?? backlogColumn;
   // The "Suggested by Claude" column, surfaced via its own toolbar popover, and
   // the remaining columns that render on the board.
   const claudeColumn = useMemo(
@@ -586,14 +583,27 @@ export default function App() {
     }
   }
 
+  function flashCard(id: string) {
+    setHighlightId(id);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => setHighlightId(null), 2400);
+  }
+
+  // A card just added, to scroll into view once it has rendered.
+  const scrollToCard = useRef<string | null>(null);
+  useEffect(() => {
+    const id = scrollToCard.current;
+    if (!id || !cardRefs.current[id]) return;
+    scrollToCard.current = null;
+    cardRefs.current[id]!.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+
   // Briefly highlight a card (and scroll it into view), unhiding it if needed.
   function highlightCard(id: string) {
     const card = data.cards.find((c) => c.id === id);
     if (!card) return;
     if (card.hidden) setShowHidden(true);
-    setHighlightId(id);
-    if (highlightTimer.current) clearTimeout(highlightTimer.current);
-    highlightTimer.current = setTimeout(() => setHighlightId(null), 2400);
+    flashCard(id);
     requestAnimationFrame(() =>
       cardRefs.current[id]?.scrollIntoView({
         behavior: "smooth",
@@ -806,7 +816,7 @@ export default function App() {
         >
           <input
             type="text"
-            placeholder="Paste a GitHub or Linear link…"
+            placeholder="Paste any link…"
             value={quickLink}
             onChange={(e) => {
               setQuickLink(e.target.value);

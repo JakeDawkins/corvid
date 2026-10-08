@@ -56,8 +56,10 @@ npm run build && npm start   # http://localhost:8787
   the label box is focused so you can name it before pressing Return.
 - **Cards** are either ad-hoc (just a title) or a bundle of links: any number of
   GitHub PRs, Linear issues/projects, and freeform links (Slack, Notion, Figma, …).
-  Paste a GitHub PR or Linear URL into the quick-add box and it resolves the
-  title for you.
+  Paste any link into the quick-add box and it lands at the top of Todo
+  (falling back to Backlog) with a brief highlight. GitHub PR and Linear URLs
+  resolve their title for you; other links start with a placeholder title like
+  "Slack link".
 - **Refresh** pulls live status for every linked item on non-hidden cards:
   - **PR:** open / merged / closed / draft, CI rollup (✓ / ✗ / …), review decision
     (approved / changes requested / review required), and unresolved review

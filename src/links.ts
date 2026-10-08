@@ -73,3 +73,27 @@ export function domainName(url: string): string {
     return url.replace(/^https?:\/\//, "").split("/")[0] || "link";
   }
 }
+
+// The pasted text as an http(s) URL, adding "https://" to a bare domain like
+// "notion.so/page". Null if it isn't a link.
+export function toUrl(text: string): string | null {
+  const s = /^https?:\/\//i.test(text) ? text : `https://${text}`;
+  try {
+    const u = new URL(s);
+    return !/\s/.test(text) && u.hostname.includes(".") ? s : null;
+  } catch {
+    return null;
+  }
+}
+
+// Starting title for a card quick-added from a link whose real title isn't
+// available: "acme-web #482" for a PR, "ENG-42" for a Linear issue, else the
+// site name, e.g. "Slack link".
+export function linkTitle(url: string): string {
+  const pr = parsePrUrl(url);
+  if (pr) return `${pr.repo} #${pr.number}`;
+  const issue = url.match(/linear\.app\/[^/]+\/issue\/([A-Za-z0-9]+-\d+)/i);
+  if (issue) return issue[1].toUpperCase();
+  const name = domainName(url);
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} link`;
+}
