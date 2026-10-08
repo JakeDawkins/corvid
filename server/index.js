@@ -491,6 +491,13 @@ async function queryConductor(sql) {
   return stdout.trim() ? JSON.parse(stdout) : [];
 }
 
+// sqlite3 can't open the database while Conductor is closed, so say that
+// instead of surfacing the raw SQLite error.
+function conductorErr(e) {
+  const msg = cleanErr(e);
+  return /unable to open database file/i.test(msg) ? "Conductor isn't running" : msg;
+}
+
 // How far back to look for scheduled wakeups and background tasks. Claude Code
 // caps a wakeup at 1h and a background command at 2h, so anything older has
 // fired or ended (or its session died without saying so).
@@ -610,7 +617,7 @@ async function fetchWorkspaces(ids) {
     }
     return { workspaces: out };
   } catch (e) {
-    return { workspaces: {}, error: cleanErr(e) };
+    return { workspaces: {}, error: conductorErr(e) };
   }
 }
 
@@ -627,7 +634,7 @@ async function fetchConductorRepos() {
   try {
     return { repos: await queryConductor(sql) };
   } catch (e) {
-    return { repos: [], error: cleanErr(e) };
+    return { repos: [], error: conductorErr(e) };
   }
 }
 

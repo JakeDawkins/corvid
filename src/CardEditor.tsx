@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, MutableRefObject } from "react";
 import type { AgentsStatus, Cache, Card, ConductorRepo, Link, NeedsYou } from "./types";
 import { loadConductorRepos } from "./api";
-import { domainName, linkKind } from "./links";
-import { IssueLine, LinkChip, PrLine, WorkspaceBadge } from "./Badges";
+import { linkKind } from "./links";
+import { GenericLine, IssueLine, PrLine, WorkspaceBadge } from "./Badges";
 import { COLORS, textOn } from "./colors";
 import { ComplexityPicker } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
@@ -18,13 +18,6 @@ const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
 
 // Tooltip on fields made read-only by masked mode, which shows placeholder text.
 const MASKED_HINT = "Masked mode is on (Shift+M to turn off)";
-
-// Chip text for an untitled link: its kind for PRs/Linear, else its site name
-// (matching how the card itself labels untitled links).
-function chipFallback(url: string): string {
-  const kind = linkKind(url);
-  return kind === "generic" ? domainName(url) : KIND_LABEL[kind];
-}
 
 // Last path segment, as a fallback name for a repo Conductor no longer lists.
 function baseName(path: string): string {
@@ -120,6 +113,24 @@ function Linkified({ text }: { text: string }) {
   );
 }
 
+function EditLink({ editing, onClick }: { editing: boolean; onClick: () => void }) {
+  const label = editing ? "Done editing link" : "Edit link";
+  return (
+    <button
+      type="button"
+      className="btn ghost icon-btn"
+      title={label}
+      aria-label={label}
+      // Keep focus in the row's inputs, so clicking ✓ doesn't first end the
+      // edit on blur and re-render the row under the pointer.
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+    >
+      {editing ? "✓" : "✎"}
+    </button>
+  );
+}
+
 function RemoveLink({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -205,6 +216,10 @@ export function CardEditor({
   const newLabelRef = useRef<HTMLInputElement>(null);
   // Set by a paste, so the label box (mounted by that render) gets focus.
   const focusLabel = useRef(false);
+  // Index of the link whose edit button was clicked. Links show as text, and
+  // only the one being edited shows its label and URL inputs.
+  const [editingLink, setEditingLink] = useState<number | null>(null);
+  const editUrlRef = useRef<HTMLInputElement>(null);
   // Notes show as text until clicked. `notesBefore` is their value when
   // editing started, restored by Escape.
   const [editingNotes, setEditingNotes] = useState(false);
@@ -333,7 +348,35 @@ export function CardEditor({
 
   function removeLink(i: number) {
     setLinks((ls) => ls.filter((_, j) => j !== i));
+    setEditingLink(null);
   }
+
+  function toggleEditLink(i: number) {
+    if (editingLink === i) finishEditLink();
+    else setEditingLink(i);
+  }
+
+  // Leaves edit mode, fetching status if the URL is now a PR or Linear item.
+  function finishEditLink() {
+    const url = editingLink === null ? undefined : links[editingLink]?.url.trim();
+    if (url && linkKind(url) !== "generic") onRefreshLinks([url]);
+    setEditingLink(null);
+  }
+
+  // Enter or Escape in a link being edited finishes editing (Escape without
+  // closing the card).
+  function editLinkKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.currentTarget.blur();
+    } else if (e.key === "Escape" && editingLink !== null) {
+      e.stopPropagation();
+      finishEditLink();
+    }
+  }
+
+  useEffect(() => {
+    if (editingLink !== null) editUrlRef.current?.focus();
+  }, [editingLink]);
 
   function startNotes() {
     if (on("cardNotes")) return;
@@ -590,29 +633,43 @@ export function CardEditor({
         <section className="detail-section">
           <h3>Links</h3>
           {linkRows.map(({ l, i, kind }) =>
-            kind === "generic" ? (
-              <div key={i} className="link-row">
-                <LinkChip url={l.url} label={chipFallback(l.url)} />
+            i === editingLink ? (
+              <div
+                key={i}
+                className="link-row link-edit-row"
+                onBlur={(e) => {
+                  // Leaving the row (not moving between its inputs) ends editing.
+                  if (!e.currentTarget.contains(e.relatedTarget)) finishEditLink();
+                }}
+              >
                 <input
-                  className="inline-input"
+                  className="link-edit-label"
                   aria-label="Link label"
-                  placeholder="Add a label"
+                  placeholder="Label (optional)"
                   value={m("linkLabels", l.label)}
                   readOnly={on("linkLabels")}
                   title={on("linkLabels") ? MASKED_HINT : undefined}
                   onChange={(e) => updateLink(i, { label: e.target.value })}
-                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  onKeyDown={editLinkKeyDown}
                 />
                 <input
-                  className="inline-input link-url-input"
+                  ref={editUrlRef}
+                  className="link-edit-url"
                   aria-label="Link URL"
                   placeholder="https://…"
                   value={m("urls", l.url)}
                   readOnly={on("urls")}
-                  title={on("urls") ? MASKED_HINT : l.url}
+                  title={on("urls") ? MASKED_HINT : undefined}
                   onChange={(e) => updateLink(i, { url: e.target.value })}
-                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                  onKeyDown={editLinkKeyDown}
                 />
+                <EditLink editing onClick={() => toggleEditLink(i)} />
+                <RemoveLink onClick={() => removeLink(i)} />
+              </div>
+            ) : kind === "generic" ? (
+              <div key={i} className="link-row status-row">
+                <GenericLine url={l.url} label={l.label} />
+                <EditLink editing={false} onClick={() => toggleEditLink(i)} />
                 <RemoveLink onClick={() => removeLink(i)} />
               </div>
             ) : (
@@ -623,6 +680,7 @@ export function CardEditor({
                 ) : (
                   <IssueLine url={l.url} status={cache.issues[l.url]} detailed />
                 )}
+                <EditLink editing={false} onClick={() => toggleEditLink(i)} />
                 <RemoveLink onClick={() => removeLink(i)} />
               </div>
             ),
@@ -674,7 +732,7 @@ export function CardEditor({
             </select>
           </label>
           {reposError && <div className="hint error">{reposError}</div>}
-          {agents.error && workspaces.length > 0 && (
+          {agents.error && agents.error !== reposError && workspaces.length > 0 && (
             <div className="hint error">{agents.error}</div>
           )}
           {workspaces.map((id) => {

@@ -1,5 +1,6 @@
 import type { IssueStatus, LinearResource, PrStatus, WorkspaceStatus } from "./types";
 import { useMask } from "./mask";
+import { domainName } from "./links";
 import { ClaudeLogo } from "./ClaudeLogo";
 
 // A small glyph per resource type so Figma designs and Notion specs are
@@ -9,20 +10,6 @@ const RESOURCE_ICON: Record<NonNullable<LinearResource["type"]>, string> = {
   notion: "▤",
   link: "↗",
 };
-
-// A card's freeform link (Slack, Notion, Figma, …) as a tinted chip with a link icon.
-export function LinkChip({ url, label }: { url: string; label: string }) {
-  const { m } = useMask();
-  return (
-    <a href={url} target="_blank" rel="noreferrer" className="chip link-chip" title={m("urls", url)}>
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-      </svg>
-      <span>{label}</span>
-    </a>
-  );
-}
 
 // A card link as plain muted text with a small icon: the link glyph for the
 // card's own links, or a resource glyph for docs pulled from its Linear items.
@@ -356,6 +343,30 @@ export function IssueLine({
       </span>
       <span className="status-meta">
         {status?.error ? <span className="bad">Error</span> : status?.stateName}
+      </span>
+    </a>
+  );
+}
+
+// A card's freeform link as a flat line like PrLine and IssueLine: a gray dot
+// (there's no status to show), then its label with the site name muted after
+// it, or just the site name if it has no label.
+export function GenericLine({ url, label }: { url: string; label?: string }) {
+  const { m } = useMask();
+  const site = domainName(url);
+  const title = label ? m("linkLabels", label) : undefined;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer"
+      className="status-line detailed"
+      title={m("urls", url)}
+    >
+      <span className="status-dot muted" />
+      <span className="status-label">
+        <span className="status-title">{title || site}</span>
+        {title && <span className="status-name">{site}</span>}
       </span>
     </a>
   );
