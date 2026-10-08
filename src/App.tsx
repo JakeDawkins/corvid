@@ -143,6 +143,21 @@ export default function App() {
 
   const cache = data.cache ?? { prs: {}, issues: {} };
 
+  // Fetch live status for the PR and Linear links among `urls` into the cache.
+  async function refreshUrls(urls: string[]) {
+    const prUrls = urls.filter((u) => linkKind(u) === "pr");
+    const linearUrls = urls.filter((u) => linkKind(u) === "linear");
+    if (!prUrls.length && !linearUrls.length) return;
+    const fresh = await refresh(prUrls, linearUrls);
+    setData((d) => ({
+      ...d,
+      cache: {
+        prs: { ...d.cache?.prs, ...fresh.prs },
+        issues: { ...d.cache?.issues, ...fresh.issues },
+      },
+    }));
+  }
+
   async function doRefresh() {
     // Skip hidden cards; their cached status is left as-is.
     const urls = [
@@ -150,19 +165,10 @@ export default function App() {
         data.cards.filter((c) => !c.hidden).flatMap((c) => c.links.map((l) => l.url)),
       ),
     ];
-    const prUrls = urls.filter((u) => linkKind(u) === "pr");
-    const linearUrls = urls.filter((u) => linkKind(u) === "linear");
-    if (!prUrls.length && !linearUrls.length) return;
+    if (!urls.some((u) => linkKind(u) !== "generic")) return;
     setRefreshing(true);
     try {
-      const fresh = await refresh(prUrls, linearUrls);
-      setData((d) => ({
-        ...d,
-        cache: {
-          prs: { ...d.cache?.prs, ...fresh.prs },
-          issues: { ...d.cache?.issues, ...fresh.issues },
-        },
-      }));
+      await refreshUrls(urls);
       setLastRefresh(new Date().toLocaleTimeString());
     } finally {
       setRefreshing(false);
@@ -210,6 +216,7 @@ export default function App() {
       columns: d.columns.map((c) => (c === from ? to : c)),
       cards: d.cards.map((c) => (c.column === from ? { ...c, column: to } : c)),
       needsYouColumns: d.needsYouColumns?.map((c) => (c === from ? to : c)),
+      highlightedColumns: d.highlightedColumns?.map((c) => (c === from ? to : c)),
     }));
   }
 
@@ -223,14 +230,20 @@ export default function App() {
       ...d,
       columns: d.columns.filter((c) => c !== name),
       needsYouColumns: d.needsYouColumns?.filter((c) => c !== name),
+      highlightedColumns: d.highlightedColumns?.filter((c) => c !== name),
     }));
   }
 
-  // Turn the high-contrast "Needs you" style on or off for a column.
-  function setNeedsYouColumn(column: string, loud: boolean) {
+  // Add or remove a column from a per-column setting list: the high-contrast
+  // "Needs you" style, or the board highlight.
+  function setColumnFlag(
+    key: "needsYouColumns" | "highlightedColumns",
+    column: string,
+    on: boolean,
+  ) {
     setData((d) => {
-      const rest = (d.needsYouColumns ?? []).filter((c) => c !== column);
-      return { ...d, needsYouColumns: loud ? [...rest, column] : rest };
+      const rest = (d[key] ?? []).filter((c) => c !== column);
+      return { ...d, [key]: on ? [...rest, column] : rest };
     });
   }
 
@@ -907,7 +920,9 @@ export default function App() {
         {boardColumns.map((col) => (
           <div
             key={col}
-            className={`column${dragId ? " droppable" : ""}`}
+            className={`column${dragId ? " droppable" : ""}${
+              data.highlightedColumns?.includes(col) ? " highlighted" : ""
+            }`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
               if (dragId) moveCard(dragId, col);
@@ -993,7 +1008,9 @@ export default function App() {
           onAddColumn={addColumn}
           onDeleteColumn={deleteColumn}
           needsYouColumns={data.needsYouColumns ?? []}
-          onSetNeedsYouColumn={setNeedsYouColumn}
+          onSetNeedsYouColumn={(col, on) => setColumnFlag("needsYouColumns", col, on)}
+          highlightedColumns={data.highlightedColumns ?? []}
+          onSetHighlightedColumn={(col, on) => setColumnFlag("highlightedColumns", col, on)}
           hiddenRepos={data.hiddenRepos ?? []}
           knownRepos={knownRepos}
           onSetRepoHidden={setRepoHidden}
@@ -1019,6 +1036,9 @@ export default function App() {
           card={editing}
           columns={data.columns}
           colorTags={data.colorTags ?? {}}
+          cache={cache}
+          repoNames={data.repoNames}
+          onRefreshLinks={(urls) => refreshUrls(urls).catch(() => {})}
           agents={agents}
           needsYou={data.cards.find((c) => c.id === editing.id)?.needsYou}
           needsYouLoud={isLoud(editing)}

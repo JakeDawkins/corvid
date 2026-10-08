@@ -118,6 +118,8 @@ export type Data = {
   // Columns where a card's "Needs you" message is shown high-contrast. In other
   // columns it is shown muted.
   needsYouColumns?: string[];
+  // Board columns drawn with an accent tint so they stand out.
+  highlightedColumns?: string[];
 };
 
 // A Vercel project (personal or under a team), used for the Deployments sidebar.

@@ -26,6 +26,8 @@ export function Settings({
   onDeleteColumn,
   needsYouColumns,
   onSetNeedsYouColumn,
+  highlightedColumns,
+  onSetHighlightedColumn,
   hiddenRepos,
   knownRepos,
   onSetRepoHidden,
@@ -49,6 +51,8 @@ export function Settings({
   onDeleteColumn: (name: string) => void;
   needsYouColumns: string[];
   onSetNeedsYouColumn: (column: string, loud: boolean) => void;
+  highlightedColumns: string[];
+  onSetHighlightedColumn: (column: string, on: boolean) => void;
   hiddenRepos: string[];
   // "owner/repo" slugs seen on the board, offered as suggestions.
   knownRepos: string[];
@@ -136,10 +140,20 @@ export function Settings({
           </form>
         </section>
 
-        <NeedsYouColumns
+        <ColumnChecklist
+          title="Highlighted columns"
+          hint="Checked columns get an accent tint so they stand out on the board."
+          // The suggestions column lives in its own popover, not on the board.
+          columns={columns.filter((c) => !CLAUDE_MATCH.test(c))}
+          checked={highlightedColumns}
+          onSet={onSetHighlightedColumn}
+        />
+        <ColumnChecklist
+          title="Needs you"
+          hint="Agents flag a card when they stop and something is waiting on you. Flags stand out in the columns checked here and are muted everywhere else."
           columns={columns}
-          loud={needsYouColumns}
-          onSetLoud={onSetNeedsYouColumn}
+          checked={needsYouColumns}
+          onSet={onSetNeedsYouColumn}
         />
         <MaskedMode settings={maskSettings} onChange={onSetMaskSettings} />
         <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
@@ -185,29 +199,31 @@ function ImportExport({
   );
 }
 
-function NeedsYouColumns({
+// A section with one checkbox per column, for per-column settings.
+function ColumnChecklist({
+  title,
+  hint,
   columns,
-  loud,
-  onSetLoud,
+  checked,
+  onSet,
 }: {
+  title: string;
+  hint: string;
   columns: string[];
-  loud: string[];
-  onSetLoud: (column: string, loud: boolean) => void;
+  checked: string[];
+  onSet: (column: string, on: boolean) => void;
 }) {
   const { m } = useMask();
   return (
     <section className="settings-section">
-      <h3>Needs you</h3>
-      <p className="hint">
-        Agents flag a card when they stop and something is waiting on you. Flags stand out in the
-        columns checked here and are muted everywhere else.
-      </p>
+      <h3>{title}</h3>
+      <p className="hint">{hint}</p>
       {columns.map((col) => (
         <label className="settings-check" key={col}>
           <input
             type="checkbox"
-            checked={loud.includes(col)}
-            onChange={(e) => onSetLoud(col, e.target.checked)}
+            checked={checked.includes(col)}
+            onChange={(e) => onSet(col, e.target.checked)}
           />
           {m("columnNames", col)}
         </label>

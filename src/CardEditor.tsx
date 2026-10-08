@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { MutableRefObject } from "react";
-import type { AgentsStatus, Card, ConductorRepo, Link, NeedsYou } from "./types";
+import type { CSSProperties, MutableRefObject } from "react";
+import type { AgentsStatus, Cache, Card, ConductorRepo, Link, NeedsYou } from "./types";
 import { loadConductorRepos } from "./api";
 import { domainName, linkKind } from "./links";
-import { LinkChip, WorkspaceBadge } from "./Badges";
+import { IssueLine, LinkChip, PrLine, WorkspaceBadge } from "./Badges";
 import { COLORS, textOn } from "./colors";
 import { ComplexityPicker } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
@@ -95,10 +95,66 @@ function conductorLink(prompt: string, path: string): string {
   return `conductor://prompt=${encodeURIComponent(prompt)}&path=${encodeURIComponent(path)}`;
 }
 
+// A pasted string that is a single http(s) URL, i.e. something to add as a link.
+const URL_RE = /^https?:\/\/\S+$/i;
+
+// URLs inside notes, so the detail view can make them clickable. Trailing
+// punctuation is left out of the match.
+const NOTES_URL_RE = /(https?:\/\/[^\s<>]*[^\s<>.,;:!?'")\]])/g;
+
+// Notes as text, with URLs turned into links. split() with a capture group
+// puts the matched URLs at the odd indices.
+function Linkified({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(NOTES_URL_RE).map((part, i) =>
+        i % 2 ? (
+          <a key={i} href={part} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+            {part}
+          </a>
+        ) : (
+          part
+        ),
+      )}
+    </>
+  );
+}
+
+function RemoveLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="btn ghost icon-btn"
+      title="Remove link"
+      aria-label="Remove link"
+      onClick={onClick}
+    >
+      ✕
+    </button>
+  );
+}
+
+// Grow a textarea to fit its text; CSS max-height caps it, then it scrolls.
+function useAutosize(ref: React.RefObject<HTMLTextAreaElement>, value: string) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [ref, value]);
+}
+
+// The card's detail view. Everything is shown as it reads on the card and is
+// editable in place: the title and link fields are inputs styled as text, and
+// notes switch to a text box on click. Edits are kept in a draft and saved
+// when the view closes.
 export function CardEditor({
   card,
   columns,
   colorTags,
+  cache,
+  repoNames,
+  onRefreshLinks,
   agents,
   needsYou,
   needsYouLoud,
@@ -111,6 +167,11 @@ export function CardEditor({
   card: Card;
   columns: string[];
   colorTags: Record<string, string>;
+  // Fetched PR/Linear status, shown on those links' rows.
+  cache: Cache;
+  repoNames?: Record<string, string>;
+  // Fetches fresh status for the PR/Linear links among `urls` into `cache`.
+  onRefreshLinks: (urls: string[]) => void;
   agents: AgentsStatus;
   // The card's live "Needs you" message, which agents set and clear outside
   // the editor, so it's read from the board rather than this draft.
@@ -119,7 +180,7 @@ export function CardEditor({
   onClearNeedsYou: () => void;
   // Receives only the fields changed from `card`.
   onSave: (changes: Partial<Card>) => void;
-  // Closes without saving (the Cancel button).
+  // Closes without saving (the Discard button).
   onCancel: () => void;
   onDelete: () => void;
   // Set to this editor's close(), so the parent can close it with a save (e.g.
@@ -135,14 +196,24 @@ export function CardEditor({
   }
 
   const [links, setLinks] = useState<Link[]>(card.links);
-  // URL typed into the add-link box, not yet added to `links`.
+  // The link being added, not yet in `links`. The label box appears once
+  // there's a URL, and pasting a URL focuses it so the link can be named
+  // before it's added.
   const [newUrl, setNewUrl] = useState("");
-  // The link row currently open for editing, with its unsaved values.
-  const [editing, setEditing] = useState<{ index: number; link: Link } | null>(null);
+  const [newLabel, setNewLabel] = useState("");
+  const newUrlRef = useRef<HTMLInputElement>(null);
+  const newLabelRef = useRef<HTMLInputElement>(null);
+  // Set by a paste, so the label box (mounted by that render) gets focus.
+  const focusLabel = useRef(false);
+  // Notes show as text until clicked. `notesBefore` is their value when
+  // editing started, restored by Escape.
+  const [editingNotes, setEditingNotes] = useState(false);
+  const notesBefore = useRef("");
   // Conductor workspace id typed into the add box, not yet on the card.
   const [newWorkspace, setNewWorkspace] = useState("");
   // Whether the add-workspace box is shown (hidden behind a button by default).
   const [addingWorkspace, setAddingWorkspace] = useState(false);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const workspaces = draft.workspaces ?? [];
   // Repos in Conductor, for the repo picker. null until loaded.
@@ -151,6 +222,11 @@ export function CardEditor({
   // Set when "Start in Conductor" was clicked on a card with no repo, so the
   // header asks for one before opening Conductor.
   const [pickingRepo, setPickingRepo] = useState(false);
+
+  // Show current PR/Linear status rather than whatever the last refresh left.
+  useEffect(() => {
+    onRefreshLinks(card.links.map((l) => l.url));
+  }, []);
 
   useEffect(() => {
     loadConductorRepos()
@@ -164,14 +240,17 @@ export function CardEditor({
       });
   }, []);
 
-  // Grow the notes box to fit its text; CSS max-height caps it, then it scrolls.
+  const titleValue = m("cardTitles", draft.title);
   const notesValue = m("cardNotes", draft.notes ?? "");
-  useLayoutEffect(() => {
-    const el = notesRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
-  }, [notesValue]);
+  useAutosize(titleRef, titleValue);
+  useAutosize(notesRef, editingNotes ? notesValue : "");
+
+  useEffect(() => {
+    if (focusLabel.current && newUrl) {
+      focusLabel.current = false;
+      newLabelRef.current?.focus();
+    }
+  }, [newUrl]);
 
   // Latest close(), for the Escape listener and the parent's closeRef.
   const closeLatest = useRef(close);
@@ -184,13 +263,29 @@ export function CardEditor({
     };
   }, [closeRef]);
 
-  // Close on Escape, saving any edits (same as clicking outside).
+  // Close on Escape, saving any edits (same as clicking outside). Fields with
+  // something of their own to cancel stop the event first.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") closeLatest.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Pasting a URL anywhere on the card outside a text field starts adding it
+  // as a link, with the label box focused.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      const text = e.clipboardData?.getData("text").trim() ?? "";
+      if (!URL_RE.test(text)) return;
+      e.preventDefault();
+      startLink(text);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
   }, []);
 
   async function copyPrompt() {
@@ -203,35 +298,58 @@ export function CardEditor({
     }
   }
 
+  function startLink(url: string) {
+    focusLabel.current = true;
+    setNewUrl(url);
+  }
+
   function addLink() {
     const url = newUrl.trim();
     if (!url) return;
-    setLinks((ls) => [...ls, { label: "", url }]);
+    setLinks((ls) => [...ls, { label: newLabel.trim(), url }]);
+    if (linkKind(url) !== "generic") onRefreshLinks([url]);
     setNewUrl("");
+    setNewLabel("");
+    newUrlRef.current?.focus();
+  }
+
+  // Escape in the add-link boxes clears them, if there's anything to clear,
+  // instead of closing the card.
+  function addLinkKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addLink();
+    } else if (e.key === "Escape" && (newUrl || newLabel)) {
+      e.stopPropagation();
+      setNewUrl("");
+      setNewLabel("");
+      newUrlRef.current?.focus();
+    }
+  }
+
+  function updateLink(i: number, patch: Partial<Link>) {
+    setLinks((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   }
 
   function removeLink(i: number) {
     setLinks((ls) => ls.filter((_, j) => j !== i));
-    setEditing(null);
   }
 
-  // Apply the open edit. Clearing the URL removes the link.
-  function commitEdit() {
-    if (!editing) return;
-    const { index, link } = editing;
-    if (!link.url.trim()) return removeLink(index);
-    setLinks((ls) => ls.map((l, j) => (j === index ? link : l)));
-    setEditing(null);
+  function startNotes() {
+    if (on("cardNotes")) return;
+    notesBefore.current = draft.notes ?? "";
+    setEditingNotes(true);
   }
 
-  function editKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
+  function notesKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
-      commitEdit();
+      setEditingNotes(false);
     } else if (e.key === "Escape") {
-      // Cancel just the link edit, not the whole card.
+      // Discard just this notes edit, not the whole card.
       e.stopPropagation();
-      setEditing(null);
+      set("notes", notesBefore.current || undefined);
+      setEditingNotes(false);
     }
   }
 
@@ -250,9 +368,9 @@ export function CardEditor({
 
   // The card as it would be saved now.
   function finalCard(): Card {
-    // Keep an open edit or a typed-but-not-added URL rather than dropping it.
-    const final = links.map((l, i) => (editing?.index === i ? editing.link : l));
-    if (newUrl.trim()) final.push({ label: "", url: newUrl.trim() });
+    // Keep a typed-but-not-added link rather than dropping it.
+    const final = [...links];
+    if (newUrl.trim()) final.push({ label: newLabel.trim(), url: newUrl.trim() });
     const ws = newWorkspace.trim().toLowerCase();
     const finalWorkspaces = ws && !workspaces.includes(ws) ? [...workspaces, ws] : workspaces;
     return {
@@ -262,17 +380,15 @@ export function CardEditor({
     };
   }
 
-  function save() {
-    onSave(changedFields(card, finalCard()));
-  }
-
-  // Escape or a click outside: save if anything was edited, otherwise just
-  // close, so an untouched new card isn't added to the board.
+  // Escape, a click outside, or Done: save if anything was edited, otherwise
+  // just close, so an untouched new card isn't added to the board.
   function close() {
     const changes = changedFields(card, finalCard());
     if (Object.keys(changes).length) onSave(changes);
     else onCancel();
   }
+
+  const dirty = Object.keys(changedFields(card, finalCard())).length > 0;
 
   // Open a new Conductor workspace for this card in the repo at `path`, seeded
   // with the agent prompt. Saves and closes the editor first so the agent's
@@ -288,6 +404,13 @@ export function CardEditor({
     else setPickingRepo(true);
   }
 
+  // Link rows in the card's order: Linear, then PRs, then other links, each
+  // keeping its index into `links`.
+  const KIND_ORDER = { linear: 0, pr: 1, generic: 2 };
+  const linkRows = links
+    .map((l, i) => ({ l, i, kind: linkKind(l.url) }))
+    .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+
   // Repo options: Conductor's repos, plus the card's repo if Conductor no
   // longer lists it, so the select still shows what's stored.
   const repoOptions = [...(repos ?? [])];
@@ -297,9 +420,20 @@ export function CardEditor({
 
   return (
     <div className="modal-backdrop" onClick={close}>
-      <div className="modal card-editor" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal card-editor"
+        style={draft.color ? ({ "--card-color": draft.color } as CSSProperties) : undefined}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-head">
-          <h2>{card.title ? "Edit card" : "New card"}</h2>
+          <label className="detail-column" title="Move to another column">
+            <span>{card.title ? "In" : "New card in"}</span>
+            <select value={draft.column} onChange={(e) => set("column", e.target.value)}>
+              {columns.map((c) => (
+                <option key={c} value={c}>{m("columnNames", c)}</option>
+              ))}
+            </select>
+          </label>
           <div className="modal-head-actions">
             {/* A card already being worked on links to its workspace(s) instead
                 of offering to start a new one. */}
@@ -354,34 +488,181 @@ export function CardEditor({
           </div>
         </div>
 
+        <textarea
+          ref={titleRef}
+          className="detail-title"
+          rows={1}
+          // Only a new card starts with the cursor in the title; an existing
+          // one opens as a view.
+          autoFocus={!card.title}
+          aria-label="Title"
+          value={titleValue}
+          readOnly={on("cardTitles")}
+          title={on("cardTitles") ? MASKED_HINT : undefined}
+          onChange={(e) => set("title", e.target.value.replace(/\n/g, " "))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          placeholder="What are you working on?"
+        />
+
         {needsYou && (
           <NeedsYouBanner value={needsYou} loud={needsYouLoud} onClear={onClearNeedsYou} />
         )}
 
-        <label className="field">
-          <span>Title</span>
-          <input
-            autoFocus
-            value={m("cardTitles", draft.title)}
-            readOnly={on("cardTitles")}
-            title={on("cardTitles") ? MASKED_HINT : undefined}
-            onChange={(e) => set("title", e.target.value)}
-            placeholder="What are you working on?"
-          />
-        </label>
+        <div className="detail-meta">
+          <div className="detail-section">
+            <h3>Complexity</h3>
+            <ComplexityPicker
+              value={draft.complexity}
+              color={draft.color}
+              onChange={(c) => set("complexity", c)}
+            />
+          </div>
+          <div className="detail-section">
+            <h3>Color</h3>
+            <div className="color-swatches">
+              {COLORS.map((c) => {
+                // Labeled colors render as a pill with the label inside.
+                const label = c.value && m("colorLabels", colorTags[c.value]);
+                return (
+                  <button
+                    key={c.name}
+                    type="button"
+                    title={label || c.name}
+                    className={`swatch${draft.color === c.value ? " selected" : ""}${
+                      c.value ? "" : " none"
+                    }${label ? " labeled" : ""}`}
+                    style={c.value ? { background: c.value, color: textOn(c.value) } : undefined}
+                    onClick={() => set("color", c.value)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
 
-        <div className="field-row">
-          <label className="field">
-            <span>Column</span>
-            <select value={draft.column} onChange={(e) => set("column", e.target.value)}>
-              {columns.map((c) => (
-                <option key={c} value={c}>{m("columnNames", c)}</option>
-              ))}
-            </select>
-          </label>
+        <section className="detail-section">
+          <h3>Notes</h3>
+          {editingNotes ? (
+            <>
+              <textarea
+                ref={notesRef}
+                autoFocus
+                rows={3}
+                value={notesValue}
+                onChange={(e) => set("notes", e.target.value || undefined)}
+                onKeyDown={notesKeyDown}
+                onBlur={() => setEditingNotes(false)}
+                placeholder="Add more detail…"
+              />
+              <div className="detail-edit-actions">
+                <button type="button" className="btn primary" onClick={() => setEditingNotes(false)}>
+                  Done
+                </button>
+                <span className="hint">⌘↵ to finish, Esc to undo</span>
+              </div>
+            </>
+          ) : (
+            <div
+              className={`detail-notes${notesValue ? "" : " empty"}`}
+              role="button"
+              tabIndex={0}
+              title={on("cardNotes") ? MASKED_HINT : "Click to edit"}
+              onClick={startNotes}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  startNotes();
+                }
+              }}
+            >
+              {notesValue ? <Linkified text={notesValue} /> : "Add notes…"}
+            </div>
+          )}
+        </section>
 
-          <label className="field">
-            <span>Repo (for new Conductor workspaces)</span>
+        <section className="detail-section">
+          <h3>Links</h3>
+          {linkRows.map(({ l, i, kind }) =>
+            kind === "generic" ? (
+              <div key={i} className="link-row">
+                <LinkChip url={l.url} label={chipFallback(l.url)} />
+                <input
+                  className="inline-input"
+                  aria-label="Link label"
+                  placeholder="Add a label"
+                  value={m("linkLabels", l.label)}
+                  readOnly={on("linkLabels")}
+                  title={on("linkLabels") ? MASKED_HINT : undefined}
+                  onChange={(e) => updateLink(i, { label: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                />
+                <input
+                  className="inline-input link-url-input"
+                  aria-label="Link URL"
+                  placeholder="https://…"
+                  value={m("urls", l.url)}
+                  readOnly={on("urls")}
+                  title={on("urls") ? MASKED_HINT : l.url}
+                  onChange={(e) => updateLink(i, { url: e.target.value })}
+                  onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                />
+                <RemoveLink onClick={() => removeLink(i)} />
+              </div>
+            ) : (
+              // PRs and Linear items show their live status, like on the card.
+              <div key={i} className="link-row status-row">
+                {kind === "pr" ? (
+                  <PrLine url={l.url} status={cache.prs[l.url]} repoNames={repoNames} detailed />
+                ) : (
+                  <IssueLine url={l.url} status={cache.issues[l.url]} detailed />
+                )}
+                <RemoveLink onClick={() => removeLink(i)} />
+              </div>
+            ),
+          )}
+          <div className="link-add">
+            <input
+              ref={newUrlRef}
+              aria-label="New link URL"
+              placeholder="Paste a link (Slack, Notion, Figma, a PR…)"
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData("text").trim();
+                if (newUrl.trim() || !URL_RE.test(text)) return;
+                e.preventDefault();
+                startLink(text);
+              }}
+              onKeyDown={addLinkKeyDown}
+            />
+            {newUrl.trim() && (
+              <input
+                ref={newLabelRef}
+                className="link-add-label"
+                aria-label="New link label"
+                placeholder="Label (optional)"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                onKeyDown={addLinkKeyDown}
+              />
+            )}
+            <button type="button" className="btn" onClick={addLink} disabled={!newUrl.trim()}>
+              Add
+            </button>
+          </div>
+        </section>
+
+        <section className="detail-section">
+          <h3>Conductor</h3>
+          <label className="detail-repo">
+            <span>Repo for new workspaces</span>
             <select
               value={draft.repo ?? ""}
               onChange={(e) => set("repo", e.target.value || undefined)}
@@ -391,131 +672,8 @@ export function CardEditor({
                 <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
               ))}
             </select>
-            {reposError && <div className="hint error">{reposError}</div>}
           </label>
-        </div>
-
-        <div className="field field-inline">
-          <span>Complexity</span>
-          <ComplexityPicker
-            value={draft.complexity}
-            color={draft.color}
-            onChange={(c) => set("complexity", c)}
-          />
-        </div>
-
-        <label className="field">
-          <span>Notes</span>
-          <textarea
-            ref={notesRef}
-            rows={2}
-            value={notesValue}
-            readOnly={on("cardNotes")}
-            title={on("cardNotes") ? MASKED_HINT : undefined}
-            onChange={(e) => set("notes", e.target.value)}
-            placeholder="Optional"
-          />
-        </label>
-
-        <div className="field">
-          <span>Color</span>
-          <div className="color-swatches">
-            {COLORS.map((c) => {
-              // Labeled colors render as a pill with the label inside.
-              const label = c.value && m("colorLabels", colorTags[c.value]);
-              return (
-                <button
-                  key={c.name}
-                  type="button"
-                  title={label || c.name}
-                  className={`swatch${draft.color === c.value ? " selected" : ""}${
-                    c.value ? "" : " none"
-                  }${label ? " labeled" : ""}`}
-                  style={c.value ? { background: c.value, color: textOn(c.value) } : undefined}
-                  onClick={() => set("color", c.value)}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="field">
-          <span>Links (GitHub PRs, Linear, Slack, Notion, Figma…)</span>
-          {links.map((l, i) =>
-            editing?.index === i ? (
-              <div key={i} className="link-editor">
-                <input
-                  autoFocus
-                  placeholder="Title (optional)"
-                  value={m("linkLabels", editing.link.label)}
-                  readOnly={on("linkLabels")}
-                  title={on("linkLabels") ? MASKED_HINT : undefined}
-                  onChange={(e) =>
-                    setEditing({ index: i, link: { ...editing.link, label: e.target.value } })
-                  }
-                  onKeyDown={editKeyDown}
-                />
-                <input
-                  placeholder="https://…"
-                  value={m("urls", editing.link.url)}
-                  readOnly={on("urls")}
-                  title={on("urls") ? MASKED_HINT : undefined}
-                  onChange={(e) =>
-                    setEditing({ index: i, link: { ...editing.link, url: e.target.value } })
-                  }
-                  onKeyDown={editKeyDown}
-                />
-                <button type="button" className="btn primary" onClick={commitEdit}>
-                  Done
-                </button>
-                <button type="button" className="btn" onClick={() => setEditing(null)}>
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <div key={i} className="link-row">
-                <LinkChip
-                  url={l.url}
-                  label={l.label.trim() ? m("linkLabels", l.label.trim()) : chipFallback(l.url)}
-                />
-                <span className="link-url" title={m("urls", l.url)}>
-                  {m("urls", l.url)}
-                </span>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setEditing({ index: i, link: { ...l } })}
-                >
-                  Edit
-                </button>
-                <button type="button" className="btn" title="Delete link" onClick={() => removeLink(i)}>
-                  ✕
-                </button>
-              </div>
-            ),
-          )}
-          <div className="link-editor">
-            <input
-              placeholder="https://…"
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addLink();
-                }
-              }}
-            />
-            <button type="button" className="btn" onClick={addLink} disabled={!newUrl.trim()}>
-              Add
-            </button>
-          </div>
-        </div>
-
-        <div className="field">
-          <span>Conductor workspaces</span>
+          {reposError && <div className="hint error">{reposError}</div>}
           {agents.error && workspaces.length > 0 && (
             <div className="hint error">{agents.error}</div>
           )}
@@ -533,8 +691,9 @@ export function CardEditor({
                 </span>
                 <button
                   type="button"
-                  className="btn"
+                  className="btn ghost icon-btn"
                   title="Unlink workspace"
+                  aria-label="Unlink workspace"
                   onClick={() => removeWorkspace(id)}
                 >
                   ✕
@@ -543,7 +702,7 @@ export function CardEditor({
             );
           })}
           {addingWorkspace ? (
-            <div className="link-editor">
+            <div className="link-add">
               <input
                 autoFocus
                 placeholder="Workspace ID ($CONDUCTOR_WORKSPACE_ID)"
@@ -583,17 +742,19 @@ export function CardEditor({
           ) : (
             <div>
               <button type="button" className="btn" onClick={() => setAddingWorkspace(true)}>
-                + Add workspace
+                + Link workspace
               </button>
             </div>
           )}
-        </div>
+        </section>
 
         <div className="modal-actions">
           <button className="btn danger" onClick={onDelete}>Delete</button>
           <div className="spacer" />
-          <button className="btn" onClick={onCancel}>Cancel</button>
-          <button className="btn primary" onClick={save}>Save</button>
+          {dirty && (
+            <button className="btn" onClick={onCancel}>Discard changes</button>
+          )}
+          <button className="btn primary" onClick={close}>Done</button>
         </div>
       </div>
     </div>

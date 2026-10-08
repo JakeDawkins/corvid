@@ -234,15 +234,18 @@ function repoLabel(slug: string, repoNames?: Record<string, string>): string {
 // A card's PR as one flat line: a dot for its overall status, the repo (without
 // owner, unless renamed in data.repoNames) and number, then review, CI, and
 // unresolved threads on the right. Merged/closed PRs show just their state; the
-// full detail is always in the hover text.
+// full detail is always in the hover text. `detailed` (the card detail view)
+// leads with the PR title, with the repo and number after it.
 export function PrLine({
   status,
   url,
   repoNames,
+  detailed,
 }: {
   status?: PrStatus;
   url: string;
   repoNames?: Record<string, string>;
+  detailed?: boolean;
 }) {
   const { m } = useMask();
   const parsed = repoFromUrl(url);
@@ -273,11 +276,14 @@ export function PrLine({
       href={url}
       target="_blank"
       rel="noreferrer"
-      className={`status-line${status?.state === "MERGED" ? " done" : ""}`}
+      className={`status-line${status?.state === "MERGED" ? " done" : ""}${detailed ? " detailed" : ""}`}
       title={tip}
     >
       <span className={`status-dot ${prCardClass(status)}`} />
       <span className="status-label">
+        {detailed && status?.title && (
+          <span className="status-title">{m("prTitles", status.title)}</span>
+        )}
         <span className="status-name">{m("repoNames", repo)}</span>
         {number && <span className="status-num">#{number}</span>}
       </span>
@@ -315,11 +321,14 @@ export function IssueLine({
   status,
   url,
   label: labelOverride,
+  detailed,
 }: {
   status?: IssueStatus;
   url: string;
   // Replaces the default identifier/project-name label.
   label?: string;
+  // Leads with the issue title, with the identifier after it (detail view).
+  detailed?: boolean;
 }) {
   const { m } = useMask();
   const label =
@@ -332,7 +341,7 @@ export function IssueLine({
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="status-line"
+      className={`status-line${detailed ? " detailed" : ""}`}
       title={[m("linearTitles", status?.title) || m("urls", url), status?.error].filter(Boolean).join("\n")}
     >
       <span
@@ -340,6 +349,9 @@ export function IssueLine({
         style={{ background: (!status?.error && status?.stateColor) || "var(--muted)" }}
       />
       <span className="status-label">
+        {detailed && status?.title && label !== m("linearTitles", status.title) && (
+          <span className="status-title">{m("linearTitles", status.title)}</span>
+        )}
         <span className="status-name">{label}</span>
       </span>
       <span className="status-meta">

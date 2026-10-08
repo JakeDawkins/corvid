@@ -48,6 +48,12 @@ npm run build && npm start   # http://localhost:8787
 
 - **Kanban board** with columns you define yourself; drag cards between them.
   Add, rename, or delete columns from the Settings page (gear icon); they live in `data.json`.
+  Settings > Highlighted columns gives any column a light accent tint so it stands out.
+- **Card details**: clicking a card opens it as a detail view, with everything
+  editable in place: click the title, notes, or a link's label or URL to change
+  it. Linked PRs and Linear items show their live status (refreshed when the
+  card opens). Paste a URL anywhere on an open card, or into the link box, and
+  the label box is focused so you can name it before pressing Return.
 - **Cards** are either ad-hoc (just a title) or a bundle of links: any number of
   GitHub PRs, Linear issues/projects, and freeform links (Slack, Notion, Figma, …).
   Paste a GitHub PR or Linear URL into the quick-add box and it resolves the
@@ -91,8 +97,8 @@ npm run build && npm start   # http://localhost:8787
   task id, link title, or URL, in that order of priority. Arrow keys pick a
   result and Return opens it, saving and replacing any card already open in
   the editor.
-- **Auto-save**: closing the card editor with Escape or a click outside saves
-  your edits. Only the Cancel button discards them.
+- **Auto-save**: closing a card with Done, Escape, or a click outside saves
+  your edits. Only Discard changes throws them away.
 - **Import / Export** the full state as JSON.
 - **Masked mode** (Settings, or Shift+M): swaps titles, notes, and other
   sensitive text for placeholder words so the board can be screenshotted
@@ -232,7 +238,8 @@ for the authoritative version):
   "repoNames": { "acme/acme-web": "web" },
   "hiddenRepos": ["acme/old-app"],
   "hiddenVercelProjects": ["acme-docs"],
-  "needsYouColumns": ["In Review"]
+  "needsYouColumns": ["In Review"],
+  "highlightedColumns": ["In Progress"]
 }
 ```
 
