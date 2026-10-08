@@ -491,11 +491,14 @@ async function queryConductor(sql) {
   return stdout.trim() ? JSON.parse(stdout) : [];
 }
 
-// sqlite3 can't open the database while Conductor is closed, so say that
-// instead of surfacing the raw SQLite error.
+// sqlite3 can't open the database while Conductor is closed, so flag that
+// (the UI collapses its Conductor section) instead of surfacing the raw
+// SQLite error.
 function conductorErr(e) {
   const msg = cleanErr(e);
-  return /unable to open database file/i.test(msg) ? "Conductor isn't running" : msg;
+  return /unable to open database file/i.test(msg)
+    ? { error: "Conductor isn't running", notRunning: true }
+    : { error: msg };
 }
 
 // How far back to look for scheduled wakeups and background tasks. Claude Code
@@ -617,7 +620,7 @@ async function fetchWorkspaces(ids) {
     }
     return { workspaces: out };
   } catch (e) {
-    return { workspaces: {}, error: conductorErr(e) };
+    return { workspaces: {}, ...conductorErr(e) };
   }
 }
 
@@ -634,7 +637,7 @@ async function fetchConductorRepos() {
   try {
     return { repos: await queryConductor(sql) };
   } catch (e) {
-    return { repos: [], error: conductorErr(e) };
+    return { repos: [], ...conductorErr(e) };
   }
 }
 

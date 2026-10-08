@@ -67,6 +67,8 @@ export type WorkspaceStatus = {
 export type AgentsStatus = {
   workspaces: Record<string, WorkspaceStatus>;
   error?: string;
+  // Conductor's database couldn't be opened because the app is closed.
+  notRunning?: boolean;
 };
 
 export type PrStatus = {

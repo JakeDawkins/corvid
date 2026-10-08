@@ -81,10 +81,15 @@ export async function loadVercelDeployments(
 export async function loadConductorRepos(): Promise<{
   repos: ConductorRepo[];
   error?: string;
+  notRunning?: boolean;
 }> {
   const res = await fetch("/api/conductor/repos");
-  const data = (await res.json()) as { repos?: ConductorRepo[]; error?: string };
-  return { repos: data.repos ?? [], error: data.error };
+  const data = (await res.json()) as {
+    repos?: ConductorRepo[];
+    error?: string;
+    notRunning?: boolean;
+  };
+  return { repos: data.repos ?? [], error: data.error, notRunning: data.notRunning };
 }
 
 export async function refresh(

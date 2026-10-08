@@ -612,7 +612,15 @@ select {
 .detail-notes.empty:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
 .detail-notes a { color: var(--accent); }
 .detail-edit-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-.detail-repo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+.detail-section h3 .h3-note {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.conductor-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.detail-repo { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
 .detail-repo span { white-space: nowrap; }
 .detail-repo select { width: auto; min-width: 180px; }
 

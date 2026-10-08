@@ -234,6 +234,7 @@ export function CardEditor({
   // Repos in Conductor, for the repo picker. null until loaded.
   const [repos, setRepos] = useState<ConductorRepo[] | null>(null);
   const [reposError, setReposError] = useState<string>();
+  const [reposNotRunning, setReposNotRunning] = useState(false);
   // Set when "Start in Conductor" was clicked on a card with no repo, so the
   // header asks for one before opening Conductor.
   const [pickingRepo, setPickingRepo] = useState(false);
@@ -248,6 +249,7 @@ export function CardEditor({
       .then((r) => {
         setRepos(r.repos);
         setReposError(r.error);
+        setReposNotRunning(!!r.notRunning);
       })
       .catch(() => {
         setRepos([]);
@@ -453,6 +455,11 @@ export function CardEditor({
   const linkRows = links
     .map((l, i) => ({ l, i, kind: linkKind(l.url) }))
     .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+
+  // When Conductor is closed its section collapses to just the heading.
+  // Otherwise show one error at most: loading repos, else workspace status.
+  const conductorDown = reposNotRunning || !!agents.notRunning;
+  const conductorError = reposError || (workspaces.length ? agents.error : undefined);
 
   // Repo options: Conductor's repos, plus the card's repo if Conductor no
   // longer lists it, so the select still shows what's stored.
@@ -718,91 +725,96 @@ export function CardEditor({
         </section>
 
         <section className="detail-section">
-          <h3>Conductor</h3>
-          <label className="detail-repo">
-            <span>Repo for new workspaces</span>
-            <select
-              value={draft.repo ?? ""}
-              onChange={(e) => set("repo", e.target.value || undefined)}
-            >
-              <option value="">{repos === null ? "Loading…" : "None"}</option>
-              {repoOptions.map((r) => (
-                <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
-              ))}
-            </select>
-          </label>
-          {reposError && <div className="hint error">{reposError}</div>}
-          {agents.error && agents.error !== reposError && workspaces.length > 0 && (
-            <div className="hint error">{agents.error}</div>
-          )}
-          {workspaces.map((id) => {
-            const w = agents.workspaces[id];
-            return (
-              <div key={id} className="link-row workspace-row">
-                <WorkspaceBadge id={id} status={w} />
-                <span className="link-url" title={id}>
-                  {w
-                    ? [w.repo && m("repoNames", w.repo), w.branch && m("branches", w.branch)]
-                        .filter(Boolean)
-                        .join(" · ")
-                    : id}
-                </span>
-                <button
-                  type="button"
-                  className="btn ghost icon-btn"
-                  title="Unlink workspace"
-                  aria-label="Unlink workspace"
-                  onClick={() => removeWorkspace(id)}
-                >
-                  ✕
-                </button>
+          <h3>
+            Conductor
+            {conductorDown && <span className="h3-note">Not running</span>}
+          </h3>
+          {!conductorDown && (
+            <>
+              {workspaces.map((id) => {
+                const w = agents.workspaces[id];
+                return (
+                  <div key={id} className="link-row workspace-row">
+                    <WorkspaceBadge id={id} status={w} />
+                    <span className="link-url" title={id}>
+                      {w
+                        ? [w.repo && m("repoNames", w.repo), w.branch && m("branches", w.branch)]
+                            .filter(Boolean)
+                            .join(" · ")
+                        : id}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn ghost icon-btn"
+                      title="Unlink workspace"
+                      aria-label="Unlink workspace"
+                      onClick={() => removeWorkspace(id)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+              {conductorError && <div className="hint error">{conductorError}</div>}
+              {addingWorkspace && (
+                <div className="link-add">
+                  <input
+                    autoFocus
+                    placeholder="Workspace ID ($CONDUCTOR_WORKSPACE_ID)"
+                    value={newWorkspace}
+                    onChange={(e) => setNewWorkspace(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addWorkspace();
+                      } else if (e.key === "Escape") {
+                        // Cancel just the add box, not the whole card.
+                        e.stopPropagation();
+                        setNewWorkspace("");
+                        setAddingWorkspace(false);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={addWorkspace}
+                    disabled={!newWorkspace.trim()}
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setNewWorkspace("");
+                      setAddingWorkspace(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <div className="conductor-row">
+                <label className="detail-repo">
+                  <span>New workspaces in</span>
+                  <select
+                    value={draft.repo ?? ""}
+                    onChange={(e) => set("repo", e.target.value || undefined)}
+                  >
+                    <option value="">{repos === null ? "Loading…" : "Pick a repo"}</option>
+                    {repoOptions.map((r) => (
+                      <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
+                    ))}
+                  </select>
+                </label>
+                {!addingWorkspace && (
+                  <button type="button" className="btn ghost" onClick={() => setAddingWorkspace(true)}>
+                    + Link workspace
+                  </button>
+                )}
               </div>
-            );
-          })}
-          {addingWorkspace ? (
-            <div className="link-add">
-              <input
-                autoFocus
-                placeholder="Workspace ID ($CONDUCTOR_WORKSPACE_ID)"
-                value={newWorkspace}
-                onChange={(e) => setNewWorkspace(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addWorkspace();
-                  } else if (e.key === "Escape") {
-                    // Cancel just the add box, not the whole card.
-                    e.stopPropagation();
-                    setNewWorkspace("");
-                    setAddingWorkspace(false);
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="btn"
-                onClick={addWorkspace}
-                disabled={!newWorkspace.trim()}
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setNewWorkspace("");
-                  setAddingWorkspace(false);
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <div>
-              <button type="button" className="btn" onClick={() => setAddingWorkspace(true)}>
-                + Link workspace
-              </button>
-            </div>
+            </>
           )}
         </section>
 
