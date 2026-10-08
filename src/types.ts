@@ -120,6 +120,8 @@ export type Data = {
   needsYouColumns?: string[];
   // Board columns drawn with an accent tint so they stand out.
   highlightedColumns?: string[];
+  // Board columns shown in focus mode, toggled from the header.
+  focusColumns?: string[];
 };
 
 // A Vercel project (personal or under a team), used for the Deployments sidebar.

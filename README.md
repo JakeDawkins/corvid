@@ -48,7 +48,9 @@ npm run build && npm start   # http://localhost:8787
 
 - **Kanban board** with columns you define yourself; drag cards between them.
   Add, rename, or delete columns from the Settings page (gear icon); they live in `data.json`.
-  Settings > Highlighted columns gives any column a light accent tint so it stands out.
+  Settings > Highlighted columns sets any column in a full-height lane so it stands out.
+  The crosshair button in the header focuses the board on the columns selected in
+  Settings > Focused columns, hiding the rest.
 - **Card details**: clicking a card opens it as a detail view, with everything
   editable in place: click the title, notes, or a link's label or URL to change
   it. Linked PRs and Linear items show their live status (refreshed when the
@@ -241,7 +243,8 @@ for the authoritative version):
   "hiddenRepos": ["acme/old-app"],
   "hiddenVercelProjects": ["acme-docs"],
   "needsYouColumns": ["In Review"],
-  "highlightedColumns": ["In Progress"]
+  "highlightedColumns": ["In Progress"],
+  "focusColumns": ["Todo", "In Progress"]
 }
 ```
 

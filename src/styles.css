@@ -124,16 +124,18 @@ body {
   max-height: 100%;
 }
 .column.droppable { border-color: var(--accent); }
-/* A column picked in Settings > Highlighted columns: a light accent tint, an
-   accent border, and an accent bar along the top. */
-.column.highlighted {
-  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-  box-shadow: inset 0 3px 0 var(--accent);
-}
-.column.highlighted .column-head {
-  border-bottom-color: color-mix(in srgb, var(--accent) 35%, var(--border));
-  color: color-mix(in srgb, var(--accent) 45%, var(--text));
+/* A column picked in Settings > Highlighted columns sits unchanged in a lane
+   that runs the full height of the board, which also spaces it from its
+   neighbors. */
+.column-lane {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  margin: -9px 4px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
 }
 
 .column-head {
@@ -149,19 +151,8 @@ body {
   font-weight: 400;
   font-size: 12px;
 }
-/* Crosshair that toggles focus mode, hiding every other column. */
-.column-head .focus {
-  margin-left: auto;
-  display: flex;
-  background: none;
-  border: none;
-  padding: 2px;
-  color: var(--muted);
-  cursor: pointer;
-}
-.column-head .focus:hover,
-.column-head .focus.active { color: var(--accent); }
 .column-head .add {
+  margin-left: auto;
   background: none;
   border: none;
   color: var(--muted);
@@ -938,14 +929,32 @@ select {
 .settings-section + .settings-section { margin-top: 28px; }
 .settings-name { flex: 1; align-items: center; }
 .settings-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+/* A toggle chip for picking columns; selected ones get an accent tint and a check. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.chip:hover { border-color: var(--accent); color: var(--text); }
+.chip.selected {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: var(--accent);
+  color: var(--text);
+}
 .settings-color { align-items: center; }
 .settings-color .swatch { flex: none; cursor: default; }
 .btn.danger:disabled { color: var(--muted); cursor: not-allowed; }
-.settings-check { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; }
-.settings-check input { width: auto; margin: 0; accent-color: var(--accent); }
+.settings-details { margin-top: 10px; }
 .settings-details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 8px; }
 .settings-details summary:hover { color: var(--text); }
-.settings-details .settings-check { margin-left: 18px; }
 
 /* Cmd+K search: a Spotlight-style panel near the top, over a dimmed page.
    Sits above the card editor so it can swap the open card. */

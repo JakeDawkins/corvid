@@ -28,6 +28,8 @@ export function Settings({
   onSetNeedsYouColumn,
   highlightedColumns,
   onSetHighlightedColumn,
+  focusColumns,
+  onSetFocusColumn,
   hiddenRepos,
   knownRepos,
   onSetRepoHidden,
@@ -53,6 +55,8 @@ export function Settings({
   onSetNeedsYouColumn: (column: string, loud: boolean) => void;
   highlightedColumns: string[];
   onSetHighlightedColumn: (column: string, on: boolean) => void;
+  focusColumns: string[];
+  onSetFocusColumn: (column: string, on: boolean) => void;
   hiddenRepos: string[];
   // "owner/repo" slugs seen on the board, offered as suggestions.
   knownRepos: string[];
@@ -140,19 +144,26 @@ export function Settings({
           </form>
         </section>
 
-        <ColumnChecklist
+        <ColumnPicker
           title="Highlighted columns"
-          hint="Checked columns get an accent tint so they stand out on the board."
+          hint="Selected columns sit in a full-height lane so they stand out on the board."
           // The suggestions column lives in its own popover, not on the board.
           columns={columns.filter((c) => !CLAUDE_MATCH.test(c))}
-          checked={highlightedColumns}
+          selected={highlightedColumns}
           onSet={onSetHighlightedColumn}
         />
-        <ColumnChecklist
+        <ColumnPicker
+          title="Focused columns"
+          hint="The focus button in the header hides every column except the ones selected here."
+          columns={columns.filter((c) => !CLAUDE_MATCH.test(c))}
+          selected={focusColumns}
+          onSet={onSetFocusColumn}
+        />
+        <ColumnPicker
           title="Needs you"
-          hint="Agents flag a card when they stop and something is waiting on you. Flags stand out in the columns checked here and are muted everywhere else."
+          hint="Agents flag a card when they stop and something is waiting on you. Flags stand out in the columns selected here and are muted everywhere else."
           columns={columns}
-          checked={needsYouColumns}
+          selected={needsYouColumns}
           onSet={onSetNeedsYouColumn}
         />
         <MaskedMode settings={maskSettings} onChange={onSetMaskSettings} />
@@ -199,18 +210,18 @@ function ImportExport({
   );
 }
 
-// A section with one checkbox per column, for per-column settings.
-function ColumnChecklist({
+// A section with one toggle chip per column, for per-column settings.
+function ColumnPicker({
   title,
   hint,
   columns,
-  checked,
+  selected,
   onSet,
 }: {
   title: string;
   hint: string;
   columns: string[];
-  checked: string[];
+  selected: string[];
   onSet: (column: string, on: boolean) => void;
 }) {
   const { m } = useMask();
@@ -218,17 +229,44 @@ function ColumnChecklist({
     <section className="settings-section">
       <h3>{title}</h3>
       <p className="hint">{hint}</p>
-      {columns.map((col) => (
-        <label className="settings-check" key={col}>
-          <input
-            type="checkbox"
-            checked={checked.includes(col)}
-            onChange={(e) => onSet(col, e.target.checked)}
-          />
-          {m("columnNames", col)}
-        </label>
-      ))}
+      <div className="settings-pills">
+        {columns.map((col) => {
+          const on = selected.includes(col);
+          return (
+            <Chip key={col} on={on} onToggle={() => onSet(col, !on)}>
+              {m("columnNames", col)}
+            </Chip>
+          );
+        })}
+      </div>
     </section>
+  );
+}
+
+// An on/off toggle drawn as a pill; on shows an accent tint and a check.
+function Chip({
+  on,
+  onToggle,
+  children,
+}: {
+  on: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`chip${on ? " selected" : ""}`}
+      aria-pressed={on}
+      onClick={onToggle}
+    >
+      {on && (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      )}
+      {children}
+    </button>
   );
 }
 
@@ -246,28 +284,27 @@ function MaskedMode({
         Swaps sensitive text for placeholder words so the board can be shared in screenshots. Your
         data isn't changed. Press Shift+M anywhere to toggle it.
       </p>
-      <label className="settings-check">
-        <input
-          type="checkbox"
-          checked={settings.enabled}
-          onChange={(e) => onChange({ ...settings, enabled: e.target.checked })}
-        />
-        Mask sensitive text
-      </label>
+      <div className="settings-pills">
+        <Chip on={settings.enabled} onToggle={() => onChange({ ...settings, enabled: !settings.enabled })}>
+          Mask sensitive text
+        </Chip>
+      </div>
       <details className="settings-details">
         <summary>Choose what to mask</summary>
-        {MASK_CATEGORIES.map((c) => (
-          <label className="settings-check" key={c.key}>
-            <input
-              type="checkbox"
-              checked={categoryOn(settings, c.key)}
-              onChange={(e) =>
-                onChange({ ...settings, categories: { ...settings.categories, [c.key]: e.target.checked } })
-              }
-            />
-            {c.label}
-          </label>
-        ))}
+        <div className="settings-pills">
+          {MASK_CATEGORIES.map((c) => {
+            const on = categoryOn(settings, c.key);
+            return (
+              <Chip
+                key={c.key}
+                on={on}
+                onToggle={() => onChange({ ...settings, categories: { ...settings.categories, [c.key]: !on } })}
+              >
+                {c.label}
+              </Chip>
+            );
+          })}
+        </div>
       </details>
     </section>
   );

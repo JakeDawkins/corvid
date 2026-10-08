@@ -38,8 +38,8 @@ export default function App() {
   const [data, setData] = useState<Data>(EMPTY);
   const [loaded, setLoaded] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
-  // The board column in focus mode, which hides every other column.
-  const [focusColumn, setFocusColumn] = useState<string | null>(null);
+  // Focus mode shows only the columns picked in Settings > Focused columns.
+  const [focusMode, setFocusMode] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [editing, setEditing] = useState<Card | null>(null);
@@ -219,6 +219,7 @@ export default function App() {
       cards: d.cards.map((c) => (c.column === from ? { ...c, column: to } : c)),
       needsYouColumns: d.needsYouColumns?.map((c) => (c === from ? to : c)),
       highlightedColumns: d.highlightedColumns?.map((c) => (c === from ? to : c)),
+      focusColumns: d.focusColumns?.map((c) => (c === from ? to : c)),
     }));
   }
 
@@ -233,13 +234,14 @@ export default function App() {
       columns: d.columns.filter((c) => c !== name),
       needsYouColumns: d.needsYouColumns?.filter((c) => c !== name),
       highlightedColumns: d.highlightedColumns?.filter((c) => c !== name),
+      focusColumns: d.focusColumns?.filter((c) => c !== name),
     }));
   }
 
   // Add or remove a column from a per-column setting list: the high-contrast
-  // "Needs you" style, or the board highlight.
+  // "Needs you" style, the board highlight, or the focus mode set.
   function setColumnFlag(
-    key: "needsYouColumns" | "highlightedColumns",
+    key: "needsYouColumns" | "highlightedColumns" | "focusColumns",
     column: string,
     on: boolean,
   ) {
@@ -484,9 +486,13 @@ export default function App() {
     () => data.columns.filter((c) => !CLAUDE_MATCH.test(c)),
     [data.columns],
   );
-  // Focus mode shows only the focused column; it lapses if that column is gone.
-  const focused = focusColumn && boardColumns.includes(focusColumn) ? focusColumn : null;
-  const visibleColumns = focused ? [focused] : boardColumns;
+  // Focus mode shows only the focus columns still on the board, in board order.
+  const focusColumns = useMemo(
+    () => boardColumns.filter((c) => data.focusColumns?.includes(c)),
+    [boardColumns, data.focusColumns],
+  );
+  const focused = focusMode && focusColumns.length > 0;
+  const visibleColumns = focused ? focusColumns : boardColumns;
 
   // Repos seen on the board or in the status cache, suggested when hiding a repo.
   const knownRepos = useMemo(() => {
@@ -608,7 +614,7 @@ export default function App() {
     const card = data.cards.find((c) => c.id === id);
     if (!card) return;
     if (card.hidden) setShowHidden(true);
-    if (focused && (card.hidden || card.column !== focused)) setFocusColumn(null);
+    if (focused && (card.hidden || !focusColumns.includes(card.column))) setFocusMode(false);
     flashCard(id);
     requestAnimationFrame(() =>
       cardRefs.current[id]?.scrollIntoView({
@@ -851,6 +857,31 @@ export default function App() {
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
         </button>
+        {/* With no focus columns picked yet, opens Settings to pick some. */}
+        <button
+          className={`btn${focused ? " active" : ""}`}
+          onClick={() => {
+            if (focusColumns.length) setFocusMode(!focused);
+            else setShowSettings(true);
+          }}
+          title={
+            focused
+              ? "Show all columns"
+              : focusColumns.length
+                ? "Focus columns picked in Settings"
+                : "Pick columns to focus in Settings"
+          }
+          aria-label={focused ? "Show all columns" : "Focus columns"}
+          aria-pressed={focused}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="8" />
+            <line x1="12" y1="1" x2="12" y2="7" />
+            <line x1="12" y1="17" x2="12" y2="23" />
+            <line x1="1" y1="12" x2="7" y2="12" />
+            <line x1="17" y1="12" x2="23" y2="12" />
+          </svg>
+        </button>
         {claudeColumn && (
           <button
             className={`btn claude-btn${showClaude ? " active" : ""}${
@@ -933,46 +964,39 @@ export default function App() {
         </aside>
       )}
       <div className="board">
-        {visibleColumns.map((col) => (
-          <div
-            key={col}
-            className={`column${dragId ? " droppable" : ""}${
-              data.highlightedColumns?.includes(col) ? " highlighted" : ""
-            }`}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => {
-              if (dragId) moveCard(dragId, col);
-              setDragId(null);
-              setDragOverId(null);
-            }}
-          >
-            <div className="column-head">
-              <span>{m("columnNames", col)}</span>
-              <span className="count">{cardsByColumn[col]?.length ?? 0}</span>
-              <button
-                className={`focus${focused ? " active" : ""}`}
-                onClick={() => setFocusColumn(focused ? null : col)}
-                title={focused ? "Show all columns" : "Focus this column"}
-                aria-label={focused ? "Show all columns" : "Focus this column"}
-                aria-pressed={!!focused}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="8" />
-                  <line x1="12" y1="1" x2="12" y2="7" />
-                  <line x1="12" y1="17" x2="12" y2="23" />
-                  <line x1="1" y1="12" x2="7" y2="12" />
-                  <line x1="17" y1="12" x2="23" y2="12" />
-                </svg>
-              </button>
-              <button className="add" onClick={() => newCard(col)} title="Add card">
-                +
-              </button>
+        {visibleColumns.map((col) => {
+          const column = (
+            <div
+              key={col}
+              className={`column${dragId ? " droppable" : ""}`}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => {
+                if (dragId) moveCard(dragId, col);
+                setDragId(null);
+                setDragOverId(null);
+              }}
+            >
+              <div className="column-head">
+                <span>{m("columnNames", col)}</span>
+                <span className="count">{cardsByColumn[col]?.length ?? 0}</span>
+                <button className="add" onClick={() => newCard(col)} title="Add card">
+                  +
+                </button>
+              </div>
+              <div className="cards">
+                {(cardsByColumn[col] ?? []).map(renderCard)}
+              </div>
             </div>
-            <div className="cards">
-              {(cardsByColumn[col] ?? []).map(renderCard)}
+          );
+          // A highlighted column sits in a full-height lane behind it.
+          return data.highlightedColumns?.includes(col) ? (
+            <div key={col} className="column-lane">
+              {column}
             </div>
-          </div>
-        ))}
+          ) : (
+            column
+          );
+        })}
 
         {!focused && (
           <div
@@ -1044,6 +1068,8 @@ export default function App() {
           onSetNeedsYouColumn={(col, on) => setColumnFlag("needsYouColumns", col, on)}
           highlightedColumns={data.highlightedColumns ?? []}
           onSetHighlightedColumn={(col, on) => setColumnFlag("highlightedColumns", col, on)}
+          focusColumns={data.focusColumns ?? []}
+          onSetFocusColumn={(col, on) => setColumnFlag("focusColumns", col, on)}
           hiddenRepos={data.hiddenRepos ?? []}
           knownRepos={knownRepos}
           onSetRepoHidden={setRepoHidden}
