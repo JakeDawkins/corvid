@@ -149,8 +149,19 @@ body {
   font-weight: 400;
   font-size: 12px;
 }
-.column-head .add {
+/* Crosshair that toggles focus mode, hiding every other column. */
+.column-head .focus {
   margin-left: auto;
+  display: flex;
+  background: none;
+  border: none;
+  padding: 2px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.column-head .focus:hover,
+.column-head .focus.active { color: var(--accent); }
+.column-head .add {
   background: none;
   border: none;
   color: var(--muted);

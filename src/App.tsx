@@ -38,6 +38,8 @@ export default function App() {
   const [data, setData] = useState<Data>(EMPTY);
   const [loaded, setLoaded] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  // The board column in focus mode, which hides every other column.
+  const [focusColumn, setFocusColumn] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [editing, setEditing] = useState<Card | null>(null);
@@ -482,6 +484,9 @@ export default function App() {
     () => data.columns.filter((c) => !CLAUDE_MATCH.test(c)),
     [data.columns],
   );
+  // Focus mode shows only the focused column; it lapses if that column is gone.
+  const focused = focusColumn && boardColumns.includes(focusColumn) ? focusColumn : null;
+  const visibleColumns = focused ? [focused] : boardColumns;
 
   // Repos seen on the board or in the status cache, suggested when hiding a repo.
   const knownRepos = useMemo(() => {
@@ -603,6 +608,7 @@ export default function App() {
     const card = data.cards.find((c) => c.id === id);
     if (!card) return;
     if (card.hidden) setShowHidden(true);
+    if (focused && (card.hidden || card.column !== focused)) setFocusColumn(null);
     flashCard(id);
     requestAnimationFrame(() =>
       cardRefs.current[id]?.scrollIntoView({
@@ -927,7 +933,7 @@ export default function App() {
         </aside>
       )}
       <div className="board">
-        {boardColumns.map((col) => (
+        {visibleColumns.map((col) => (
           <div
             key={col}
             className={`column${dragId ? " droppable" : ""}${
@@ -943,6 +949,21 @@ export default function App() {
             <div className="column-head">
               <span>{m("columnNames", col)}</span>
               <span className="count">{cardsByColumn[col]?.length ?? 0}</span>
+              <button
+                className={`focus${focused ? " active" : ""}`}
+                onClick={() => setFocusColumn(focused ? null : col)}
+                title={focused ? "Show all columns" : "Focus this column"}
+                aria-label={focused ? "Show all columns" : "Focus this column"}
+                aria-pressed={!!focused}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="8" />
+                  <line x1="12" y1="1" x2="12" y2="7" />
+                  <line x1="12" y1="17" x2="12" y2="23" />
+                  <line x1="1" y1="12" x2="7" y2="12" />
+                  <line x1="17" y1="12" x2="23" y2="12" />
+                </svg>
+              </button>
               <button className="add" onClick={() => newCard(col)} title="Add card">
                 +
               </button>
@@ -953,30 +974,32 @@ export default function App() {
           </div>
         ))}
 
-        <div
-          className={`column hidden-column${dragId ? " droppable" : ""}`}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => {
-            if (dragId) moveCard(dragId, HIDDEN_COL);
-            setDragId(null);
-            setDragOverId(null);
-          }}
-        >
-          <div className="column-head">
-            <span>Hidden</span>
-            <span className="count">{hiddenCount}</span>
-            <button
-              className="toggle-hidden"
-              onClick={() => setShowHidden((v) => !v)}
-              title={showHidden ? "Hide items" : "Show items"}
-            >
-              {showHidden ? "Hide" : "Show"}
-            </button>
+        {!focused && (
+          <div
+            className={`column hidden-column${dragId ? " droppable" : ""}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => {
+              if (dragId) moveCard(dragId, HIDDEN_COL);
+              setDragId(null);
+              setDragOverId(null);
+            }}
+          >
+            <div className="column-head">
+              <span>Hidden</span>
+              <span className="count">{hiddenCount}</span>
+              <button
+                className="toggle-hidden"
+                onClick={() => setShowHidden((v) => !v)}
+                title={showHidden ? "Hide items" : "Show items"}
+              >
+                {showHidden ? "Hide" : "Show"}
+              </button>
+            </div>
+            {showHidden && (
+              <div className="cards">{hiddenCards.map(renderCard)}</div>
+            )}
           </div>
-          {showHidden && (
-            <div className="cards">{hiddenCards.map(renderCard)}</div>
-          )}
-        </div>
+        )}
       </div>
 
       {(showInbox || showDeployments) && (
