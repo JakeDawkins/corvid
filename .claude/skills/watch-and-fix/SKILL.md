@@ -50,9 +50,16 @@ of, or shipping a Statsig experiment.
    lists the project's links (Linear issues, PRs, Slack threads). Use the
    `corvid` skill to read it, link your Conductor workspace to it, and add any PR
    you open. Otherwise, take the links from the conversation.
-2. **Read the spec.** Fetch each Linear issue for its description, acceptance
+2. **Read the project context.** With a Card ID, run the corvid skill's
+   `context <card id>` and read it before you plan: earlier threads recorded
+   decisions, open questions, what's built, and what's tested there. If the
+   card has none, create it (`context-init`) once you've read the spec, and
+   keep it current through every phase (see the corvid skill's "Project
+   context" section). It's the user's view of the project and the next
+   thread's memory; the state file below is only your polling bookkeeping.
+3. **Read the spec.** Fetch each Linear issue for its description, acceptance
    criteria, and comments.
-3. **Write a state file** so polls don't repeat or drop work. Use
+4. **Write a state file** so polls don't repeat or drop work. Use
    `.context/watch/<id>.json` if the repo has a git-ignored `.context/`
    (Conductor). Otherwise use `.watch/<id>.json` and add `.watch/` to
    `.git/info/exclude`. Track:
@@ -66,7 +73,7 @@ of, or shipping a Statsig experiment.
    - a last-seen timestamp per source (Slack, GitHub, Linear)
    - `items`: one entry per piece of feedback, with its source, author, link,
      kind, status, draft, and whether the user has been told about it
-4. Ask for anything missing only when you reach the phase that needs it. For
+5. Ask for anything missing only when you reach the phase that needs it. For
    example, ask which Slack channel and people do QA when you draft the handoff,
    not at the start.
 
@@ -74,8 +81,13 @@ of, or shipping a Statsig experiment.
 
 ### 1. Build
 
+Before you build, write the context's QA checklist from the spec and the
+decisions, with every check Not run, and record open product questions in
+Decisions.
+
 Do the work: plan, implement, write tests, and open a draft PR. Add the PR to
-the Corvid card. If the change ships behind an experiment, set it up (see
+the Corvid card and to the context's References. Keep Implementation's
+delivery table current as parts land. If the change ships behind an experiment, set it up (see
 [Statsig experiments](#statsig-experiments)). While building, handle CI failures
 and bot reviews as they come in (see [Each poll](#each-poll)). If a product or
 design decision blocks you, flag the user and keep working on whatever isn't
@@ -83,7 +95,8 @@ blocked.
 
 Move on when the spec is implemented, CI is green, and you've tested the change
 yourself, in a browser if it has a UI (see
-[Testing in a browser](#testing-in-a-browser)).
+[Testing in a browser](#testing-in-a-browser)). Record each test session in the
+QA plan: each check's status and evidence, and a run log entry.
 
 ### 2. Hand off to QA
 
@@ -109,8 +122,9 @@ QA feedback can arrive in Slack, on the Linear issue, or on the PR.
 ### 4. Done
 
 The project is done when its PRs are merged and its Linear issues are completed,
-or when the user says so. Stop the loop, clear the card's flag, and post a short
-summary. When QA has passed and the PR is approved but not merged, flag the user
+or when the user says so. Bring the project context up to date (status, QA
+results, what shipped, the monitoring plan), stop the loop, clear the card's
+flag, and post a short summary. When QA has passed and the PR is approved but not merged, flag the user
 to merge it rather than merging it yourself.
 
 ## Each poll
@@ -148,9 +162,9 @@ of creating a duplicate.
 
 | Kind | What to do |
 | --- | --- |
-| **Bug** (broken, wrong, or not matching the spec) | Reproduce it (in a browser if it's a UI bug), find the root cause, fix it with a test where practical, commit, push, confirm CI passes, and re-check it in the browser once the preview redeploys. Draft a reply saying what was wrong and that the fix is deploying. |
+| **Bug** (broken, wrong, or not matching the spec) | Reproduce it (in a browser if it's a UI bug), find the root cause, fix it with a test where practical, commit, push, confirm CI passes, and re-check it in the browser once the preview redeploys. Draft a reply saying what was wrong and that the fix is deploying. Add it to the QA plan's issues found, with the fix commit. |
 | **Change request** from a person on the PR | Decide whether it's valid (correct, actionable, matches the code as written). If valid, fix it, push, and draft a reply saying what changed. If not, draft a reply explaining why, without arguing. Either way, leave the thread unresolved for the user. |
-| **Question** | Answer it from the spec, code, and config, and draft the reply. If the answer is a product decision, don't invent one. Flag it for the user. |
+| **Question** | Answer it from the spec, code, and config, and draft the reply. If the answer is a product decision, don't invent one. Add it to Decisions as Open and flag it for the user. |
 | **Can't reproduce / working as intended** | Draft a reply asking for the missing details (device, browser, account, steps), or explaining the intended behavior with a link to the spec. If the spec is ambiguous, tell the user instead. |
 | **Bot comment** | Fix it if it's valid, then reply and resolve it yourself. |
 | **Pass / approval** | Record it and mention it in your next notification. No draft needed. |
@@ -309,5 +323,7 @@ PRs are closed without merging.
 
 - Keep the state file current so you never redo a fix or draft the same reply
   twice.
+- When a product decision lands (in Slack, Linear, or from the user), record it
+  in the context's Decisions as Settled, with who decided and a link.
 - Prefer small, focused commits, one per fix.
 - Only work on repos, PRs, and projects the user pointed you at.

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import type { AgentsStatus, Card, Data, IssueStatus, LinearResource, PrStatus } from "./types";
-import { loadData, refresh, resolveLink, saveData } from "./api";
+import type { AgentsStatus, Card, ContextIndex, Data, IssueStatus, LinearResource, PrStatus } from "./types";
+import { loadContextIndex, loadData, refresh, resolveLink, saveData } from "./api";
 import { domainName, linearKey, linkKind, linkTitle, normalizeCard, parsePrUrl, toUrl } from "./links";
 import type { VercelDeployment } from "./types";
 import { CardLink, IssueLine, PrLine, WorkspaceTag, resourceLabel } from "./Badges";
 import { CardEditor } from "./CardEditor";
+import { ContextPage } from "./ContextPage";
 import { ComplexityBars } from "./Complexity";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
@@ -23,6 +24,18 @@ const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, co
 // Virtual column id for the far-right "Hidden" column. Not a real user column;
 // membership is driven by each card's `hidden` flag rather than its `column`.
 const HIDDEN_COL = "__hidden__";
+
+// The open context page, from the URL: #/context/<card id>[/<tab>].
+type ContextRoute = { cardId: string; tab?: string };
+
+function parseRoute(hash: string): ContextRoute | null {
+  const m = hash.match(/^#\/context\/([^/]+)(?:\/([^/]+))?$/);
+  return m ? { cardId: decodeURIComponent(m[1]), tab: m[2] && decodeURIComponent(m[2]) } : null;
+}
+
+function routeHash(r: ContextRoute): string {
+  return `#/context/${encodeURIComponent(r.cardId)}${r.tab ? `/${encodeURIComponent(r.tab)}` : ""}`;
+}
 
 // Insert a new card at the TOP of its column: just before the first card already
 // in that column, or at the front of the list if the column is empty.
@@ -59,6 +72,14 @@ export default function App() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // Live Conductor status of workspaces linked on cards, pushed by the server.
   const [agents, setAgents] = useState<AgentsStatus>({ workspaces: {} });
+  // Cards with a project context, and a counter per card bumped when its
+  // context changes on disk, so an open context page reloads.
+  const [contexts, setContexts] = useState<ContextIndex>({});
+  const [contextTicks, setContextTicks] = useState<Record<string, number>>({});
+  const [contextRoute, setContextRoute] = useState<ContextRoute | null>(() => parseRoute(location.hash));
+  // Whether the open context page was opened from the board (so closing it
+  // goes back in history) rather than loaded from a link.
+  const contextFromBoard = useRef(false);
   const [theme, setTheme] = useTheme();
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,7 +95,37 @@ export default function App() {
       setData(d);
       setLoaded(true);
     });
+    loadContextIndex().then(setContexts).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const onHash = () => setContextRoute(parseRoute(location.hash));
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  function openContext(cardId: string) {
+    contextFromBoard.current = true;
+    location.hash = routeHash({ cardId });
+  }
+
+  function closeContext() {
+    if (contextFromBoard.current) {
+      contextFromBoard.current = false;
+      history.back();
+    } else {
+      history.replaceState(null, "", location.pathname + location.search);
+      setContextRoute(null);
+    }
+  }
+
+  // Switching tabs replaces the URL, so Back still returns to the board.
+  function setContextTab(tab: string) {
+    if (!contextRoute) return;
+    const next = { ...contextRoute, tab };
+    history.replaceState(null, "", routeHash(next));
+    setContextRoute(next);
+  }
 
   // debounced autosave
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -111,6 +162,15 @@ export default function App() {
     });
     es.addEventListener("agents", (e) => {
       setAgents(JSON.parse((e as MessageEvent).data) as AgentsStatus);
+    });
+    es.addEventListener("context", (e) => {
+      const { ids } = JSON.parse((e as MessageEvent).data) as { ids: string[] };
+      setContextTicks((t) => {
+        const next = { ...t };
+        for (const id of ids) next[id] = (next[id] ?? 0) + 1;
+        return next;
+      });
+      loadContextIndex().then(setContexts).catch(() => {});
     });
     return () => es.close();
   }, [loaded]);
@@ -735,6 +795,14 @@ export default function App() {
           {m("cardTitles", card.title) || "(untitled)"}
         </span>
         <div className="card-actions">
+          {contexts[card.id] && (
+            <button onClick={() => openContext(card.id)} title="Open project context">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z" />
+                <path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => copyCardId(card.id)}
             title={copiedId === card.id ? "Copied ID" : "Copy card ID"}
@@ -1088,6 +1156,26 @@ export default function App() {
       )}
       </div>
 
+      {contextRoute && (
+        <ContextPage
+          key={contextRoute.cardId}
+          cardId={contextRoute.cardId}
+          card={data.cards.find((c) => c.id === contextRoute.cardId)}
+          tab={contextRoute.tab}
+          onTab={setContextTab}
+          onClose={closeContext}
+          onOpenCard={() => {
+            const card = data.cards.find((c) => c.id === contextRoute.cardId);
+            if (card) setEditing(card);
+          }}
+          tick={contextTicks[contextRoute.cardId] ?? 0}
+          active={!editing && !showSearch}
+          agents={agents}
+          cache={cache}
+          repoNames={data.repoNames}
+        />
+      )}
+
       {editing && (
         <CardEditor
           // Remount when search swaps in another card, so the draft resets.
@@ -1101,6 +1189,15 @@ export default function App() {
           agents={agents}
           needsYou={data.cards.find((c) => c.id === editing.id)?.needsYou}
           needsYouLoud={isLoud(editing)}
+          // A card not yet on the board (a new one) can't have context.
+          hasContext={!!contexts[editing.id]}
+          onOpenContext={
+            data.cards.some((c) => c.id === editing.id)
+              ? () => {
+                  if (contextRoute?.cardId !== editing.id) openContext(editing.id);
+                }
+              : undefined
+          }
           onClearNeedsYou={() => clearNeedsYou(editing.id)}
           onCancel={() => setEditing(null)}
           closeRef={closeEditor}

@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card, flag a card as needing the user (or clear that flag), create a new card, or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace to that card.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card, flag a card as needing the user (or clear that flag), create a new card, read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace to that card and read its project context, and keep that context current while working on the card.
 ---
 
 # Corvid board edits
@@ -125,6 +125,13 @@ node $S add-card --title T [--column C] [--link URL]... [--color C]
                  [--complexity XS|S|M|L|XL] [--notes N] [--hidden] [--top]
 node $S add-column <name> [--after EXISTING]
 node $S validate                     # schema + JSON check
+
+node $S context <query> [--tab TAB]  # print the card's project context
+node $S context-init <query> --type regular|bug|research [--summary S] [--owner O]
+node $S context-set <query> [--type T] [--summary S] [--status S] [--owner O] [--next N]
+node $S context-write <query> <tab> [--append] [--label L] [--file PATH] <<'EOF'
+...markdown...
+EOF
 ```
 
 `<query>` picks the card by uuid, uuid prefix (4+ chars), a case-insensitive
@@ -194,6 +201,121 @@ node $S clear-needs-you <card id>
 ```
 
 It's a no-op if there's no flag, so it's safe to run whenever you resume. Don't flag a card when you're finished and nothing is waiting on the user.
+
+## Project context (shared memory)
+
+Each card can have a **project context**: the memory that every agent thread
+working on the card shares. A new thread reads it before it starts, and every
+thread updates it as it works, so the next one starts where the last one
+stopped. The user reads the same content as the card's context page in the app
+(the book icon on the card, or "Open context" in the card editor). It follows
+the structure of the team's project registry template.
+
+It lives next to the board, in `tasks-data/context/<card id>/`: a
+`project.json` header and one Markdown file per tab. Use the commands above for
+it, not direct file edits, so writes are backed up and work without permission
+prompts.
+
+### Types and tabs
+
+Pick the type when you create it. It decides the required tabs:
+
+| Type | Use it for | Tabs, in order |
+| --- | --- | --- |
+| `regular` | Something we build or change: a feature, experiment, migration | `business`, `decisions`, `implementation`, `qa`, `monitoring`, `learn-more`, `references` |
+| `bug` | Something that broke: a defect, incident, regression | `bug`, then the same six |
+| `research` | A question we answer, with no build | `summary`, finding tabs, `references` |
+
+| Tab | The question it answers |
+| --- | --- |
+| `business` | Why are we doing this, and how will we know it worked? Problem, scope, a metrics table (one primary metric, guardrails, baseline, target), expected impact. |
+| `bug` | What broke, how bad, and why? Impact (observed facts apart from estimates), then root cause: direct cause, trigger, system conditions, evidence. |
+| `summary` | (Research) The question, the answer first, findings with source and read date, what the data cannot prove, scope, open questions. |
+| `decisions` | What did we decide, and what is still open? One `### D01: Title` block per decision (format below). |
+| `implementation` | How does it work, and what is built? A diagram, then a delivery table: Done / Partial or mock / Not done. For a bug, before and after the fix. Rollout and rollback. |
+| `qa` | What must we prove, and where is the proof? A checklist written before the build, then status and evidence per check, the run log, issues found, exit criteria. |
+| `monitoring` | What do we watch after release? Signals, source, threshold, response and owner. Mark rules as proposed until they're really active. |
+| `learn-more` | What did you learn about this area? How the system works, vocabulary, surprises. A notebook, not decisions. |
+| `references` | Where is everything? Every link, grouped, each with what it contains and when it was read. |
+
+Any other tab name creates an **extra tab** (`context-write <card> "Experiment
+design"` makes `experiment-design`). Use one for something with a distinct
+purpose: Experiment design, Flow map, Current state, Backfill strategy, Code
+map, Risks, Spec vs built. In research, add one finding tab per line of
+evidence; its heading is the conclusion, and it ends with the source, read
+date, and limits.
+
+New tabs start as an outline: headings plus guidance in `<!-- comments -->`,
+which the page hides. Replace the comments with content as you fill a tab in.
+
+### Formats the page understands
+
+- **Decisions:** one block per decision. The page shows each as a card,
+  grouped Open and Proposed, then Settled, then Deferred and Reversed. Status
+  is one of Open, Proposed, Settled, Deferred, Reversed. Never delete one; mark
+  it Reversed and add a new one. Don't infer approval from a task being done.
+
+  ```markdown
+  ### D02: Keep the SameSite=Lax cookie
+  - Status: Open
+  - Date: 2026-10-09
+  - Owner: Jake
+  - Stage: Repair            (bug projects: Containment, Repair, or Prevention)
+  - Context: Why this decision is needed
+  - Options: A: ... B: ...
+  - Decision: The choice, or "Answer needed: ..." while open
+  - Reason: Why
+  - Consequences: What it enables, blocks, or changes
+  - Evidence: [Slack thread](https://...)
+  ```
+
+- **QA plan:** a Markdown table with a `Status` column, one table per flow.
+  Status is Pass, Fail, Blocked, Not run, or Skipped; the page colors them and
+  counts them at the top. Number checks `QA-01`, `QA-02`, ... and never
+  renumber. A check is Pass only with evidence (test file, video, screenshot,
+  CI run, rows). Record a failure as Fail even before it's fixed. Include
+  negative checks (no message sent, no row written). Add run log entries
+  newest first and never edit old ones.
+- **Status words** in any table cell (Done, Partial, Not done, Pass, Fail,
+  Open, Proposed, ...) show as colored chips.
+- **Diagrams:** a `mermaid` code block renders as a diagram. Give colored
+  nodes a dark text color (`classDef done fill:#dcfce7,stroke:#15803d,color:#111`).
+
+### When to read and write it
+
+At the start of work on a card (you were given its Card ID):
+
+1. `context <card id>`. Read all of it before you plan.
+2. If it has none, create it: `context-init <card id> --type regular|bug|research
+   --summary "<goal, or what failed>"`. Then fill in the first tab (`business`,
+   `bug`, or `summary`), the open questions in `decisions`, the first `qa`
+   checklist, and `references` from the ticket, its comments, and the card's
+   links.
+
+While you work, update it when:
+
+- a decision is made or a new question comes up: `decisions`
+- something is built, or the plan changes: `implementation`
+- a test runs: `qa`, with the evidence and a run log entry
+- you learn how part of the system works: `learn-more`
+- you find or read a useful link (PR, Slack thread, query, doc): `references`
+- the status, owner, or next step changes: `context-set --status ... --next ...`
+
+Writing a tab replaces the whole file, so read it first (`context <card> --tab
+<tab>`), edit the full text, and write it back. Use `--append` only to add to
+the end (a new Learn more note, a new reference). Pass the content on stdin
+with a quoted heredoc (`<<'EOF'`), or with `--file PATH`.
+
+Rules for the content:
+
+- Write what is true. When you don't know something, write "unknown" and the
+  work that will find out. Never invent metrics, causes, decisions, or state.
+- Use only verified URLs, as for card links.
+- No credentials, tokens, customer data, or phone numbers. Summarize instead.
+- Keep it short and plain. People scan it, and agents read it starting cold.
+- The page header already shows the card's links and Conductor workspaces.
+  List other workspaces (T3 Code threads, other machines) under an "Agent
+  workspaces" group in `references`.
 
 ## Rules
 

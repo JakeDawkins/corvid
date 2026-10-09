@@ -7,12 +7,27 @@ import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import {
+  contextRoot,
+  contextSignatures,
+  initContext,
+  listContexts,
+  readContext,
+  setProject,
+  validCardId,
+  writeTab,
+} from '../.claude/skills/corvid/scripts/context.mjs';
 
 const execFileP = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const DATA_DIR = join(ROOT, 'tasks-data');
 const DATA_PATH = join(DATA_DIR, 'data.json');
+// Each card's project context (memory) lives in tasks-data/context/<card id>/.
+// The corvid skill's tracker writes the same files, and backs them up to the
+// same place.
+const CONTEXT_ROOT = contextRoot(DATA_PATH);
+const BACKUP_DIR = join(homedir(), '.pr-tracker-backups');
 
 // --- minimal .env.local loader (no dependency) ---
 function loadEnv() {
@@ -716,6 +731,25 @@ setInterval(async () => {
   }
 }, 1000);
 
+// Poll the context files the same way, so an open context page picks up an
+// agent's edits. Sends the ids of cards whose context changed.
+let lastContextSigs = contextSignatures(CONTEXT_ROOT);
+setInterval(() => {
+  if (sseClients.size === 0) return;
+  try {
+    const sigs = contextSignatures(CONTEXT_ROOT);
+    const ids = [...new Set([...Object.keys(sigs), ...Object.keys(lastContextSigs)])].filter(
+      (id) => sigs[id] !== lastContextSigs[id],
+    );
+    lastContextSigs = sigs;
+    if (!ids.length) return;
+    const payload = JSON.stringify({ ids });
+    for (const res of sseClients) res.write(`event: context\ndata: ${payload}\n\n`);
+  } catch {
+    // mid-write; try again next tick
+  }
+}, 1000);
+
 // Poll Conductor for agent activity while anyone is watching. Cleared when the
 // last subscriber leaves so a reconnect always starts from a fresh read.
 let agentsPolling = false;
@@ -732,6 +766,56 @@ setInterval(async () => {
     agentsPolling = false;
   }
 }, 3000);
+
+// ---------------- project context ----------------
+// Cards with context, with their type and last update, for the board.
+app.get('/api/context', (_req, res) => {
+  res.json({ contexts: listContexts(CONTEXT_ROOT) });
+});
+
+function contextRoute(handler) {
+  return (req, res) => {
+    if (!validCardId(req.params.id)) return res.status(400).json({ error: 'Bad card id' });
+    try {
+      handler(req, res);
+    } catch (e) {
+      res.status(e.conflict ? 409 : 400).json({
+        error: e.message,
+        conflict: !!e.conflict,
+        context: readContext(CONTEXT_ROOT, req.params.id),
+      });
+    }
+  };
+}
+
+app.get('/api/context/:id', contextRoute((req, res) => {
+  res.json({ context: readContext(CONTEXT_ROOT, req.params.id) });
+}));
+
+// Create a card's context with the outline for its type.
+app.post('/api/context/:id', contextRoute((req, res) => {
+  const { type, summary, status, owner, next } = req.body || {};
+  initContext(CONTEXT_ROOT, req.params.id, { type, summary, status, owner, next });
+  res.json({ context: readContext(CONTEXT_ROOT, req.params.id) });
+}));
+
+app.put('/api/context/:id/project', contextRoute((req, res) => {
+  setProject(CONTEXT_ROOT, req.params.id, req.body || {}, { backupDir: BACKUP_DIR });
+  res.json({ context: readContext(CONTEXT_ROOT, req.params.id) });
+}));
+
+// Replace one tab. `baseHash` is the hash of the version the editor started
+// from; a different file on disk is a conflict (409) rather than an overwrite.
+app.put('/api/context/:id/tabs/:tab', contextRoute((req, res) => {
+  const { content, baseHash, label } = req.body || {};
+  if (typeof content !== 'string') return res.status(400).json({ error: 'No content' });
+  writeTab(CONTEXT_ROOT, req.params.id, req.params.tab, content, {
+    baseHash,
+    label,
+    backupDir: BACKUP_DIR,
+  });
+  res.json({ context: readContext(CONTEXT_ROOT, req.params.id) });
+}));
 
 // Resolve a single pasted link to its title + status, for quick-create.
 app.post('/api/resolve', async (req, res) => {

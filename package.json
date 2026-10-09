@@ -12,7 +12,10 @@
     "start": "node server/index.js"
   },
   "dependencies": {
-    "express": "^4.21.2"
+    "dompurify": "^3.4.16",
+    "express": "^4.21.2",
+    "marked": "^18.1.0",
+    "mermaid": "^12.1.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",

@@ -1,6 +1,10 @@
 import type {
   Cache,
+  CardContext,
   ConductorRepo,
+  ContextIndex,
+  ContextProject,
+  ContextType,
   Data,
   Inbox,
   IssueStatus,
@@ -102,4 +106,55 @@ export async function refresh(
     body: JSON.stringify({ prUrls, linearUrls }),
   });
   return (await res.json()) as Cache;
+}
+
+export async function loadContextIndex(): Promise<ContextIndex> {
+  const res = await fetch("/api/context");
+  return ((await res.json()) as { contexts?: ContextIndex }).contexts ?? {};
+}
+
+export async function loadContext(cardId: string): Promise<CardContext | null> {
+  const res = await fetch(`/api/context/${encodeURIComponent(cardId)}`);
+  return ((await res.json()) as { context?: CardContext | null }).context ?? null;
+}
+
+// Result of a context write: the context as it now is on disk, and an error
+// if the write was refused. `conflict` means the tab changed on disk since the
+// editor loaded it.
+export type ContextResult = {
+  context: CardContext | null;
+  error?: string;
+  conflict?: boolean;
+};
+
+async function contextRequest(method: string, path: string, body: unknown): Promise<ContextResult> {
+  const res = await fetch(`/api/context/${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return (await res.json()) as ContextResult;
+}
+
+export function createContext(cardId: string, type: ContextType): Promise<ContextResult> {
+  return contextRequest("POST", encodeURIComponent(cardId), { type });
+}
+
+export function saveContextProject(
+  cardId: string,
+  fields: Partial<ContextProject>,
+): Promise<ContextResult> {
+  return contextRequest("PUT", `${encodeURIComponent(cardId)}/project`, fields);
+}
+
+export function saveContextTab(
+  cardId: string,
+  tab: string,
+  content: string,
+  baseHash: string,
+): Promise<ContextResult> {
+  return contextRequest("PUT", `${encodeURIComponent(cardId)}/tabs/${encodeURIComponent(tab)}`, {
+    content,
+    baseHash,
+  });
 }

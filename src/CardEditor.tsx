@@ -69,6 +69,10 @@ function buildAgentPrompt(card: Card): string {
   );
   lines.push("");
   lines.push(
+    `This card has a project context: shared memory between the agent threads that work on it (why we do it, decisions, implementation, QA plan, monitoring, learn more, references). Before you start, read it with the corvid skill: \`context ${card.id}\`. If it has none yet, create it with \`context-init ${card.id} --type regular|bug|research\` and fill in what you learn from the ticket and links, marking what you don't know as unknown. Keep it current as you work, following the skill's "Project context" section, so the next thread starts where you stopped.`,
+  );
+  lines.push("");
+  lines.push(
     `Whenever you open a pull request for this work, add its URL to this card (Card ID: ${card.id}) on the Corvid board so it stays in sync.`,
   );
   lines.push("");
@@ -170,6 +174,8 @@ export function CardEditor({
   needsYou,
   needsYouLoud,
   onClearNeedsYou,
+  hasContext,
+  onOpenContext,
   onSave,
   onCancel,
   onDelete,
@@ -189,6 +195,10 @@ export function CardEditor({
   needsYou?: NeedsYou;
   needsYouLoud: boolean;
   onClearNeedsYou: () => void;
+  // Whether the card has a project context, and opens its context page (after
+  // this editor saves and closes). Absent for a card not yet on the board.
+  hasContext: boolean;
+  onOpenContext?: () => void;
   // Receives only the fields changed from `card`.
   onSave: (changes: Partial<Card>) => void;
   // Closes without saving (the Discard button).
@@ -434,6 +444,11 @@ export function CardEditor({
   }
 
   const dirty = Object.keys(changedFields(card, finalCard())).length > 0;
+
+  function openContext() {
+    close();
+    onOpenContext?.();
+  }
 
   // Open a new Conductor workspace for this card in the repo at `path`, seeded
   // with the agent prompt. Saves and closes the editor first so the agent's
@@ -723,6 +738,22 @@ export function CardEditor({
             </button>
           </div>
         </section>
+
+        {onOpenContext && (
+          <section className="detail-section">
+            <h3>Project context</h3>
+            <div className="context-row">
+              <span className="hint">
+                {hasContext
+                  ? "The project memory agents read and keep current: decisions, implementation, QA plan, and more."
+                  : "No context yet. Agents create it when they start, or you can set it up now."}
+              </span>
+              <button type="button" className="btn" onClick={openContext}>
+                {hasContext ? "Open context" : "Set up context"}
+              </button>
+            </div>
+          </section>
+        )}
 
         <section className="detail-section">
           <h3>

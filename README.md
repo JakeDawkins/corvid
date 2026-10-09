@@ -96,6 +96,19 @@ npm run build && npm start   # http://localhost:8787
   the agent prompt via a `conductor://` deep link. With no repo set, it asks for
   one first and saves it on the card. Once a card has a linked workspace, the
   header shows a link to it instead of this button and Copy prompt.
+- **Project context**: each card can have a context page, the project's
+  shared memory between agent threads. It follows the
+  [project registry template](https://github.com/Homeaglow/project-registry-template):
+  a card is a regular project, a bug, or research, and the type decides the
+  tabs (Business or Bug, Decisions, Implementation, QA plan, Monitoring plan,
+  Learn more, References; research gets Summary, finding tabs, and
+  References), plus any extra tabs. Decisions show as cards grouped by status,
+  QA checks are colored and counted, and `mermaid` blocks render as diagrams.
+  Agents read it before they start and update it as they work (the copied
+  prompt and the skills tell them to); you can edit any tab in place too.
+  Open it from the book icon on a card, or **Open context** in the card
+  editor. It's stored as Markdown in `tasks-data/context/<card id>/`, and an
+  open page reloads when an agent changes it.
 - **Hide/unhide** cards, with a toggle to reveal hidden ones.
 - **Search** (Cmd+K, or the magnifying glass): find any card by title, Linear
   task id, link title, or URL, in that order of priority. Arrow keys pick a
@@ -196,7 +209,8 @@ Express server (server/index.js, 127.0.0.1:8787)
    |-- fetch   -> api.linear.app      (LINEAR_API_KEY)
    |-- fetch   -> api.vercel.com      (Vercel CLI token or VERCEL_TOKEN)
    |-- sqlite3 -> Conductor's DB      (read-only, agent activity)
-   `-- tasks-data/data.json           (all state)
+   |-- tasks-data/data.json           (board state)
+   `-- tasks-data/context/<card id>/  (project context: project.json + one .md per tab)
 ```
 
 - **Frontend:** Vite + React + TypeScript, no state library. `src/App.tsx` holds
@@ -285,6 +299,10 @@ node $S needs-you "checkout redirect" --reason "Plan ready" --action "Approve it
 node $S clear-needs-you "checkout redirect"
 node $S add-card --title "New task" --column Todo --top
 node $S add-column "Suggested by Claude"
+node $S context "checkout redirect"                    # print the card's project context
+node $S context-init "checkout redirect" --type bug
+node $S context-set "checkout redirect" --status "Fix in review" --next "QA on preview"
+node $S context-write "checkout redirect" learn-more --append < note.md
 ```
 
 Every mutation targets exactly one card, matched by uuid, title substring, or

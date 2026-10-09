@@ -23,6 +23,11 @@
 //   add-column <name> [--after EXISTING]
 //   validate
 //   where                      // print the resolved tasks-data/data.json path and why
+//   context <query> [--tab TAB]          // print the card's project context (memory)
+//   context-init <query> [--type regular|bug|research] [--summary S]
+//                [--status S] [--owner O] [--next N]
+//   context-set <query> [--type T] [--summary S] [--status S] [--owner O] [--next N]
+//   context-write <query> <tab> [--append] [--label L] [--file PATH]   // content on stdin
 //
 // The board file is tasks-data/data.json under the repo root. The root is found
 // from this script's own location (it ships in .claude/skills/corvid/ inside the
@@ -52,6 +57,16 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
+import {
+  TYPES,
+  TABS,
+  TYPE_LABELS,
+  contextRoot,
+  readContext,
+  initContext,
+  setProject,
+  writeTab,
+} from './context.mjs';
 
 const argv = process.argv.slice(2);
 const cmd = argv.shift();
@@ -226,16 +241,16 @@ function assertOnlyTouched(beforeData, afterData, cardId) {
     die('refusing to write: the change would reorder other cards');
 }
 
-function appRunning() {
-  for (const port of [8787, 5473]) {
-    try {
-      const out = execSync(`lsof -nP -iTCP:${port} -sTCP:LISTEN -t 2>/dev/null`, {
-        encoding: 'utf8',
-      }).trim();
-      if (out) return port;
-    } catch {}
+function listening(port) {
+  try {
+    return Boolean(execSync(`lsof -nP -iTCP:${port} -sTCP:LISTEN -t 2>/dev/null`, { encoding: 'utf8' }).trim());
+  } catch {
+    return false;
   }
-  return null;
+}
+
+function appRunning() {
+  return [8787, 5473].find(listening) ?? null;
 }
 
 function commit(before, data, cardId, summary) {
@@ -381,7 +396,140 @@ function normalizeColor(value, data) {
   return value.toLowerCase();
 }
 
+// --- project context (see context.mjs) ---
+
+const CONTEXT_ROOT = contextRoot(DATA_PATH);
+
+// The context page in the running app: the Vite dev server if it's up (in dev,
+// :8787 serves only the API), else the built app on :8787.
+function contextUrl(cardId) {
+  const port = listening(5473) || !listening(8787) ? 5473 : 8787;
+  return `http://localhost:${port}/#/context/${cardId}`;
+}
+
+// Header fields for context-init / context-set.
+function contextFields() {
+  const out = {};
+  for (const k of ['type', 'summary', 'status', 'owner', 'next']) {
+    const v = flag(k);
+    if (typeof v === 'string') out[k] = v;
+  }
+  if (out.type !== undefined && !TYPES.includes(out.type)) die(`--type must be one of ${TYPES.join(' | ')}`);
+  return out;
+}
+
+// Tab content from --file, else stdin (a heredoc).
+function contentArg() {
+  const file = flag('file');
+  if (typeof file === 'string') {
+    try {
+      return readFileSync(resolve(file), 'utf8');
+    } catch (e) {
+      die(`cannot read ${file}: ${e.message}`);
+    }
+  }
+  let text = '';
+  if (!process.stdin.isTTY) {
+    try {
+      text = readFileSync(0, 'utf8');
+    } catch {}
+  }
+  if (!text.trim()) die('no content: pass the tab content on stdin (a heredoc) or with --file PATH');
+  return text;
+}
+
+function printContext(card, ctx, onlyTab) {
+  const p = ctx.project;
+  console.log(`# context: ${ctx.dir}`);
+  console.log(`# page: ${contextUrl(card.id)}`);
+  console.log(`card: ${short(card.id)} ${JSON.stringify(card.title)}`);
+  console.log(`type: ${p.type} (${TYPE_LABELS[p.type] ?? p.type})   updated: ${p.updated || 'unknown'}`);
+  for (const k of ['summary', 'status', 'owner', 'next']) console.log(`${k}: ${p[k] || '(not set)'}`);
+  const tabs = onlyTab ? ctx.tabs.filter((t) => t.id === onlyTab) : ctx.tabs;
+  if (onlyTab && !tabs.length) die(`no tab ${JSON.stringify(onlyTab)}. Tabs: ${ctx.tabs.map((t) => t.id).join(', ')}`);
+  for (const t of tabs) {
+    const q = t.question ? ` (${t.question})` : '';
+    console.log(`\n===== ${t.label}: ${t.file}${q}${t.empty ? ' [empty]' : ''} =====`);
+    console.log(t.content.replace(/\n+$/, ''));
+  }
+}
+
 switch (cmd) {
+  case 'context': {
+    printTarget();
+    const card = findCard(load(), argv.shift());
+    const ctx = readContext(CONTEXT_ROOT, card.id);
+    if (!ctx) {
+      console.log(`card ${short(card.id)} ${JSON.stringify(card.title)} has no context yet.`);
+      console.log(`create it with: context-init ${card.id} --type ${TYPES.join('|')}`);
+      break;
+    }
+    const tab = flag('tab');
+    printContext(card, ctx, typeof tab === 'string' ? tab : undefined);
+    break;
+  }
+  case 'context-init': {
+    printTarget();
+    const card = findCard(load(), argv.shift());
+    const fields = contextFields();
+    if (readContext(CONTEXT_ROOT, card.id)) die(`card ${short(card.id)} already has context; read it with \`context ${card.id}\``);
+    if (DRY) {
+      console.log('--- DRY RUN, nothing written ---');
+      console.log(`would create ${fields.type ?? 'regular'} context for ${short(card.id)} in ${join(CONTEXT_ROOT, card.id)}`);
+      break;
+    }
+    const dir = initContext(CONTEXT_ROOT, card.id, fields);
+    const ctx = readContext(CONTEXT_ROOT, card.id);
+    console.log(`created ${ctx.project.type} context for ${short(card.id)} ${JSON.stringify(card.title)}`);
+    console.log(`  ${dir}`);
+    console.log(`  tabs: ${ctx.tabs.map((t) => t.id).join(', ')}`);
+    console.log(`  page: ${contextUrl(card.id)}`);
+    break;
+  }
+  case 'context-set': {
+    printTarget();
+    const card = findCard(load(), argv.shift());
+    const fields = contextFields();
+    if (!Object.keys(fields).length) die('context-set needs at least one of --type --summary --status --owner --next');
+    if (!readContext(CONTEXT_ROOT, card.id)) die(`card ${short(card.id)} has no context; run context-init first`);
+    if (DRY) {
+      console.log('--- DRY RUN, nothing written ---');
+      console.log(JSON.stringify(fields, null, 2));
+      break;
+    }
+    const { changes } = setProject(CONTEXT_ROOT, card.id, fields, { backupDir: BACKUP_DIR });
+    if (!changes.length) console.log('no change (context already matches)');
+    else console.log(`updated context of ${short(card.id)} ${JSON.stringify(card.title)}:\n  ${changes.join('\n  ')}`);
+    break;
+  }
+  case 'context-write': {
+    printTarget();
+    const card = findCard(load(), argv.shift());
+    const tab = argv.shift();
+    if (!tab || tab.startsWith('--')) die(`missing tab. Tabs: ${Object.keys(TABS).join(', ')}, or a new name for an extra tab`);
+    const append = bareFlag('append');
+    const label = flag('label');
+    const content = contentArg();
+    if (!readContext(CONTEXT_ROOT, card.id)) die(`card ${short(card.id)} has no context; run context-init first`);
+    if (DRY) {
+      console.log('--- DRY RUN, nothing written ---');
+      console.log(`would ${append ? 'append' : 'write'} ${content.length} chars to ${tab}`);
+      break;
+    }
+    let res;
+    try {
+      res = writeTab(CONTEXT_ROOT, card.id, tab, content, {
+        append,
+        label: typeof label === 'string' ? label : undefined,
+        backupDir: BACKUP_DIR,
+      });
+    } catch (e) {
+      die(e.message);
+    }
+    if (!res.changed) console.log(`no change (${res.id}.md already matches)`);
+    else console.log(`${append ? 'appended to' : 'wrote'} ${res.path}${res.backup ? `\nbackup ${res.backup}` : ''}`);
+    break;
+  }
   case 'where': {
     printTarget();
     console.log(`repo root (from this script's location): ${CANONICAL_DIR}`);
@@ -718,6 +866,6 @@ switch (cmd) {
     break;
   }
   default:
-    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 28).join('\n').replace(/^\/\/ ?/gm, ''));
+    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 33).join('\n').replace(/^\/\/ ?/gm, ''));
     process.exit(cmd ? 1 : 0);
 }

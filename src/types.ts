@@ -161,3 +161,53 @@ export type Inbox = {
   githubError?: string;
   linearError?: string;
 };
+
+// ---- Project context (memory) ----
+// Each card can have a project context: Markdown tabs that agents read before
+// they start and keep current as they work, stored in
+// tasks-data/context/<card id>/ next to data.json. See
+// .claude/skills/corvid/scripts/context.mjs.
+
+// The type decides the required tabs: regular and bug projects get Business
+// (or Bug), Decisions, Implementation, QA plan, Monitoring plan, Learn more,
+// and References; research gets Summary and References, with finding tabs
+// between them.
+export type ContextType = "regular" | "bug" | "research";
+
+// The header of a card's context page (project.json).
+export type ContextProject = {
+  type: ContextType;
+  summary?: string;
+  status?: string;
+  owner?: string;
+  next?: string;
+  // YYYY-MM-DD.
+  created?: string;
+  updated?: string;
+  extraTabs?: { id: string; label: string }[];
+};
+
+export type ContextTab = {
+  id: string;
+  file: string;
+  label: string;
+  // Required by the type, as opposed to an extra tab.
+  required: boolean;
+  // The question the tab answers, and how to fill it in (standard tabs only).
+  question?: string;
+  guide?: string;
+  content: string;
+  // Hash of `content`, sent back on save so an outside edit isn't overwritten.
+  hash: string;
+  // Only headings and comments, as the outline starts.
+  empty: boolean;
+};
+
+export type CardContext = {
+  dir: string;
+  project: ContextProject;
+  tabs: ContextTab[];
+};
+
+// Which cards have context, for the board and card editor.
+export type ContextIndex = Record<string, { type: ContextType; updated?: string }>;
