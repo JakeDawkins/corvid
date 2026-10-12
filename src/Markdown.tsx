@@ -96,7 +96,14 @@ async function renderMermaid(pre: HTMLElement, code: string) {
   try {
     const { default: mermaid } = await import("mermaid");
     const light = document.documentElement.dataset.theme === "light";
-    mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: light ? "default" : "dark" });
+    // Without suppressErrorRendering, a syntax error leaves Mermaid's bomb
+    // graphic appended to <body>; the error box below shows the error instead.
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      theme: light ? "default" : "dark",
+    });
     const { svg, bindFunctions } = await mermaid.render(`mermaid-${++mermaidId}`, code);
     box.innerHTML = svg;
     bindFunctions?.(box);

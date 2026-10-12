@@ -280,6 +280,8 @@ which the page hides. Replace the comments with content as you fill a tab in.
   Open, Proposed, ...) show as colored chips.
 - **Diagrams:** a `mermaid` code block renders as a diagram. Give colored
   nodes a dark text color (`classDef done fill:#dcfce7,stroke:#15803d,color:#111`).
+  Quote any label with `/`, `#`, `()`, `{}` or `|` (`D["/deal#terms"]`):
+  unquoted, `[/...]` is a shape marker and the diagram fails to render.
 
 ### When to read and write it
 
