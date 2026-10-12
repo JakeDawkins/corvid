@@ -408,6 +408,16 @@ body {
 .card-foot .complexity { gap: 5px; }
 .card-foot .complexity-bars { gap: 2px; }
 .card-foot .complexity-bar { width: 7px; height: 3px; }
+/* Project context, always shown on cards that have one. */
+.card-context {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.card-context:hover { color: var(--text); }
+.card-context svg { display: block; }
 .workspace-tag {
   display: inline-flex;
   align-items: center;

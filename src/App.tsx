@@ -795,14 +795,6 @@ export default function App() {
           {m("cardTitles", card.title) || "(untitled)"}
         </span>
         <div className="card-actions">
-          {contexts[card.id] && (
-            <button onClick={() => openContext(card.id)} title="Open project context">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z" />
-                <path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" />
-              </svg>
-            </button>
-          )}
           <button
             onClick={() => copyCardId(card.id)}
             title={copiedId === card.id ? "Copied ID" : "Copy card ID"}
@@ -859,7 +851,7 @@ export default function App() {
         </div>
       )}
 
-      {(tag || card.complexity || !!card.workspaces?.length) && (
+      {(tag || card.complexity || !!card.workspaces?.length || contexts[card.id]) && (
         <div className="card-foot">
           {tag && (
             <span className="card-tag" style={{ "--card-color": card.color } as CSSProperties}>
@@ -871,6 +863,19 @@ export default function App() {
           {card.workspaces?.map((id) => (
             <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
           ))}
+          {contexts[card.id] && (
+            <button
+              className="card-context"
+              onClick={() => openContext(card.id)}
+              title="Open project context"
+              aria-label="Open project context"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2z" />
+                <path d="M22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
     </div>
