@@ -760,32 +760,33 @@ export function CardEditor({
             Conductor
             {conductorDown && <span className="h3-note">Not running</span>}
           </h3>
+          {/* Linked workspaces stay listed while Conductor is closed so they can still be unlinked. */}
+          {workspaces.map((id) => {
+            const w = agents.workspaces[id];
+            return (
+              <div key={id} className="link-row workspace-row">
+                <WorkspaceBadge id={id} status={w} />
+                <span className="link-url" title={id}>
+                  {w
+                    ? [w.repo && m("repoNames", w.repo), w.branch && m("branches", w.branch)]
+                        .filter(Boolean)
+                        .join(" · ")
+                    : id}
+                </span>
+                <button
+                  type="button"
+                  className="btn ghost icon-btn"
+                  title="Unlink workspace"
+                  aria-label="Unlink workspace"
+                  onClick={() => removeWorkspace(id)}
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
           {!conductorDown && (
             <>
-              {workspaces.map((id) => {
-                const w = agents.workspaces[id];
-                return (
-                  <div key={id} className="link-row workspace-row">
-                    <WorkspaceBadge id={id} status={w} />
-                    <span className="link-url" title={id}>
-                      {w
-                        ? [w.repo && m("repoNames", w.repo), w.branch && m("branches", w.branch)]
-                            .filter(Boolean)
-                            .join(" · ")
-                        : id}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn ghost icon-btn"
-                      title="Unlink workspace"
-                      aria-label="Unlink workspace"
-                      onClick={() => removeWorkspace(id)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
               {conductorError && <div className="hint error">{conductorError}</div>}
               {addingWorkspace && (
                 <div className="link-add">
