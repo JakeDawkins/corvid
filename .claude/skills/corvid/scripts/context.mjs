@@ -4,7 +4,7 @@
 // Each card with context has a directory next to data.json:
 //
 //   tasks-data/context/<card id>/
-//     project.json      header: type, summary, status, owner, next, dates, extra tab labels
+//     project.json      project fields: type, summary, status, owner, next, dates, extra tab labels
 //     <tab>.md          one Markdown file per tab (business.md, decisions.md, ...)
 //
 // The tabs and their outlines follow the project registry template
@@ -188,8 +188,8 @@ also be here. For each link, say what it contains and when it was read, or
 "Not read". Use only verified URLs: never build one from an ID or a title.
 Leave out a group with no items. Groups, in this order when they apply:
 ${groups}
-The card's own links and Conductor workspaces show in the page header on their
-own. List other agent workspaces (T3 Code threads, other machines) under
+The card's own links and Conductor workspaces show in the page's sidebar on
+their own. List other agent workspaces (T3 Code threads, other machines) under
 "Agent workspaces".
 
 ## Ticket and plan

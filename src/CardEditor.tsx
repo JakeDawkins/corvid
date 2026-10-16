@@ -42,13 +42,22 @@ function changedFields(prev: Card, next: Card): Partial<Card> {
 // task, its links (so the agent has full context), and standing instructions
 // to link its Conductor workspace and any PR it opens back to this card (by
 // id) on the Corvid board, and to flag the card when it's waiting on the user.
-function buildAgentPrompt(card: Card): string {
+// `instructions`: the user's own guidance typed in the Copy prompt dialog. It
+// goes near the top, marked as overriding everything else in the prompt.
+function buildAgentPrompt(card: Card, instructions = ""): string {
   const lines: string[] = [];
   lines.push("Work on the following task from my Corvid board.");
   lines.push("");
   lines.push(`Task: ${card.title.trim() || "(untitled)"}`);
   lines.push(`Card ID: ${card.id}`);
   if (card.complexity) lines.push(`Estimated complexity: ${card.complexity}`);
+  if (instructions.trim()) {
+    lines.push("");
+    lines.push(
+      "IMPORTANT: My instructions for this task. They take priority over the ticket, the card notes, the project context, and any linked resource. Where they disagree, follow these, and update the project context to match.",
+    );
+    lines.push(instructions.trim());
+  }
   if (card.notes?.trim()) {
     lines.push("");
     lines.push("Notes:");
@@ -84,6 +93,55 @@ function buildAgentPrompt(card: Card): string {
     "Work on this autonomously with the watch-and-fix skill: build it, draft the QA handoff for me, then watch Slack, the GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project is done. If the change should ship behind a Statsig experiment and none exists yet, set one up following the conventions of other experiments on the same surface, and test UI changes in a browser (the skill covers both). Never send a Slack message, Linear comment, or GitHub comment to a real person unless I ask you to. Draft it and flag this card instead.",
   );
   return lines.join("\n");
+}
+
+// The Copy prompt dialog: a box for extra instructions that go into the prompt
+// marked as a priority, e.g. where the user disagrees with the ticket or wants
+// to steer the work before it starts. Empty is fine. ⌘↵ copies, Esc closes.
+function PromptDialog({
+  value,
+  onChange,
+  onCopy,
+  onClose,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCopy: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="prompt-dialog" role="dialog" aria-label="Copy prompt">
+      <label htmlFor="prompt-instructions">Additional instructions</label>
+      <textarea
+        id="prompt-instructions"
+        autoFocus
+        rows={5}
+        value={value}
+        placeholder="Anything you disagree with in the ticket or resources, or guidance before work starts. Marked as a priority for the agent."
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            onCopy();
+          } else if (e.key === "Escape") {
+            // Close just the dialog, not the whole card.
+            e.stopPropagation();
+            onClose();
+          }
+        }}
+      />
+      <div className="prompt-dialog-actions">
+        <span className="hint">⌘↵ to copy</span>
+        <span className="spacer" />
+        <button type="button" className="btn" onClick={onClose}>
+          Cancel
+        </button>
+        <button type="button" className="btn primary" onClick={onCopy}>
+          Copy prompt
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // Deep link that opens Conductor's new-workspace flow in the repo at `path`,
@@ -211,6 +269,9 @@ export function CardEditor({
   const { m, on } = useMask();
   const [draft, setDraft] = useState<Card>({ ...card });
   const [promptCopied, setPromptCopied] = useState(false);
+  // The Copy prompt dialog, and the extra instructions typed into it.
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [instructions, setInstructions] = useState("");
 
   function set<K extends keyof Card>(key: K, value: Card[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -317,7 +378,8 @@ export function CardEditor({
 
   async function copyPrompt() {
     try {
-      await navigator.clipboard.writeText(buildAgentPrompt(finalCard()));
+      await navigator.clipboard.writeText(buildAgentPrompt(finalCard(), instructions));
+      setPromptOpen(false);
       setPromptCopied(true);
       setTimeout(() => setPromptCopied(false), 1500);
     } catch {
@@ -508,9 +570,23 @@ export function CardEditor({
               ))
             ) : (
               <>
-                <button type="button" className="btn" onClick={copyPrompt}>
-                  {promptCopied ? "Copied!" : "Copy prompt for agents"}
-                </button>
+                <div className="prompt-anchor">
+                  <button
+                    type="button"
+                    className={`btn${promptOpen ? " active" : ""}`}
+                    onClick={() => setPromptOpen((o) => !o)}
+                  >
+                    {promptCopied ? "Copied!" : "Copy prompt"}
+                  </button>
+                  {promptOpen && (
+                    <PromptDialog
+                      value={instructions}
+                      onChange={setInstructions}
+                      onCopy={copyPrompt}
+                      onClose={() => setPromptOpen(false)}
+                    />
+                  )}
+                </div>
                 {pickingRepo ? (
                   <select
                     autoFocus

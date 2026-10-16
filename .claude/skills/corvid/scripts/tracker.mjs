@@ -253,9 +253,24 @@ function appRunning() {
   return [8787, 5473].find(listening) ?? null;
 }
 
+// Set the target card's change timestamps (ISO): updatedAt on any change,
+// createdAt for a new card, and hiddenAt when it becomes hidden (removed when
+// it's unhidden). Mirrors stamp() in src/cards.ts.
+function stampCard(beforeData, data, cardId) {
+  const prev = beforeData.cards.find((c) => c.id === cardId);
+  const card = data.cards.find((c) => c.id === cardId);
+  if (!card || (prev && JSON.stringify(prev) === JSON.stringify(card))) return;
+  const now = new Date().toISOString();
+  if (!prev) card.createdAt ??= now;
+  card.updatedAt = now;
+  if (card.hidden && !prev?.hidden) card.hiddenAt = now;
+  if (!card.hidden) delete card.hiddenAt;
+}
+
 function commit(before, data, cardId, summary) {
   const beforeParsed = JSON.parse(before);
   assertOnlyTouched(beforeParsed, data, cardId);
+  stampCard(beforeParsed, data, cardId);
   const next = serialize(data);
   if (next === before) {
     console.log('no change (data.json already matches the requested state)');
@@ -320,6 +335,7 @@ function cardLine(c, i) {
     c.color ? c.color : '',
     c.complexity ? c.complexity : '',
     c.needsYou ? 'NEEDS YOU' : '',
+    c.updatedAt ? `updated ${c.updatedAt.slice(0, 10)}` : '',
   ].filter(Boolean);
   return `${String(i).padStart(3)}  ${bits.join('  ')}`;
 }
@@ -553,7 +569,12 @@ switch (cmd) {
       requireColumn(data, column);
       cards = cards.filter((c) => c.column === column);
     }
-    if (onlyHidden) cards = cards.filter((c) => c.hidden);
+    // Hidden cards in the board's Hidden column order: most recently hidden
+    // first, then ones with no hiddenAt in board order.
+    if (onlyHidden)
+      cards = cards
+        .filter((c) => c.hidden)
+        .sort((a, b) => (b.hiddenAt ?? '').localeCompare(a.hiddenAt ?? ''));
     else if (!all) cards = cards.filter((c) => !c.hidden);
     cards.forEach((c, i) => console.log(cardLine(c, i)));
     console.log(`\n${cards.length} card(s) shown of ${data.cards.length} total`);
@@ -851,6 +872,10 @@ switch (cmd) {
           if (new Set(c.workspaces).size !== c.workspaces.length) problems.push(`${where}: duplicate workspace id`);
         }
       }
+      for (const key of ['createdAt', 'updatedAt', 'hiddenAt'])
+        if (c[key] !== undefined && (typeof c[key] !== 'string' || Number.isNaN(Date.parse(c[key]))))
+          problems.push(`${where}: ${key} is not an ISO timestamp`);
+      if (c.hiddenAt !== undefined && !c.hidden) problems.push(`${where}: hiddenAt set on a card that isn't hidden`);
       if (c.needsYou !== undefined) {
         const n = c.needsYou;
         if (typeof n?.reason !== 'string' || typeof n?.action !== 'string' || typeof n?.since !== 'string')

@@ -75,8 +75,10 @@ npm run build && npm start   # http://localhost:8787
   and preview together, across your personal account and every team you belong to.
   Per-project show/hide toggles.
 - **Complexity** meter (XS–XL) and per-card color tags for grouping.
-- **Copy prompt for agents**: turns a card into a paste-ready prompt with its
-  title, notes, and links, for handing to a coding agent.
+- **Copy prompt**: turns a card into a paste-ready prompt with its title,
+  notes, and links, for handing to a coding agent. It first asks for optional
+  additional instructions, which go into the prompt marked as overriding the
+  ticket, notes, context, and linked resources.
 - **Agent activity**: link one or more Conductor workspaces to a card and each
   shows as a badge at the top of the card. A badge turns Claude orange and reads
   "Working", with a spinning Claude mark, while an agent is working in that
@@ -90,7 +92,8 @@ npm run build && npm start   # http://localhost:8787
   the flag once nothing is waiting on you anymore. The flag is a solid amber banner in
   the columns you pick in Settings and a muted one everywhere else, so the
   columns you care about stand out without the whole board shouting. You can
-  also clear it yourself from the card editor.
+  also clear it yourself with the check button on the board card or the Clear
+  button in the card editor.
 - **Start in Conductor**: pick a repo on the card (from the repos added to
   Conductor) and the button opens a new Conductor workspace in it, seeded with
   the agent prompt via a `conductor://` deep link. With no repo set, it asks for
@@ -109,7 +112,8 @@ npm run build && npm start   # http://localhost:8787
   Open it from the book icon on a card, or **Open context** in the card
   editor. It's stored as Markdown in `tasks-data/context/<card id>/`, and an
   open page reloads when an agent changes it.
-- **Hide/unhide** cards, with a toggle to reveal hidden ones.
+- **Hide/unhide** cards, with a toggle to reveal hidden ones. The Hidden column
+  lists the most recently hidden first.
 - **Search** (Cmd+K, or the magnifying glass): find any card by title, Linear
   task id, link title, or URL, in that order of priority. Arrow keys pick a
   result and Return opens it, saving and replacing any card already open in
@@ -248,7 +252,9 @@ for the authoritative version):
         { "label": "Issue", "url": "https://linear.app/acme/issue/ENG-42/..." }
       ],
       "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"],
-      "repo": "/Users/jane/code/acme-web"
+      "repo": "/Users/jane/code/acme-web",
+      "createdAt": "2026-10-01T09:12:44.120Z",
+      "updatedAt": "2026-10-04T16:52:16.084Z"
     }
   ],
   "cache": { "prs": {}, "issues": {} },
@@ -271,6 +277,11 @@ Two conveniences worth knowing:
   `hiddenVercelProjects` (project names) leaves those projects out of
   Deployments. Both are case-insensitive and editable on the Settings page.
   PRs from archived repos are always left out of My work.
+- Cards carry optional `createdAt`, `updatedAt`, and `hiddenAt` (while hidden)
+  ISO timestamps, set by the app and the tracker script. The Hidden column lists
+  the most recently hidden cards first. Boards from before these fields work
+  as is; `node scripts/migrate-card-timestamps.mjs` stamps every card that has
+  none with the current time.
 - Any column whose name contains "claude" is treated as a suggestions column and
   moved out of the main board into its own toolbar popover with a count badge.
   It's an ordinary column otherwise, useful as a drop target for an agent that

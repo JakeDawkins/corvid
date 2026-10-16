@@ -14,6 +14,7 @@ import { Deployments } from "./Deployments";
 import { Settings } from "./Settings";
 import { Search } from "./Search";
 import { NeedsYouBanner } from "./NeedsYou";
+import { byHiddenAt, editCard, stamp } from "./cards";
 import { ClaudeLogo } from "./ClaudeLogo";
 import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
@@ -243,7 +244,8 @@ export default function App() {
   function upsertCard(card: Card, changes: Partial<Card>) {
     setData((d) => {
       const live = d.cards.find((c) => c.id === card.id);
-      const next = { ...(live ?? card), ...changes, needsYou: live?.needsYou };
+      if (live && !Object.keys(changes).length) return d;
+      const next = stamp(live, { ...(live ?? card), ...changes, needsYou: live?.needsYou });
       return {
         ...d,
         cards: live
@@ -256,7 +258,7 @@ export default function App() {
   function clearNeedsYou(id: string) {
     setData((d) => ({
       ...d,
-      cards: d.cards.map((c) => (c.id === id ? { ...c, needsYou: undefined } : c)),
+      cards: d.cards.map((c) => (c.id === id ? editCard(c, { needsYou: undefined }) : c)),
     }));
   }
 
@@ -267,7 +269,7 @@ export default function App() {
   function toggleHidden(id: string) {
     setData((d) => ({
       ...d,
-      cards: d.cards.map((c) => (c.id === id ? { ...c, hidden: !c.hidden } : c)),
+      cards: d.cards.map((c) => (c.id === id ? editCard(c, { hidden: !c.hidden }) : c)),
     }));
   }
 
@@ -349,10 +351,12 @@ export default function App() {
       if (column === HIDDEN_COL) {
         return {
           ...d,
-          cards: d.cards.map((c) => (c.id === id ? { ...c, hidden: true } : c)),
+          cards: d.cards.map((c) => (c.id === id && !c.hidden ? editCard(c, { hidden: true }) : c)),
         };
       }
-      const moved = { ...d.cards[idx], column, hidden: false };
+      const card = d.cards[idx];
+      const moved =
+        card.column === column && !card.hidden ? card : editCard(card, { column, hidden: false });
       const rest = d.cards.filter((c) => c.id !== id);
       let insertAt = rest.length;
       for (let i = rest.length - 1; i >= 0; i--) {
@@ -376,11 +380,14 @@ export default function App() {
       if (from === -1 || !target) return d;
       const rest = d.cards.filter((c) => c.id !== id);
       const insertAt = rest.findIndex((c) => c.id === targetId);
-      rest.splice(insertAt, 0, {
-        ...d.cards[from],
-        column: target.column,
-        hidden: target.hidden,
-      });
+      const card = d.cards[from];
+      rest.splice(
+        insertAt,
+        0,
+        card.column === target.column && card.hidden === target.hidden
+          ? card
+          : editCard(card, { column: target.column, hidden: target.hidden }),
+      );
       return { ...d, cards: rest };
     });
   }
@@ -405,13 +412,13 @@ export default function App() {
       const result =
         linkKind(url) === "generic" ? null : await resolveLink(url).catch(() => null);
       const status = result && result.kind !== "unknown" ? result.status : undefined;
-      const card: Card = {
+      const card = stamp(undefined, {
         id: crypto.randomUUID(),
         title: (!status?.error && status?.title) || linkTitle(url),
         column,
         hidden: false,
         links: [{ label: "", url }],
-      };
+      });
       setData((d) => ({
         ...d,
         cards: insertAtColumnTop(d.cards, card),
@@ -436,13 +443,13 @@ export default function App() {
   function addPrCard(status: PrStatus) {
     const column = backlogColumn;
     if (!column) return;
-    const card: Card = {
+    const card = stamp(undefined, {
       id: crypto.randomUUID(),
       title: status.title || status.url,
       column,
       hidden: false,
       links: [{ label: "", url: status.url }],
-    };
+    });
     setData((d) => ({
       ...d,
       cards: insertAtColumnTop(d.cards, card),
@@ -456,13 +463,13 @@ export default function App() {
   function addLinearCard(status: IssueStatus) {
     const column = backlogColumn;
     if (!column) return;
-    const card: Card = {
+    const card = stamp(undefined, {
       id: crypto.randomUUID(),
       title: status.title || status.url,
       column,
       hidden: false,
       links: [{ label: "", url: status.url }],
-    };
+    });
     setData((d) => ({
       ...d,
       cards: insertAtColumnTop(d.cards, card),
@@ -480,7 +487,7 @@ export default function App() {
         if (c.id !== cardId) return c;
         return c.links.some((l) => l.url === item.status.url)
           ? c
-          : { ...c, links: [...c.links, { label: "", url: item.status.url }] };
+          : editCard(c, { links: [...c.links, { label: "", url: item.status.url }] });
       });
       const cache = {
         prs: { ...d.cache?.prs },
@@ -588,8 +595,9 @@ export default function App() {
     return map;
   }, [data]);
 
+  // Most recently hidden first, then the rest in board order.
   const hiddenCards = useMemo(
-    () => data.cards.filter((c) => c.hidden),
+    () => data.cards.filter((c) => c.hidden).sort(byHiddenAt),
     [data],
   );
   const hiddenCount = hiddenCards.length;
@@ -828,7 +836,13 @@ export default function App() {
         </div>
       </div>
 
-      {card.needsYou && <NeedsYouBanner value={card.needsYou} loud={loud} />}
+      {card.needsYou && (
+        <NeedsYouBanner
+          value={card.needsYou}
+          loud={loud}
+          onCheck={() => clearNeedsYou(card.id)}
+        />
+      )}
 
       {card.notes && <div className="card-notes">{m("cardNotes", card.notes)}</div>}
 
@@ -1169,7 +1183,7 @@ export default function App() {
           tab={contextRoute.tab}
           onTab={setContextTab}
           onClose={closeContext}
-          onOpenCard={() => {
+          onEditCard={() => {
             const card = data.cards.find((c) => c.id === contextRoute.cardId);
             if (card) setEditing(card);
           }}
@@ -1178,6 +1192,8 @@ export default function App() {
           agents={agents}
           cache={cache}
           repoNames={data.repoNames}
+          colorTags={data.colorTags}
+          isLoud={isLoud}
         />
       )}
 

@@ -68,7 +68,10 @@ A `Card`:
     "reason": "Plan ready for review",
     "action": "Open the workspace and approve or redirect the plan",
     "since": "2026-10-04T16:52:16.084Z"
-  }
+  },
+  "createdAt": "2026-10-01T09:12:44.120Z",  // optional, ISO timestamps
+  "updatedAt": "2026-10-04T16:52:16.084Z",
+  "hiddenAt": "2026-10-04T16:52:16.084Z"    // only while hidden
 }
 ```
 
@@ -100,6 +103,11 @@ A `Card`:
   and what the user should do. It shows as a banner on the card, high-contrast
   in the columns the user picked in Settings (`needsYouColumns`) and muted
   elsewhere. Use `needs-you` / `clear-needs-you`; never hand-edit it.
+- **`createdAt` / `updatedAt` / `hiddenAt`** are change timestamps. The
+  tracker sets them on every write (createdAt for a new card, updatedAt on any
+  change, hiddenAt when a card is hidden, removed when it's unhidden), and so
+  does the app. Never hand-edit them. Older cards may lack them; that's fine.
+  The Hidden column lists the most recently hidden cards first.
 - `cache` holds the last-fetched PR/Linear statuses. Adding a link does not
   populate it; the badge appears after the user hits **Refresh** in the app.
 
@@ -208,8 +216,11 @@ Each card can have a **project context**: the memory that every agent thread
 working on the card shares. A new thread reads it before it starts, and every
 thread updates it as it works, so the next one starts where the last one
 stopped. The user reads the same content as the card's context page in the app
-(the book icon on the card, or "Open context" in the card editor). It follows
-the structure of the team's project registry template.
+(the book icon on the card, or "Open context" in the card editor): the tabs on
+the left, the open tab in the middle, and a sidebar on the right with the card
+(its links, PR and Linear status, and workspaces) and the project fields (goal,
+status, next step, owner). It follows the structure of the team's project
+registry template.
 
 It lives next to the board, in `tasks-data/context/<card id>/`: a
 `project.json` header and one Markdown file per tab. Use the commands above for
@@ -303,6 +314,10 @@ While you work, update it when:
 - you find or read a useful link (PR, Slack thread, query, doc): `references`
 - the status, owner, or next step changes: `context-set --status ... --next ...`
 
+The project fields show in the page's sidebar, with the next step highlighted.
+Keep `--summary` to a sentence or two, and `--status` and `--next` to one short
+line each. Put the detail in the tabs.
+
 Writing a tab replaces the whole file, so read it first (`context <card> --tab
 <tab>`), edit the full text, and write it back. Use `--append` only to add to
 the end (a new Learn more note, a new reference). Pass the content on stdin
@@ -315,8 +330,8 @@ Rules for the content:
 - Use only verified URLs, as for card links.
 - No credentials, tokens, customer data, or phone numbers. Summarize instead.
 - Keep it short and plain. People scan it, and agents read it starting cold.
-- The page header already shows the card's links and Conductor workspaces.
-  List other workspaces (T3 Code threads, other machines) under an "Agent
+- The page's sidebar already shows the card's links (with live PR and Linear
+  status) and Conductor workspaces. List other workspaces (T3 Code threads, other machines) under an "Agent
   workspaces" group in `references`.
 
 ## Rules

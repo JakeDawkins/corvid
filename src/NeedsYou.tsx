@@ -8,11 +8,15 @@ export function NeedsYouBanner({
   value,
   loud,
   onClear,
+  onCheck,
 }: {
   value: NeedsYou;
   loud: boolean;
   // Shown as a full-height Clear button on the right when set (the card editor).
   onClear?: () => void;
+  // Shown as a check button at the top right when set (board cards). Clicking
+  // it clears the message.
+  onCheck?: () => void;
 }) {
   const { m } = useMask();
   const since = Date.parse(value.since);
@@ -25,6 +29,19 @@ export function NeedsYouBanner({
             <span className="needs-you-since" title={new Date(since).toLocaleString()}>
               {timeAgo(since)}
             </span>
+          )}
+          {onCheck && (
+            <button
+              type="button"
+              className="needs-you-check"
+              onClick={onCheck}
+              title="Done: clear Needs you"
+              aria-label="Done: clear Needs you"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
           )}
         </div>
         {value.reason && <div className="needs-you-reason">{m("needsYou", value.reason)}</div>}

@@ -40,6 +40,12 @@ export type Card = {
   // (e.g. "/Users/jane/code/my-app"), as listed by /api/conductor/repos.
   repo?: string;
   needsYou?: NeedsYou;
+  // ISO timestamps: when the card was created, last changed, and last hidden
+  // (removed when it's unhidden). Cards from before these existed may lack
+  // them, so treat all three as optional.
+  createdAt?: string;
+  updatedAt?: string;
+  hiddenAt?: string;
 };
 
 // A repo added to Conductor. `path` is its root directory.
@@ -174,7 +180,7 @@ export type Inbox = {
 // between them.
 export type ContextType = "regular" | "bug" | "research";
 
-// The header of a card's context page (project.json).
+// A card's project fields (project.json), shown in its context page's sidebar.
 export type ContextProject = {
   type: ContextType;
   summary?: string;
