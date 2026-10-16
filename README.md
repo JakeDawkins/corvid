@@ -78,7 +78,9 @@ npm run build && npm start   # http://localhost:8787
 - **Copy prompt**: turns a card into a paste-ready prompt with its title,
   notes, and links, for handing to a coding agent. It first asks for optional
   additional instructions, which go into the prompt marked as overriding the
-  ticket, notes, context, and linked resources.
+  ticket, notes, context, and linked resources. The prompt also tells the
+  agent to read the code around the change, find edge cases, and ask you
+  about gaps in the spec before building.
 - **Agent activity**: link one or more Conductor workspaces to a card and each
   shows as a badge at the top of the card. A badge turns Claude orange and reads
   "Working", with a spinning Claude mark, while an agent is working in that

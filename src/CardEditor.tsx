@@ -82,6 +82,10 @@ function buildAgentPrompt(card: Card, instructions = ""): string {
   );
   lines.push("");
   lines.push(
+    "Before you write code, read the code around what this change touches (callers, related flows, shared helpers) and list the edge cases it has to handle. If the ticket, notes, or project context leave a gap or are ambiguous about any of them, don't guess: ask me, flagging this card as described below, and record each open question and its answer in the project context.",
+  );
+  lines.push("");
+  lines.push(
     `Whenever you open a pull request for this work, add its URL to this card (Card ID: ${card.id}) on the Corvid board so it stays in sync.`,
   );
   lines.push("");
