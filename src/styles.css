@@ -1480,6 +1480,11 @@ select {
   .context-page { grid-template-columns: 200px minmax(0, 1fr) 290px; }
   .context-main { padding: 20px 24px 80px; }
 }
+/* On very large displays, center the open tab in the middle column instead of
+   leaving a wide gap on its right. */
+@media (min-width: 1800px) {
+  .context-main > * { margin-inline: auto; }
+}
 
 .qa-counts { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
 
