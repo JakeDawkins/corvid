@@ -307,7 +307,7 @@ body {
 }
 
 .card-title-row { display: flex; align-items: flex-start; gap: 6px; }
-.card-title { font-weight: 500; line-height: 1.35; flex: 1; cursor: pointer; }
+.card-title { font-weight: 500; line-height: 1.35; flex: 1; min-width: 0; overflow-wrap: anywhere; cursor: pointer; }
 .card-title:hover { text-decoration: underline; }
 /* Tinted with the card's accent color, darkened in light mode so pale colors
    like yellow stay readable. */
@@ -321,7 +321,7 @@ body {
 }
 :root[data-theme="light"] .card-tag { color: color-mix(in srgb, var(--card-color) 62%, #000); }
 /* Copy/hide actions stay out of the way until the card is hovered or focused. */
-.card-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.12s; }
+.card-actions { display: flex; flex-shrink: 0; gap: 2px; opacity: 0; transition: opacity 0.12s; }
 .card:hover .card-actions,
 .card:focus-within .card-actions { opacity: 1; }
 .card-actions button {
