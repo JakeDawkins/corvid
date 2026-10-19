@@ -49,7 +49,7 @@ export function Settings({
   onClose,
 }: {
   columns: string[];
-  // Cards per column, hidden cards included.
+  // Cards per column, archived cards included.
   cardCounts: Record<string, number>;
   onRenameColumn: (from: string, to: string) => void;
   onAddColumn: (name: string) => void;
@@ -576,7 +576,7 @@ function ColumnRow({
   const error = nameError(next, columns, name);
   const deleteBlocked =
     cardCount > 0
-      ? `Move or delete its ${cardCount} card${cardCount === 1 ? "" : "s"} (including hidden ones) before deleting this column.`
+      ? `Move or delete its ${cardCount} card${cardCount === 1 ? "" : "s"} (including archived ones) before deleting this column.`
       : columns.length === 1
         ? "The board needs at least one column."
         : null;

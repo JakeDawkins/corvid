@@ -4,6 +4,7 @@ import type { AgentsStatus, Cache, Card, Link, NeedsYou } from "./types";
 import { linkKind, parseThreadId } from "./links";
 import { GenericLine, IssueLine, PrLine, ThreadBadge, WorkspaceBadge } from "./Badges";
 import { ClaudeLogo } from "./ClaudeLogo";
+import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { COLORS, textOn } from "./colors";
 import { ComplexityPicker } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
@@ -187,27 +188,6 @@ function EditLink({ editing, onClick }: { editing: boolean; onClick: () => void 
   );
 }
 
-// Icons for the header's icon buttons, in the board's 2px-stroke style.
-function IdCardIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="2" y="5" width="20" height="14" rx="2" />
-      <circle cx="9" cy="11" r="2" />
-      <path d="M6.17 15a3 3 0 0 1 5.66 0" />
-      <path d="M16 10h2" />
-      <path d="M16 14h2" />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}
-
 function RemoveLink({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -264,6 +244,7 @@ export function CardEditor({
   onClearNeedsYou,
   hasContext,
   onOpenContext,
+  canArchive,
   onSave,
   onCancel,
   onDelete,
@@ -289,6 +270,8 @@ export function CardEditor({
   // this editor saves and closes). Absent for a card not yet on the board.
   hasContext: boolean;
   onOpenContext?: () => void;
+  // Whether the header offers Archive/Unarchive (false for a new card).
+  canArchive: boolean;
   // Receives only the fields changed from `card`.
   onSave: (changes: Partial<Card>) => void;
   // Closes without saving (the Discard button).
@@ -548,6 +531,13 @@ export function CardEditor({
 
   const dirty = Object.keys(changedFields(card, finalCard())).length > 0;
 
+  // Archiving saves and closes, since the card leaves the board. Unarchiving
+  // keeps the card open (saved on close), as it's usually brought back to work on.
+  function toggleArchived() {
+    if (draft.hidden) set("hidden", false);
+    else onSave(changedFields(card, { ...finalCard(), hidden: true }));
+  }
+
   function openContext() {
     close();
     onOpenContext?.();
@@ -621,6 +611,17 @@ export function CardEditor({
                 />
               )}
             </div>
+            {canArchive && (
+              <button
+                type="button"
+                className="btn ghost head-icon-btn"
+                title={draft.hidden ? "Unarchive" : "Archive"}
+                aria-label={draft.hidden ? "Unarchive" : "Archive"}
+                onClick={toggleArchived}
+              >
+                {draft.hidden ? <UnarchiveIcon /> : <ArchiveIcon />}
+              </button>
+            )}
           </div>
         </div>
 

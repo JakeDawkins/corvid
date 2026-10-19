@@ -577,7 +577,7 @@ function CardInfo({
       <div className="context-card-meta">
         {tag && <span className="card-tag">{m("colorLabels", tag)}</span>}
         <span className="context-column">{m("columnNames", card.column)}</span>
-        {card.hidden && <span className="context-column">Hidden</span>}
+        {card.hidden && <span className="context-column">Archived</span>}
         <span className="spacer" />
         {card.complexity && <ComplexityBars value={card.complexity} color={card.color} />}
       </div>

@@ -6,7 +6,9 @@
 // ambiguous or empty matches abort instead of guessing.
 //
 // Usage: node tracker.mjs <command> [args] [--dry]
-//   list [--column NAME] [--hidden] [--all]
+// (--hidden still works wherever --archived does; archived cards are stored as
+// "hidden": true.)
+//   list [--column NAME] [--archived] [--all]
 //   show <query>
 //   columns
 //   add-link <query> <url> [--label TEXT] [--first]
@@ -19,9 +21,9 @@
 //   clear-needs-you <query>
 //   set <query> [--title T] [--column C] [--color HEX|none]
 //              [--complexity XS|S|M|L|XL|none] [--notes N]
-//              [--append-notes N] [--hidden true|false]
+//              [--append-notes N] [--archived true|false]
 //   add-card --title T [--column C] [--link URL]... [--color HEX]
-//            [--complexity XS|S|M|L|XL] [--notes N] [--hidden] [--top]
+//            [--complexity XS|S|M|L|XL] [--notes N] [--archived] [--top]
 //   add-column <name> [--after EXISTING]
 //   validate
 //   where                      // print the resolved tasks-data/data.json path and why
@@ -80,6 +82,18 @@ function flag(name) {
   if (v === undefined || v.startsWith('--')) return true;
   argv.splice(i, 2);
   return v;
+}
+// A flag under its new name or its old one (e.g. --archived or --hidden). Both
+// are read so neither is left in argv.
+function flagEither(name, old) {
+  const a = flag(name);
+  const b = flag(old);
+  return a ?? b;
+}
+function bareFlagEither(name, old) {
+  const a = bareFlag(name);
+  const b = bareFlag(old);
+  return a || b;
 }
 function bareFlag(name) {
   const i = argv.indexOf(`--${name}`);
@@ -256,8 +270,8 @@ function appRunning() {
 }
 
 // Set the target card's change timestamps (ISO): updatedAt on any change,
-// createdAt for a new card, and hiddenAt when it becomes hidden (removed when
-// it's unhidden). Mirrors stamp() in src/cards.ts.
+// createdAt for a new card, and hiddenAt when it's archived (removed when it's
+// unarchived). Mirrors stamp() in src/cards.ts.
 function stampCard(beforeData, data, cardId) {
   const prev = beforeData.cards.find((c) => c.id === cardId);
   const card = data.cards.find((c) => c.id === cardId);
@@ -330,7 +344,7 @@ function cardLine(c, i) {
   const bits = [
     short(c.id),
     `[${c.column}]`,
-    c.hidden ? '(hidden)' : '',
+    c.hidden ? '(archived)' : '',
     JSON.stringify(c.title),
     `${c.links.length} link${c.links.length === 1 ? '' : 's'}`,
     c.workspaces?.length ? `${c.workspaces.length} workspace${c.workspaces.length === 1 ? '' : 's'}` : '',
@@ -614,16 +628,16 @@ switch (cmd) {
     printTarget();
     const data = load();
     const column = flag('column');
-    const onlyHidden = bareFlag('hidden');
+    const onlyArchived = bareFlagEither('archived', 'hidden');
     const all = bareFlag('all');
     let cards = data.cards;
     if (column) {
       requireColumn(data, column);
       cards = cards.filter((c) => c.column === column);
     }
-    // Hidden cards in the board's Hidden column order: most recently hidden
-    // first, then ones with no hiddenAt in board order.
-    if (onlyHidden)
+    // Archived cards in the board's Archived column order: most recently
+    // archived first, then ones with no hiddenAt in board order.
+    if (onlyArchived)
       cards = cards
         .filter((c) => c.hidden)
         .sort((a, b) => (b.hiddenAt ?? '').localeCompare(a.hiddenAt ?? ''));
@@ -638,7 +652,7 @@ switch (cmd) {
     for (const col of data.columns) {
       const n = data.cards.filter((c) => c.column === col && !c.hidden).length;
       const h = data.cards.filter((c) => c.column === col && c.hidden).length;
-      console.log(`${col}  —  ${n} visible${h ? `, ${h} hidden` : ''}`);
+      console.log(`${col}  —  ${n} visible${h ? `, ${h} archived` : ''}`);
     }
     const tags = Object.entries(data.colorTags || {});
     if (tags.length) console.log(`\ncolor tags: ${tags.map(([h, n]) => `${n} (${h})`).join(', ')}`);
@@ -790,7 +804,7 @@ switch (cmd) {
     const complexity = flag('complexity');
     const notes = flag('notes');
     const appendNotes = flag('append-notes');
-    const hidden = flag('hidden');
+    const hidden = flagEither('archived', 'hidden');
     const changes = [];
     if (typeof title === 'string') {
       changes.push(`title: ${JSON.stringify(card.title)} -> ${JSON.stringify(title)}`);
@@ -824,11 +838,11 @@ switch (cmd) {
     if (typeof hidden === 'string' || hidden === true) {
       const v = hidden === true ? true : hidden === 'true';
       if (hidden !== true && hidden !== 'true' && hidden !== 'false')
-        die('--hidden takes true or false');
-      changes.push(`hidden: ${card.hidden} -> ${v}`);
+        die('--archived takes true or false');
+      changes.push(`archived: ${card.hidden} -> ${v}`);
       card.hidden = v;
     }
-    if (!changes.length) die('set needs at least one of --title --column --color --complexity --notes --append-notes --hidden');
+    if (!changes.length) die('set needs at least one of --title --column --color --complexity --notes --append-notes --archived');
     commit(before, data, card.id, `updated ${short(card.id)} ${JSON.stringify(card.title)}:\n  ${changes.join('\n  ')}`);
     break;
   }
@@ -842,7 +856,7 @@ switch (cmd) {
     const complexity = flag('complexity');
     const notes = flag('notes');
     const top = bareFlag('top');
-    const hidden = bareFlag('hidden');
+    const hidden = bareFlagEither('archived', 'hidden');
     const links = allFlags('link');
     if (typeof title !== 'string' || !title.trim()) die('add-card requires --title');
     requireColumn(data, column);
@@ -962,7 +976,7 @@ switch (cmd) {
       for (const key of ['createdAt', 'updatedAt', 'hiddenAt'])
         if (c[key] !== undefined && (typeof c[key] !== 'string' || Number.isNaN(Date.parse(c[key]))))
           problems.push(`${where}: ${key} is not an ISO timestamp`);
-      if (c.hiddenAt !== undefined && !c.hidden) problems.push(`${where}: hiddenAt set on a card that isn't hidden`);
+      if (c.hiddenAt !== undefined && !c.hidden) problems.push(`${where}: hiddenAt set on a card that isn't archived`);
       if (c.needsYou !== undefined) {
         const n = c.needsYou;
         if (typeof n?.reason !== 'string' || typeof n?.action !== 'string' || typeof n?.since !== 'string')
@@ -978,6 +992,6 @@ switch (cmd) {
     break;
   }
   default:
-    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 35).join('\n').replace(/^\/\/ ?/gm, ''));
+    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 37).join('\n').replace(/^\/\/ ?/gm, ''));
     process.exit(cmd ? 1 : 0);
 }

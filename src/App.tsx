@@ -16,15 +16,18 @@ import { Search } from "./Search";
 import { NeedsYouBanner } from "./NeedsYou";
 import { byHiddenAt, editCard, stamp } from "./cards";
 import { ClaudeLogo } from "./ClaudeLogo";
+import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
 import { useTheme } from "./theme";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
 
-// Virtual column id for the far-right "Hidden" column. Not a real user column;
-// membership is driven by each card's `hidden` flag rather than its `column`.
-const HIDDEN_COL = "__hidden__";
+// Virtual column id for the far-right "Archived" column. Not a real user
+// column; membership is driven by each card's `hidden` flag rather than its
+// `column`. Archived cards keep the field's original name, `hidden`, so
+// existing boards and agents keep working.
+const ARCHIVED_COL = "__archived__";
 
 // The open context page, from the URL: #/context/<card id>[/<tab>].
 type ContextRoute = { cardId: string; tab?: string };
@@ -65,7 +68,7 @@ function insertAtColumnTop(cards: Card[], card: Card): Card[] {
 export default function App() {
   const [data, setData] = useState<Data>(EMPTY);
   const [loaded, setLoaded] = useState(false);
-  const [showHidden, setShowHidden] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   // Focus mode shows only the columns picked in Settings > Focused columns.
   const [focusMode, setFocusMode] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -236,7 +239,7 @@ export default function App() {
   }
 
   async function doRefresh() {
-    // Skip hidden cards; their cached status is left as-is.
+    // Skip archived cards; their cached status is left as-is.
     const urls = [
       ...new Set(
         data.cards.filter((c) => !c.hidden).flatMap((c) => c.links.map((l) => l.url)),
@@ -280,14 +283,14 @@ export default function App() {
     setData((d) => ({ ...d, cards: d.cards.filter((c) => c.id !== id) }));
   }
 
-  function toggleHidden(id: string) {
+  function toggleArchived(id: string) {
     setData((d) => ({
       ...d,
       cards: d.cards.map((c) => (c.id === id ? editCard(c, { hidden: !c.hidden }) : c)),
     }));
   }
 
-  // Rename a column in place, moving its cards (hidden ones included) with it.
+  // Rename a column in place, moving its cards (archived ones included) with it.
   function renameColumn(from: string, to: string) {
     setData((d) => ({
       ...d,
@@ -381,13 +384,13 @@ export default function App() {
 
   // Move a card to a column, placing it after the column's current last card so
   // it lands at the bottom of that list rather than keeping its old array slot.
-  // Dropping onto the Hidden column hides the card (keeping its real column);
-  // dropping onto a real column unhides it.
+  // Dropping onto the Archived column archives the card (keeping its real
+  // column); dropping onto a real column unarchives it.
   function moveCard(id: string, column: string) {
     setData((d) => {
       const idx = d.cards.findIndex((c) => c.id === id);
       if (idx === -1) return d;
-      if (column === HIDDEN_COL) {
+      if (column === ARCHIVED_COL) {
         return {
           ...d,
           cards: d.cards.map((c) => (c.id === id && !c.hidden ? editCard(c, { hidden: true }) : c)),
@@ -617,7 +620,7 @@ export default function App() {
     return [...repos.values()].sort((a, b) => a.localeCompare(b));
   }, [data.cards, data.cache]);
 
-  // Cards per column, hidden ones included, for the Settings page.
+  // Cards per column, archived ones included, for the Settings page.
   const columnCardCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const c of data.cards) counts[c.column] = (counts[c.column] ?? 0) + 1;
@@ -634,12 +637,12 @@ export default function App() {
     return map;
   }, [data]);
 
-  // Most recently hidden first, then the rest in board order.
-  const hiddenCards = useMemo(
+  // Most recently archived first, then the rest in board order.
+  const archivedCards = useMemo(
     () => data.cards.filter((c) => c.hidden).sort(byHiddenAt),
     [data],
   );
-  const hiddenCount = hiddenCards.length;
+  const archivedCount = archivedCards.length;
   const claudeCount = claudeColumn
     ? cardsByColumn[claudeColumn]?.length ?? 0
     : 0;
@@ -716,11 +719,12 @@ export default function App() {
     cardRefs.current[id]!.scrollIntoView({ behavior: "smooth", block: "center" });
   });
 
-  // Briefly highlight a card (and scroll it into view), unhiding it if needed.
+  // Briefly highlight a card (and scroll it into view), showing the Archived
+  // column if it's archived.
   function highlightCard(id: string) {
     const card = data.cards.find((c) => c.id === id);
     if (!card) return;
-    if (card.hidden) setShowHidden(true);
+    if (card.hidden) setShowArchived(true);
     if (focused && (card.hidden || !focusColumns.includes(card.column))) setFocusMode(false);
     flashCard(id);
     requestAnimationFrame(() =>
@@ -732,7 +736,7 @@ export default function App() {
   }
 
   // Whether a card's "Needs you" message is shown high-contrast: only in the
-  // columns picked in Settings, and never while the card is hidden.
+  // columns picked in Settings, and never while the card is archived.
   const isLoud = (card: Card) =>
     !card.hidden && !!data.needsYouColumns?.includes(card.column);
 
@@ -846,31 +850,10 @@ export default function App() {
             onClick={() => copyCardId(card.id)}
             title={copiedId === card.id ? "Copied ID" : "Copy card ID"}
           >
-            {copiedId === card.id ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
+            {copiedId === card.id ? <CheckIcon size={15} /> : <IdCardIcon size={15} />}
           </button>
-          <button onClick={() => toggleHidden(card.id)} title={card.hidden ? "Unhide" : "Hide"}>
-            {card.hidden ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M9.88 9.88a3 3 0 0 0 4.24 4.24" />
-                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
-                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
-                <line x1="2" y1="2" x2="22" y2="22" />
-              </svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            )}
+          <button onClick={() => toggleArchived(card.id)} title={card.hidden ? "Unarchive" : "Archive"}>
+            {card.hidden ? <UnarchiveIcon size={15} /> : <ArchiveIcon size={15} />}
           </button>
         </div>
       </div>
@@ -1133,27 +1116,27 @@ export default function App() {
 
         {!focused && (
           <div
-            className={`column hidden-column${dragId ? " droppable" : ""}`}
+            className={`column archived-column${dragId ? " droppable" : ""}`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={() => {
-              if (dragId) moveCard(dragId, HIDDEN_COL);
+              if (dragId) moveCard(dragId, ARCHIVED_COL);
               setDragId(null);
               setDragOverId(null);
             }}
           >
             <div className="column-head">
-              <span>Hidden</span>
-              <span className="count">{hiddenCount}</span>
+              <span>Archived</span>
+              <span className="count">{archivedCount}</span>
               <button
-                className="toggle-hidden"
-                onClick={() => setShowHidden((v) => !v)}
-                title={showHidden ? "Hide items" : "Show items"}
+                className="toggle-archived"
+                onClick={() => setShowArchived((v) => !v)}
+                title={showArchived ? "Hide items" : "Show items"}
               >
-                {showHidden ? "Hide" : "Show"}
+                {showArchived ? "Hide" : "Show"}
               </button>
             </div>
-            {showHidden && (
-              <div className="cards">{hiddenCards.map(renderCard)}</div>
+            {showArchived && (
+              <div className="cards">{archivedCards.map(renderCard)}</div>
             )}
           </div>
         )}
@@ -1269,6 +1252,7 @@ export default function App() {
                 }
               : undefined
           }
+          canArchive={data.cards.some((c) => c.id === editing.id)}
           onClearNeedsYou={() => clearNeedsYou(editing.id)}
           onCancel={() => setEditing(null)}
           closeRef={closeEditor}

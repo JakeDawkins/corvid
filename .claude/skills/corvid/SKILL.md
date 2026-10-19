@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace or T3 Code thread to a card, flag a card as needing the user (or clear that flag), create a new card, read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace or T3 Code thread to that card and read its project context, and keep that context current while working on the card.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/archive (hide) a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace or T3 Code thread to a card, flag a card as needing the user (or clear that flag), create a new card, read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace or T3 Code thread to that card and read its project context, and keep that context current while working on the card.
 ---
 
 # Corvid board edits
@@ -57,7 +57,7 @@ A `Card`:
   "id": "447d0491-eaec-465d-8f62-02c30c83a84d",  // uuid, never change it
   "title": "Fix checkout redirect",
   "column": "Done",                 // must be one of columns[]
-  "hidden": true,
+  "hidden": true,                   // archived (the field keeps its old name)
   "notes": "",                      // optional, free text
   "color": "#3b9eff",               // optional, one of the preset hexes below
   "complexity": "M",                // optional, t-shirt size XS|S|M|L|XL
@@ -72,7 +72,7 @@ A `Card`:
   },
   "createdAt": "2026-10-01T09:12:44.120Z",  // optional, ISO timestamps
   "updatedAt": "2026-10-04T16:52:16.084Z",
-  "hiddenAt": "2026-10-04T16:52:16.084Z"    // only while hidden
+  "hiddenAt": "2026-10-04T16:52:16.084Z"    // only while archived
 }
 ```
 
@@ -108,9 +108,9 @@ A `Card`:
   elsewhere. Use `needs-you` / `clear-needs-you`; never hand-edit it.
 - **`createdAt` / `updatedAt` / `hiddenAt`** are change timestamps. The
   tracker sets them on every write (createdAt for a new card, updatedAt on any
-  change, hiddenAt when a card is hidden, removed when it's unhidden), and so
+  change, hiddenAt when a card is archived, removed when it's unarchived), and so
   does the app. Never hand-edit them. Older cards may lack them; that's fine.
-  The Hidden column lists the most recently hidden cards first.
+  The Archived column lists the most recently archived cards first.
 - `cache` holds the last-fetched PR/Linear statuses. Adding a link does not
   populate it; the badge appears after the user hits **Refresh** in the app.
 
@@ -121,7 +121,7 @@ S=.claude/skills/corvid/scripts/tracker.mjs   # or an absolute path to it
 
 node $S where                        # resolved data.json path + card count
 node $S columns                      # columns + card counts + color tags
-node $S list                         # visible cards; --column NAME, --hidden, --all
+node $S list                         # visible cards; --column NAME, --archived, --all
 node $S show <query>                 # full JSON of one card
 node $S add-link <query> <url> [--label TEXT] [--first]
 node $S remove-link <query> <url>
@@ -133,9 +133,9 @@ node $S needs-you <query> --reason TEXT --action TEXT
 node $S clear-needs-you <query>
 node $S set <query> [--title T] [--column C] [--color HEX|NAME|none]
                     [--complexity XS|S|M|L|XL|none]
-                    [--notes N] [--append-notes N] [--hidden true|false]
+                    [--notes N] [--append-notes N] [--archived true|false]
 node $S add-card --title T [--column C] [--link URL]... [--color C]
-                 [--complexity XS|S|M|L|XL] [--notes N] [--hidden] [--top]
+                 [--complexity XS|S|M|L|XL] [--notes N] [--archived] [--top]
 node $S add-column <name> [--after EXISTING]
 node $S validate                     # schema + JSON check
 
@@ -155,6 +155,10 @@ match** — zero or multiple aborts with the candidate list, so a vague query ca
 never edit the wrong card.
 
 Add `--dry` to any mutation to preview it without writing.
+
+"Hidden" is the old name for archived. The board says "Archive", and the
+tracker takes `--archived`; `--hidden` still works as an alias, and the stored
+field is still `hidden`.
 
 ## Workflow
 
@@ -381,7 +385,7 @@ Rules for the content:
   `remove-column`, since it would orphan cards), so confirm the exact name
   first.
 - Deleting a card is not a script command on purpose. If the user wants one
-  gone, prefer `set <query> --hidden true`; only hard-delete if they explicitly
+  gone, prefer archiving it (`set <query> --archived true`); only hard-delete if they explicitly
   ask, and confirm the exact card first.
 - `data.json` is git-ignored, so there is no git history to recover from. Every
   mutation writes a timestamped backup to `~/.pr-tracker-backups/` (last 20

@@ -104,7 +104,7 @@ export function Search({
   onOpen,
   onClose,
 }: {
-  // Cards in board order; hidden ones last.
+  // Cards in board order; archived ones last.
   cards: Card[];
   columns: string[];
   cache: Cache;
@@ -116,7 +116,7 @@ export function Search({
   const [selected, setSelected] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Board order: by column, then position within it, with hidden cards last.
+  // Board order: by column, then position within it, with archived cards last.
   const ordered = useMemo(() => {
     const col = (c: Card) => (c.hidden ? columns.length : columns.indexOf(c.column));
     return [...cards].sort((a, b) => col(a) - col(b));

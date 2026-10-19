@@ -25,6 +25,8 @@ export type Card = {
   id: string;
   title: string;
   column: string;
+  // Archived. Kept under its original name, "hidden", so existing boards and
+  // agents keep working.
   hidden: boolean;
   notes?: string;
   color?: string;
@@ -43,9 +45,9 @@ export type Card = {
   // (e.g. "/Users/jane/code/my-app"), as listed by /api/conductor/repos.
   repo?: string;
   needsYou?: NeedsYou;
-  // ISO timestamps: when the card was created, last changed, and last hidden
-  // (removed when it's unhidden). Cards from before these existed may lack
-  // them, so treat all three as optional.
+  // ISO timestamps: when the card was created, last changed, and last
+  // archived (hiddenAt, removed when it's unarchived). Cards from before these
+  // existed may lack them, so treat all three as optional.
   createdAt?: string;
   updatedAt?: string;
   hiddenAt?: string;
