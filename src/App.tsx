@@ -289,6 +289,18 @@ export default function App() {
     setData((d) => ({ ...d, columns: [...d.columns, name] }));
   }
 
+  // Swap a column with its neighbor; `delta` is -1 to move it left, 1 to move it right.
+  function moveColumn(name: string, delta: -1 | 1) {
+    setData((d) => {
+      const from = d.columns.indexOf(name);
+      const to = from + delta;
+      if (from < 0 || to < 0 || to >= d.columns.length) return d;
+      const columns = [...d.columns];
+      [columns[from], columns[to]] = [columns[to], columns[from]];
+      return { ...d, columns };
+    });
+  }
+
   // Only offered for empty columns, so no cards need to move.
   function deleteColumn(name: string) {
     setData((d) => ({
@@ -1151,6 +1163,7 @@ export default function App() {
           onRenameColumn={renameColumn}
           onAddColumn={addColumn}
           onDeleteColumn={deleteColumn}
+          onMoveColumn={moveColumn}
           needsYouColumns={data.needsYouColumns ?? []}
           onSetNeedsYouColumn={(col, on) => setColumnFlag("needsYouColumns", col, on)}
           highlightedColumns={data.highlightedColumns ?? []}

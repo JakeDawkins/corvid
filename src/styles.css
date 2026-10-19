@@ -978,6 +978,12 @@ select {
 .settings-row-main .btn { white-space: nowrap; }
 .settings-row-main > span { display: flex; }
 .settings-add { margin-top: 16px; }
+/* Up/down arrows that reorder a column row. */
+.settings-reorder { display: flex; flex: none; align-items: center; }
+.settings-reorder .btn { padding: 2px 3px; color: var(--muted); }
+.settings-reorder .btn:hover:not(:disabled) { color: var(--text); }
+.settings-reorder .btn:disabled { opacity: 0.3; }
+.settings-reorder svg { display: block; }
 .settings-section + .settings-section { margin-top: 28px; }
 .settings-name { flex: 1; align-items: center; }
 .settings-pills { display: flex; flex-wrap: wrap; gap: 6px; }

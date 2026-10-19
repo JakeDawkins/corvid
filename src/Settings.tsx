@@ -24,6 +24,7 @@ export function Settings({
   onRenameColumn,
   onAddColumn,
   onDeleteColumn,
+  onMoveColumn,
   needsYouColumns,
   onSetNeedsYouColumn,
   highlightedColumns,
@@ -51,6 +52,7 @@ export function Settings({
   onRenameColumn: (from: string, to: string) => void;
   onAddColumn: (name: string) => void;
   onDeleteColumn: (name: string) => void;
+  onMoveColumn: (name: string, delta: -1 | 1) => void;
   needsYouColumns: string[];
   onSetNeedsYouColumn: (column: string, loud: boolean) => void;
   highlightedColumns: string[];
@@ -107,16 +109,21 @@ export function Settings({
 
         <section className="settings-section">
           <h3>Columns</h3>
-          <p className="hint">Renaming a column keeps all of its cards in it. Only empty columns can be deleted.</p>
-          {columns.map((col) => (
+          <p className="hint">
+            Columns appear on the board in this order. Renaming a column keeps all of its cards in it.
+            Only empty columns can be deleted.
+          </p>
+          {columns.map((col, i) => (
             // Keyed by name so the row resets to the new name after a rename.
             <ColumnRow
               key={col}
               name={col}
+              index={i}
               columns={columns}
               cardCount={cardCounts[col] ?? 0}
               onRename={onRenameColumn}
               onDelete={onDeleteColumn}
+              onMove={onMoveColumn}
             />
           ))}
           <form
@@ -481,16 +488,20 @@ function HiddenVercelProjects({
 
 function ColumnRow({
   name,
+  index,
   columns,
   cardCount,
   onRename,
   onDelete,
+  onMove,
 }: {
   name: string;
+  index: number;
   columns: string[];
   cardCount: number;
   onRename: (from: string, to: string) => void;
   onDelete: (name: string) => void;
+  onMove: (name: string, delta: -1 | 1) => void;
 }) {
   const { m, on } = useMask();
   const [value, setValue] = useState(name);
@@ -506,7 +517,9 @@ function ColumnRow({
 
   // Columns whose special behavior is tied to their name.
   let hint: string | null = null;
-  if (CLAUDE_MATCH.test(name)) {
+  if (CLAUDE_MATCH.test(name) && index === 0) {
+    hint = "New cards fall back to the first column when there's no Backlog or Todo column, so keep a regular column above this one.";
+  } else if (CLAUDE_MATCH.test(name)) {
     hint = CLAUDE_MATCH.test(next)
       ? 'Shown in the Suggested popover while its name contains "claude". The suggested-tasks routine writes to it by name.'
       : 'Without "claude" in the name, this becomes a regular board column and the suggested-tasks routine can\'t find it.';
@@ -529,6 +542,32 @@ function ColumnRow({
       }}
     >
       <div className="settings-row-main">
+        <div className="settings-reorder">
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={index === 0}
+            onClick={() => onMove(name, -1)}
+            title="Move up"
+            aria-label={`Move ${m("columnNames", name)} up`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            disabled={index === columns.length - 1}
+            onClick={() => onMove(name, 1)}
+            title="Move down"
+            aria-label={`Move ${m("columnNames", name)} down`}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
         <input
           value={m("columnNames", value)}
           readOnly={on("columnNames")}
