@@ -15,7 +15,7 @@
     "dompurify": "^3.4.16",
     "express": "^4.21.2",
     "marked": "^18.1.0",
-    "mermaid": "^12.1.0"
+    "pele": "^1.6.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",

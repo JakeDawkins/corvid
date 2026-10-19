@@ -1566,6 +1566,17 @@ select {
   background: var(--panel);
   overflow-x: auto;
   text-align: center;
+  /* Pele diagram colors, from the theme so they follow light and dark. */
+  --pele-bg: var(--panel);
+  --pele-fg: var(--text);
+  --pele-muted: var(--muted);
+  --pele-line: var(--text);
+  --pele-surface: var(--panel-2);
+  --pele-surface-alt: var(--bg);
+  --pele-border: var(--muted);
+  --pele-accent: var(--accent);
+  --pele-critical: var(--bad);
+  --pele-error: var(--bad);
 }
 .mermaid-diagram svg { max-width: 100%; height: auto; }
 .mermaid-error {
@@ -1606,6 +1617,3 @@ select {
 .decision-history > summary::-webkit-details-marker { display: none; }
 .decision-history > summary h2::before { content: "▸ "; color: var(--muted); }
 .decision-history[open] > summary h2::before { content: "▾ "; }
-/* Mermaid adds an empty tooltip box to <body>; keep it out of the page flow so
-   it doesn't add a scrollbar. */
-body > .mermaidTooltip { position: absolute; }

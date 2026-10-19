@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
+import type { Mounted } from "pele/lazy";
 
 // Context tabs are Markdown written by agents and by hand. They render as
 // GitHub-flavored Markdown, sanitized, with three additions: ```mermaid blocks
@@ -87,30 +88,32 @@ export function countStatuses(md: string, statuses: readonly string[]): Record<s
   return counts;
 }
 
-let mermaidId = 0;
-
-async function renderMermaid(pre: HTMLElement, code: string) {
+// Pele renders the diagram and its colors come from CSS variables, so theme
+// switches need no re-render. mountAsync loads only the diagram type in use and
+// re-lays out the diagram when its box resizes.
+function renderMermaid(pre: HTMLElement, code: string): () => void {
   const box = document.createElement("div");
   box.className = "mermaid-diagram";
   pre.replaceWith(box);
-  try {
-    const { default: mermaid } = await import("mermaid");
-    const light = document.documentElement.dataset.theme === "light";
-    // Without suppressErrorRendering, a syntax error leaves Mermaid's bomb
-    // graphic appended to <body>; the error box below shows the error instead.
-    mermaid.initialize({
-      startOnLoad: false,
-      securityLevel: "strict",
-      suppressErrorRendering: true,
-      theme: light ? "default" : "dark",
-    });
-    const { svg, bindFunctions } = await mermaid.render(`mermaid-${++mermaidId}`, code);
-    box.innerHTML = svg;
-    bindFunctions?.(box);
-  } catch (e) {
+  let mounted: Mounted | undefined;
+  let gone = false;
+  const showError = (e: unknown) => {
+    mounted?.destroy();
     box.className = "mermaid-error";
     box.textContent = `Diagram error: ${e instanceof Error ? e.message : String(e)}\n\n${code}`;
-  }
+  };
+  import("pele/lazy")
+    .then(({ mountAsync }) => mountAsync(box, code, { onError: showError }))
+    .then((m) => {
+      mounted = m;
+      if (gone) m.destroy();
+      else if (m.error) showError(m.error);
+    })
+    .catch(showError);
+  return () => {
+    gone = true;
+    mounted?.destroy();
+  };
 }
 
 export type Heading = { id: string; text: string; level: number };
@@ -146,9 +149,9 @@ export function Markdown({
       chip.append(...td.childNodes);
       td.append(chip);
     }
-    for (const code of el.querySelectorAll<HTMLElement>("pre > code.language-mermaid")) {
-      void renderMermaid(code.parentElement!, code.textContent ?? "");
-    }
+    const diagrams = [...el.querySelectorAll<HTMLElement>("pre > code.language-mermaid")].map((code) =>
+      renderMermaid(code.parentElement!, code.textContent ?? ""),
+    );
     const used = new Set<string>();
     const headings: Heading[] = [];
     for (const h of el.querySelectorAll<HTMLElement>("h2, h3")) {
@@ -159,6 +162,7 @@ export function Markdown({
       headings.push({ id, text: h.textContent ?? "", level: h.tagName === "H2" ? 2 : 3 });
     }
     onHeadings?.(headings);
+    return () => diagrams.forEach((destroy) => destroy());
   }, [html]);
 
   return <div ref={ref} className={`markdown ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
