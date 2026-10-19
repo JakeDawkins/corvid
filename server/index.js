@@ -656,11 +656,66 @@ async function fetchConductorRepos() {
   }
 }
 
-// Workspace ids linked on any card, read from disk so a link added by the UI or
-// a skill is picked up on the next poll.
-async function linkedWorkspaceIds() {
+// ---------------- T3 Code (thread titles and activity) ----------------
+// T3 Code keeps its threads in a local SQLite file too. We read the title,
+// archived state, and whether a run is in progress for each thread linked on a
+// card, plus the environment id its t3code:// deep links need. Like Conductor,
+// the schema is internal, so a failure only means no thread info.
+const T3_HOME = process.env.T3CODE_HOME || join(homedir(), '.t3');
+const T3_DB = process.env.T3_DB || join(T3_HOME, 'userdata', 'statev2.sqlite');
+const T3_ENV_FILE = join(T3_HOME, 'userdata', 'environment-id');
+// Run states T3 treats as unfinished. "waiting" is a run paused on the user.
+const T3_WORKING = ['queued', 'preparing', 'starting', 'running'];
+
+async function fetchThreads(ids) {
+  const wanted = [...new Set(ids)].filter((id) => UUID_RE.test(id));
+  if (!wanted.length || !existsSync(T3_DB)) return {};
+  let environmentId;
+  try {
+    environmentId = (await readFile(T3_ENV_FILE, 'utf8')).trim() || undefined;
+  } catch {
+    // No environment id: show titles without a deep link.
+  }
+  const list = wanted.map((id) => `'${id}'`).join(',');
+  const working = T3_WORKING.map((s) => `'${s}'`).join(',');
+  const sql = `
+    select t.thread_id as id, t.title as title, t.archived_at as archived,
+      max(case when r.status in (${working}) then 2 when r.status = 'waiting' then 1 else 0 end) as active
+    from orchestration_v2_projection_threads t
+    left join orchestration_v2_projection_runs r on r.thread_id = t.thread_id
+    where t.thread_id in (${list}) and t.deleted_at is null
+    group by t.thread_id`;
+  try {
+    const { stdout } = await execFileP(
+      'sqlite3',
+      ['-readonly', '-json', '-cmd', '.timeout 2000', T3_DB, sql],
+      { maxBuffer: 8 * 1024 * 1024 },
+    );
+    const rows = stdout.trim() ? JSON.parse(stdout) : [];
+    const out = {};
+    for (const r of rows) {
+      out[r.id] = {
+        title: r.title || undefined,
+        environmentId,
+        archived: !!r.archived,
+        activity: r.active === 2 ? 'working' : r.active === 1 ? 'waiting' : 'idle',
+      };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+// Workspace and T3 thread ids linked on any card, read from disk so a link
+// added by the UI or a skill is picked up on the next poll.
+async function linkedAgentIds() {
   const data = await readData();
-  return (data.cards || []).flatMap((c) => (Array.isArray(c.workspaces) ? c.workspaces : []));
+  const cards = data.cards || [];
+  return {
+    workspaces: cards.flatMap((c) => (Array.isArray(c.workspaces) ? c.workspaces : [])),
+    threads: cards.flatMap((c) => (Array.isArray(c.threads) ? c.threads : [])),
+  };
 }
 
 // ---------------- app ----------------
@@ -678,7 +733,8 @@ app.put('/api/data', async (req, res) => {
 
 // Server-sent events stream. The browser subscribes and reloads data.json when
 // it changes on disk from outside the UI (e.g. a skill editing the file). It
-// also carries `agents` events with the Conductor status of linked workspaces.
+// also carries `agents` events with the Conductor status of linked workspaces
+// and the T3 Code status of linked threads.
 const sseClients = new Set();
 function broadcastDataChanged() {
   for (const res of sseClients) res.write('event: data\ndata: {}\n\n');
@@ -692,7 +748,12 @@ function writeAgents(res, payload) {
 }
 
 async function pollAgents() {
-  const payload = JSON.stringify(await fetchWorkspaces(await linkedWorkspaceIds()));
+  const ids = await linkedAgentIds();
+  const [workspaces, threads] = await Promise.all([
+    fetchWorkspaces(ids.workspaces),
+    fetchThreads(ids.threads),
+  ]);
+  const payload = JSON.stringify({ ...workspaces, threads });
   if (payload === lastAgents) return;
   lastAgents = payload;
   for (const res of sseClients) writeAgents(res, payload);

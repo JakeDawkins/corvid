@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace to a card, flag a card as needing the user (or clear that flag), create a new card, read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace to that card and read its project context, and keep that context current while working on the card.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/hide a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace or T3 Code thread to a card, flag a card as needing the user (or clear that flag), create a new card, read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace or T3 Code thread to that card and read its project context, and keep that context current while working on the card.
 ---
 
 # Corvid board edits
@@ -63,7 +63,8 @@ A `Card`:
   "complexity": "M",                // optional, t-shirt size XS|S|M|L|XL
   "links": [ { "label": "", "url": "https://..." } ],
   "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"],  // optional
-  "repo": "/Users/jane/code/acme-web",  // optional, Conductor repo root path
+  "threads": ["2ffc0a11-3b4c-480b-aebd-f1cab0a3a8cd"],     // optional, T3 Code thread ids
+  "repo": "/Users/jane/code/acme-web",  // optional, legacy Conductor repo root path
   "needsYou": {                     // optional, set/cleared by agents
     "reason": "Plan ready for review",
     "action": "Open the workspace and approve or redirect the plan",
@@ -96,9 +97,11 @@ A `Card`:
   orange "Working" badge while an agent is working in that workspace, or a softer "Waiting" badge while the agent is
   idle but has a background task or scheduled wakeup pending. Use `link-workspace` / `unlink-workspace`; never
   hand-edit it.
-- **`repo`** is an optional Conductor repo root path. The app's "Start in
-  Conductor" button opens new workspaces for the card there. It's set from the
-  app; leave it alone unless the user asks.
+- **`threads`** is an optional list of T3 Code thread ids (UUIDs). Each shows
+  as a T3 badge with the thread's title, linking to the thread in T3 Code. Use
+  `link-thread` / `unlink-thread`; never hand-edit it.
+- **`repo`** is a legacy Conductor repo root path from the removed "Start in
+  Conductor" button. Leave it alone.
 - **`needsYou`** marks a card as waiting on the user: why the agent stopped
   and what the user should do. It shows as a banner on the card, high-contrast
   in the columns the user picked in Settings (`needsYouColumns`) and muted
@@ -124,6 +127,8 @@ node $S add-link <query> <url> [--label TEXT] [--first]
 node $S remove-link <query> <url>
 node $S link-workspace <query> [workspace-id]     # default: $CONDUCTOR_WORKSPACE_ID
 node $S unlink-workspace <query> [workspace-id]   # default: $CONDUCTOR_WORKSPACE_ID
+node $S link-thread <query> [thread-id]           # default: the T3 Code thread in this directory
+node $S unlink-thread <query> <thread-id>
 node $S needs-you <query> --reason TEXT --action TEXT
 node $S clear-needs-you <query>
 node $S set <query> [--title T] [--column C] [--color HEX|NAME|none]
@@ -144,7 +149,7 @@ EOF
 
 `<query>` picks the card by uuid, uuid prefix (4+ chars), a case-insensitive
 substring of the title, a substring of any link URL, or an exact linked
-workspace id (so `show $CONDUCTOR_WORKSPACE_ID` finds the card this workspace
+workspace or T3 thread id (so `show $CONDUCTOR_WORKSPACE_ID` finds the card this workspace
 is working on). **Exactly one card must
 match** — zero or multiple aborts with the candidate list, so a vague query can
 never edit the wrong card.
@@ -181,6 +186,23 @@ to work on (the "Card ID" in a copied agent prompt, or one the user named). Don'
 link a workspace to a card you are merely reading or editing on the user's
 behalf, and don't guess a card from the branch name. Outside Conductor the
 variable is unset and the command fails; skip it there.
+
+## Linking a T3 Code thread
+
+When you start working on a card from inside T3 Code, link your thread the same
+way:
+
+```bash
+node $S link-thread <card id>
+```
+
+T3 Code doesn't expose the thread id to agents, so with no id the command finds
+the one non-archived T3 thread whose worktree is the current git checkout. If
+none or several match (e.g. several threads share the main checkout), it fails
+and lists them; then pass your thread id if you know it, or skip linking. It
+also accepts a `t3code://threads/<environment>/<thread>` link. It's a no-op if
+the card already has that thread. The same rules apply as for workspaces: only
+the card you were told to work on.
 
 ## Flagging a card that needs the user
 
@@ -331,8 +353,8 @@ Rules for the content:
 - No credentials, tokens, customer data, or phone numbers. Summarize instead.
 - Keep it short and plain. People scan it, and agents read it starting cold.
 - The page's sidebar already shows the card's links (with live PR and Linear
-  status) and Conductor workspaces. List other workspaces (T3 Code threads, other machines) under an "Agent
-  workspaces" group in `references`.
+  status), Conductor workspaces, and T3 Code threads. List other workspaces
+  (other machines) under an "Agent workspaces" group in `references`.
 
 ## Rules
 

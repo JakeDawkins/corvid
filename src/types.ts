@@ -36,6 +36,9 @@ export type Card = {
   // A card can span several workspaces, e.g. one per repo. The board shows an
   // activity indicator while an agent is working in any of them.
   workspaces?: string[];
+  // T3 Code thread ids for this card, so the board shows where it already has
+  // a conversation. Linked like workspaces, by an agent or by pasting the id.
+  threads?: string[];
   // Root path of the Conductor repo to start new workspaces for this card in
   // (e.g. "/Users/jane/code/my-app"), as listed by /api/conductor/repos.
   repo?: string;
@@ -70,11 +73,24 @@ export type WorkspaceStatus = {
   wakeAt?: string;
 };
 
+// Live T3 Code status for one linked thread, read from T3's local database.
+export type ThreadStatus = {
+  title?: string;
+  // T3's environment id, needed for the t3code:// deep link.
+  environmentId?: string;
+  archived?: boolean;
+  // working: a run is in progress. waiting: a run is paused on the user (an
+  // approval or a question). idle: neither.
+  activity: "working" | "waiting" | "idle";
+};
+
 export type AgentsStatus = {
   workspaces: Record<string, WorkspaceStatus>;
   error?: string;
   // Conductor's database couldn't be opened because the app is closed.
   notRunning?: boolean;
+  // Linked T3 Code threads, keyed by thread id. Ids T3 doesn't know are absent.
+  threads?: Record<string, ThreadStatus>;
 };
 
 export type PrStatus = {
@@ -130,6 +146,10 @@ export type Data = {
   highlightedColumns?: string[];
   // Board columns shown in focus mode, toggled from the header.
   focusColumns?: string[];
+  // Where the card detail view's advance button moves a card, keyed by its
+  // current column. A column with no entry advances to the next column on the
+  // board; an empty string turns the button off for that column.
+  nextColumns?: Record<string, string>;
 };
 
 // A Vercel project (personal or under a team), used for the Deployments sidebar.

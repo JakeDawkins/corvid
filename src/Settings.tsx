@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH } from "./columns";
+import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
 import { loadVercelProjects } from "./api";
 import { COLORS } from "./colors";
 import { hasName } from "./links";
@@ -31,6 +31,8 @@ export function Settings({
   onSetHighlightedColumn,
   focusColumns,
   onSetFocusColumn,
+  nextColumns,
+  onSetNextColumn,
   hiddenRepos,
   knownRepos,
   onSetRepoHidden,
@@ -59,6 +61,9 @@ export function Settings({
   onSetHighlightedColumn: (column: string, on: boolean) => void;
   focusColumns: string[];
   onSetFocusColumn: (column: string, on: boolean) => void;
+  nextColumns: Record<string, string>;
+  // A column name, "" for none, or undefined for the next column on the board.
+  onSetNextColumn: (column: string, target: string | undefined) => void;
   hiddenRepos: string[];
   // "owner/repo" slugs seen on the board, offered as suggestions.
   knownRepos: string[];
@@ -151,6 +156,7 @@ export function Settings({
           </form>
         </section>
 
+        <NextColumns columns={columns} nextColumns={nextColumns} onSet={onSetNextColumn} />
         <ColumnPicker
           title="Highlighted columns"
           hint="Selected columns sit in a full-height lane so they stand out on the board."
@@ -213,6 +219,66 @@ function ImportExport({
           }}
         />
       </div>
+    </section>
+  );
+}
+
+// Value of the "next column on the board" option; real column names can't
+// collide with it in practice.
+const NEXT_DEFAULT = "\u0000default";
+
+// Where each column's cards go from the advance button in the card detail
+// view. Unset columns follow board order.
+function NextColumns({
+  columns,
+  nextColumns,
+  onSet,
+}: {
+  columns: string[];
+  nextColumns: Record<string, string>;
+  onSet: (column: string, target: string | undefined) => void;
+}) {
+  const { m } = useMask();
+  return (
+    <section className="settings-section">
+      <h3>Next column</h3>
+      <p className="hint">
+        The arrow button next to the column picker in a card's detail view moves the card to the
+        column picked here. The default is the next column on the board. None hides the button.
+      </p>
+      {columns.map((col) => {
+        const fallback = nextColumn(columns, col);
+        const set = nextColumns[col];
+        const value = set === undefined || (set && !columns.includes(set)) ? NEXT_DEFAULT : set;
+        return (
+          <div className="settings-row" key={col}>
+            <label className="settings-row-main settings-next">
+              <span className="settings-name">{m("columnNames", col)}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12h14" />
+                <path d="m13 6 6 6-6 6" />
+              </svg>
+              <select
+                value={value}
+                aria-label={`Next column after ${m("columnNames", col)}`}
+                onChange={(e) =>
+                  onSet(col, e.target.value === NEXT_DEFAULT ? undefined : e.target.value)
+                }
+              >
+                <option value={NEXT_DEFAULT}>
+                  {fallback ? `${m("columnNames", fallback)} (default)` : "None (default)"}
+                </option>
+                {columns
+                  .filter((c) => c !== col)
+                  .map((c) => (
+                    <option key={c} value={c}>{m("columnNames", c)}</option>
+                  ))}
+                <option value="">None</option>
+              </select>
+            </label>
+          </div>
+        );
+      })}
     </section>
   );
 }

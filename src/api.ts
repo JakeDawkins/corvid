@@ -1,7 +1,6 @@
 import type {
   Cache,
   CardContext,
-  ConductorRepo,
   ContextIndex,
   ContextProject,
   ContextType,
@@ -80,20 +79,6 @@ export async function loadVercelDeployments(
     error?: string;
   };
   return { deployments: data.deployments ?? {}, error: data.error };
-}
-
-export async function loadConductorRepos(): Promise<{
-  repos: ConductorRepo[];
-  error?: string;
-  notRunning?: boolean;
-}> {
-  const res = await fetch("/api/conductor/repos");
-  const data = (await res.json()) as {
-    repos?: ConductorRepo[];
-    error?: string;
-    notRunning?: boolean;
-  };
-  return { repos: data.repos ?? [], error: data.error, notRunning: data.notRunning };
 }
 
 export async function refresh(

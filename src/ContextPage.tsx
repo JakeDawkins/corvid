@@ -12,7 +12,7 @@ import type {
 } from "./types";
 import { createContext, loadContext, saveContextProject, saveContextTab } from "./api";
 import { domainName, linkKind } from "./links";
-import { CardLink, IssueLine, PrLine, WorkspaceTag, resourceLabel } from "./Badges";
+import { CardLink, IssueLine, PrLine, ThreadBadge, WorkspaceTag, resourceLabel } from "./Badges";
 import { ComplexityBars } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
 import { Markdown, countStatuses, statusClass } from "./Markdown";
@@ -554,7 +554,7 @@ export function ContextPage({
 }
 
 // The card itself, as on the board: color tag, column, and size, then the
-// title, the "Needs you" message, notes, and linked workspaces.
+// title, the "Needs you" message, notes, and linked workspaces and threads.
 function CardInfo({
   card,
   agents,
@@ -597,10 +597,13 @@ function CardInfo({
           {notesOpen ? "Show less" : "Show all notes"}
         </button>
       )}
-      {!!card.workspaces?.length && (
+      {(!!card.workspaces?.length || !!card.threads?.length) && (
         <div className="context-workspaces">
-          {card.workspaces.map((id) => (
+          {card.workspaces?.map((id) => (
             <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
+          ))}
+          {card.threads?.map((id) => (
+            <ThreadBadge key={id} id={id} status={agents.threads?.[id]} compact />
           ))}
         </div>
       )}

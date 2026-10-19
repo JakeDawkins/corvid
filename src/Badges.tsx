@@ -1,7 +1,8 @@
-import type { IssueStatus, LinearResource, PrStatus, WorkspaceStatus } from "./types";
+import type { IssueStatus, LinearResource, PrStatus, ThreadStatus, WorkspaceStatus } from "./types";
 import { useMask } from "./mask";
 import { domainName } from "./links";
 import { ClaudeLogo } from "./ClaudeLogo";
+import { T3Logo } from "./T3Logo";
 
 // A small glyph per resource type so Figma designs and Notion specs are
 // scannable at a glance among a card's linked resources.
@@ -10,6 +11,17 @@ const RESOURCE_ICON: Record<NonNullable<LinearResource["type"]>, string> = {
   notion: "▤",
   link: "↗",
 };
+
+// Site names for links whose title is fetched for us, shown as "Site - Title"
+// so the kind of link reads at a glance.
+const RESOURCE_SITE: Partial<Record<NonNullable<LinearResource["type"]>, string>> = {
+  figma: "Figma",
+  notion: "Notion",
+};
+
+export function siteTitle(site: string, title?: string): string {
+  return title ? `${site} - ${title}` : site;
+}
 
 // A card link as plain muted text with a small icon: the link glyph for the
 // card's own links, or a resource glyph for docs pulled from its Linear items.
@@ -33,7 +45,7 @@ export function CardLink({
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
         </svg>
       )}
-      <span>{label}</span>
+      <span>{type && RESOURCE_SITE[type] ? siteTitle(RESOURCE_SITE[type]!, label) : label}</span>
     </a>
   );
 }
@@ -119,6 +131,49 @@ export function WorkspaceBadge({ id, status }: { id: string; status?: WorkspaceS
         {name}
         {archived && " (archived)"}
       </span>
+    </a>
+  );
+}
+
+// A linked T3 Code thread: the T3 mark and the thread's title, or its id cut
+// to 8 characters when T3 doesn't know it (deleted, or another machine). Links
+// to the thread in the T3 Code app. Like a workspace, it turns Claude orange
+// with "Working" while a run is in progress, or "Waiting" while one is paused
+// on the user.
+export function ThreadBadge({
+  id,
+  status,
+  compact,
+}: {
+  id: string;
+  status?: ThreadStatus;
+  // The board card's footer style, instead of a chip.
+  compact?: boolean;
+}) {
+  const { m } = useMask();
+  const activity = status?.activity ?? "idle";
+  const name = status?.title ? m("threadTitles", status.title) : id.slice(0, 8);
+  const title = status
+    ? [`Open "${name}" in T3 Code`, `Thread ${id}`].join("\n")
+    : `T3 Code thread ${id}\nNot found in T3 Code`;
+  const href = status?.environmentId
+    ? `t3code://threads/${encodeURIComponent(status.environmentId)}/${encodeURIComponent(id)}`
+    : undefined;
+  const text = `${name}${status?.archived ? " (archived)" : ""}`;
+  // No target: a custom-scheme link hands off to the app without opening a tab.
+  return compact ? (
+    <a href={href} className={`workspace-tag ${activity}`} title={title}>
+      <T3Logo />
+      <span>
+        {activity !== "idle" && `${ACTIVITY_LABEL[activity]} · `}
+        {text}
+      </span>
+    </a>
+  ) : (
+    <a href={href} className={`chip workspace-badge ${activity}`} title={title}>
+      <T3Logo />
+      {activity !== "idle" && <span className="workspace-badge-state">{ACTIVITY_LABEL[activity]}</span>}
+      <span>{text}</span>
     </a>
   );
 }
@@ -268,8 +323,10 @@ export function PrLine({
     >
       <span className={`status-dot ${prCardClass(status)}`} />
       <span className="status-label">
-        {detailed && status?.title && (
-          <span className="status-title">{m("prTitles", status.title)}</span>
+        {detailed && (
+          <span className="status-title">
+            {siteTitle("GitHub", status?.title && m("prTitles", status.title))}
+          </span>
         )}
         <span className="status-name">{m("repoNames", repo)}</span>
         {number && <span className="status-num">#{number}</span>}
@@ -336,10 +393,19 @@ export function IssueLine({
         style={{ background: (!status?.error && status?.stateColor) || "var(--muted)" }}
       />
       <span className="status-label">
-        {detailed && status?.title && label !== m("linearTitles", status.title) && (
-          <span className="status-title">{m("linearTitles", status.title)}</span>
+        {detailed ? (
+          <>
+            <span className="status-title">
+              {siteTitle("Linear", status?.title && m("linearTitles", status.title))}
+            </span>
+            {/* A project's label is its title, already shown. */}
+            {label !== m("linearTitles", status?.title) && label !== "Linear" && (
+              <span className="status-name">{label}</span>
+            )}
+          </>
+        ) : (
+          <span className="status-name">{label}</span>
         )}
-        <span className="status-name">{label}</span>
       </span>
       <span className="status-meta">
         {status?.error ? <span className="bad">Error</span> : status?.stateName}

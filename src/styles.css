@@ -416,8 +416,9 @@ body {
 /* Footer: color tag, complexity, and linked workspaces. */
 .card-foot {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 10px;
   padding-top: 8px;
   border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   font-size: 11px;
@@ -442,6 +443,7 @@ body {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  max-width: 100%;
   color: var(--muted);
   text-decoration: none;
 }
@@ -450,6 +452,7 @@ body {
 .workspace-tag.waiting { color: var(--text); }
 .workspace-tag.waiting .claude-logo { fill: var(--claude); }
 .workspace-tag .claude-logo { width: 12px; height: 12px; fill: currentColor; }
+.workspace-tag .t3-logo { width: 12px; height: 12px; }
 .workspace-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Complexity meter on a card: five segments, filled to the size's rank. */
@@ -564,8 +567,36 @@ body {
   justify-content: space-between;
   gap: 12px;
 }
-.modal-head-actions { display: flex; gap: 6px; }
-.modal-head-actions .repo-pick { width: auto; padding: 6px 8px; }
+.modal-head-actions { display: flex; align-items: center; gap: 2px; }
+/* Icon buttons in the card detail view's header: copy card ID, copy prompt. */
+.btn.head-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--muted);
+}
+.btn.head-icon-btn:hover,
+.btn.head-icon-btn.active { color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.head-icon-btn svg { display: block; }
+/* The Claude mark on Copy prompt is drawn in the text color (black in light
+   mode), not Claude orange. */
+.head-icon-btn .prompt-logo { width: 17px; height: 17px; fill: var(--text); }
+/* The column picker and the advance button beside it. */
+.detail-column-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.btn.advance-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.advance-btn svg { flex: none; }
 /* The Copy prompt dialog, dropped down under its button. */
 .prompt-anchor { position: relative; }
 .prompt-dialog {
@@ -622,18 +653,26 @@ select {
 .card-editor .needs-you { margin: 0 0 16px; }
 
 /* Card detail view: values read as text and are edited in place. */
-.detail-column { display: flex; align-items: center; gap: 2px; font-size: 13px; color: var(--muted); }
+.detail-column { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+/* The current column, as a bordered dropdown matching the advance button. */
 .detail-column select {
   width: auto;
+  /* Size to the selected column, not the longest one. */
+  field-sizing: content;
   height: 26px;
-  padding: 0 6px;
-  background: none;
-  border-color: transparent;
+  /* A drawn chevron instead of the native arrow, so the right padding
+     matches the left. */
+  appearance: none;
+  padding: 0 24px 0 9px;
+  background: var(--panel-2) no-repeat right 8px center / 10px 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  border-color: var(--border);
   color: var(--text);
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
 }
-.detail-column select:hover { border-color: var(--border); }
+.detail-column select:hover { border-color: var(--accent); }
 /* The title looks like a heading until hovered or focused. */
 .card-editor .detail-title {
   display: block;
@@ -687,10 +726,39 @@ select {
   text-transform: none;
   letter-spacing: 0;
 }
-.conductor-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
-.detail-repo { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); }
-.detail-repo span { white-space: nowrap; }
-.detail-repo select { width: auto; min-width: 180px; }
+/* Linked Conductor workspaces and T3 Code threads, under the title. Each
+   shows its unlink button on hover. */
+.detail-agents { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 16px; }
+.detail-agent { position: relative; display: inline-flex; min-width: 0; max-width: 100%; }
+.detail-agent .chip { max-width: 100%; }
+/* The unlink button appears inside the chip's right end on hover, over a
+   background matching the chip (fading out the text under it), so it takes
+   no space. */
+.detail-agent .btn.detail-agent-unlink {
+  --chip-bg: var(--panel);
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  right: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 34px;
+  height: auto;
+  padding: 0 7px 0 0;
+  font-size: 10px;
+  line-height: 1;
+  border: none;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, transparent, var(--chip-bg) 55%);
+  opacity: 0;
+}
+.detail-agent .btn.detail-agent-unlink:hover { color: var(--bad); }
+.detail-agent:has(.working) .detail-agent-unlink {
+  --chip-bg: color-mix(in srgb, var(--claude) 16%, var(--panel));
+}
+.detail-agent:hover .btn.detail-agent-unlink,
+.detail-agent .btn.detail-agent-unlink:focus-visible { opacity: 1; }
 
 .icon-btn { color: var(--muted); flex: none; }
 .icon-btn:hover { color: var(--text); }
@@ -725,6 +793,8 @@ select {
   color: var(--muted);
 }
 .chip.workspace-badge .claude-logo { width: 13px; height: 13px; fill: currentColor; }
+/* T3 Code's mark keeps its own colors in every state. */
+.t3-logo { width: 14px; height: 14px; flex: none; }
 .chip.workspace-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip.workspace-badge.working {
   color: var(--claude);
@@ -986,6 +1056,18 @@ select {
 .settings-reorder svg { display: block; }
 .settings-section + .settings-section { margin-top: 28px; }
 .settings-name { flex: 1; align-items: center; }
+/* Settings > Next column: "Todo -> [select]". */
+.settings-next { align-items: center; color: var(--muted); }
+.settings-next .settings-name {
+  flex: 0 0 38%;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-next svg { flex: none; }
+.settings-next select { flex: 1; min-width: 0; }
 .settings-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 /* A toggle chip for picking columns; selected ones get an accent tint and a check. */
 .chip {

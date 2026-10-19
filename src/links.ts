@@ -97,3 +97,15 @@ export function linkTitle(url: string): string {
   const name = domainName(url);
   return `${name.charAt(0).toUpperCase()}${name.slice(1)} link`;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The T3 Code thread id in pasted text: a bare thread id (a UUID) or a
+// t3code://threads/<environment>/<thread> deep link. Lowercased, so matching
+// is exact. Null for anything else.
+export function parseThreadId(text: string): string | null {
+  const s = text.trim();
+  if (UUID_RE.test(s)) return s.toLowerCase();
+  const m = s.match(/^t3code(?:-[a-z]+)?:\/\/threads\/[^/]+\/([^/?#]+)/i);
+  return m && UUID_RE.test(m[1]) ? m[1].toLowerCase() : null;
+}

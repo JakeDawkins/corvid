@@ -13,6 +13,8 @@
 //   remove-link <query> <url>
 //   link-workspace <query> [workspace-id]     // default: $CONDUCTOR_WORKSPACE_ID
 //   unlink-workspace <query> [workspace-id]   // default: $CONDUCTOR_WORKSPACE_ID
+//   link-thread <query> [thread-id]           // default: the T3 Code thread in this directory
+//   unlink-thread <query> <thread-id>
 //   needs-you <query> --reason TEXT --action TEXT
 //   clear-needs-you <query>
 //   set <query> [--title T] [--column C] [--color HEX|none]
@@ -56,7 +58,7 @@ import {
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import {
   TYPES,
   TABS,
@@ -332,6 +334,7 @@ function cardLine(c, i) {
     JSON.stringify(c.title),
     `${c.links.length} link${c.links.length === 1 ? '' : 's'}`,
     c.workspaces?.length ? `${c.workspaces.length} workspace${c.workspaces.length === 1 ? '' : 's'}` : '',
+    c.threads?.length ? `${c.threads.length} thread${c.threads.length === 1 ? '' : 's'}` : '',
     c.color ? c.color : '',
     c.complexity ? c.complexity : '',
     c.needsYou ? 'NEEDS YOU' : '',
@@ -342,7 +345,7 @@ function cardLine(c, i) {
 
 // A query matches a card by: exact id, id prefix (>=4 chars), a case-insensitive
 // substring of the title, a substring of any of its link URLs, or an exact
-// linked workspace id. Exactly one card must match; 0 or 2+ is an error listing
+// linked workspace or T3 thread id. Exactly one card must match; 0 or 2+ is an error listing
 // the candidates.
 function findCard(data, query) {
   if (!query) die('missing card query');
@@ -355,7 +358,9 @@ function findCard(data, query) {
   const byLink = data.cards.filter((c) =>
     (c.links || []).some((l) => String(l.url).toLowerCase().includes(q)),
   );
-  const byWorkspace = data.cards.filter((c) => (c.workspaces || []).includes(q));
+  const byWorkspace = data.cards.filter(
+    (c) => (c.workspaces || []).includes(q) || (c.threads || []).includes(q),
+  );
   const hits = [...new Set([...idPrefix, ...byTitle, ...byLink, ...byWorkspace])];
   if (hits.length === 1) return hits[0];
   if (hits.length === 0) die(`no card matches ${JSON.stringify(query)}`);
@@ -389,6 +394,53 @@ function workspaceArg() {
   if (!id) die('missing workspace id (pass one, or run inside Conductor so $CONDUCTOR_WORKSPACE_ID is set)');
   if (!UUID_RE.test(id)) die(`workspace id must be a UUID, got ${JSON.stringify(id)}`);
   return id.toLowerCase();
+}
+
+// T3 Code keeps its threads in a local SQLite file. Override with T3_DB.
+const T3_DB =
+  process.env.T3_DB || join(process.env.T3CODE_HOME || join(homedir(), '.t3'), 'userdata', 'statev2.sqlite');
+
+// The thread id from the command line (a UUID or a t3code://threads/<env>/<id>
+// link), else the one T3 Code thread working in this directory's git worktree.
+// T3 doesn't expose the thread id to agents, so this matches on the worktree
+// path T3 records for each thread, and refuses to guess when that isn't unique
+// (e.g. several threads in the main checkout).
+function threadArg({ detect = true } = {}) {
+  const given = argv.shift();
+  if (given && !given.startsWith('--')) {
+    const m = given.match(/^t3code(?:-[a-z]+)?:\/\/threads\/[^/]+\/([^/?#]+)/i);
+    const id = m ? m[1] : given;
+    if (!UUID_RE.test(id)) die(`thread id must be a UUID or a t3code:// thread link, got ${JSON.stringify(given)}`);
+    return id.toLowerCase();
+  }
+  if (!detect) die('missing thread id');
+  if (!existsSync(T3_DB)) die(`missing thread id (T3 Code database not found at ${T3_DB})`);
+  let dir = process.cwd();
+  try {
+    dir = execSync('git rev-parse --show-toplevel', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || dir;
+  } catch {
+    // Not in a git repo: match on the current directory.
+  }
+  const sql = `select thread_id as id, title from orchestration_v2_projection_threads
+    where json_extract(payload_json, '$.worktreePath') = '${dir.replace(/'/g, "''")}'
+      and archived_at is null and deleted_at is null
+    order by updated_at desc`;
+  let rows;
+  try {
+    const out = execFileSync('sqlite3', ['-readonly', '-json', '-cmd', '.timeout 2000', T3_DB, sql], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    rows = out.trim() ? JSON.parse(out) : [];
+  } catch (e) {
+    die(`couldn't read T3 Code's database to find this thread; pass the thread id (${String(e.message).split('\n')[0]})`);
+  }
+  if (rows.length === 1) return rows[0].id.toLowerCase();
+  if (!rows.length) die(`no T3 Code thread is working in ${dir}; pass the thread id`);
+  die(
+    `${rows.length} T3 Code threads are working in ${dir}; pass the thread id:\n` +
+      rows.map((r) => `  ${r.id}  ${JSON.stringify(r.title)}`).join('\n'),
+  );
 }
 
 // Complexity is a t-shirt size (XS|S|M|L|XL), stored uppercase. "none"/"" clears
@@ -599,6 +651,7 @@ switch (cmd) {
     console.log(JSON.stringify(card, null, 2));
     for (const l of card.links) console.log(`  ${linkKind(l.url)}: ${l.url}`);
     for (const w of card.workspaces || []) console.log(`  workspace: ${w}`);
+    for (const t of card.threads || []) console.log(`  t3 thread: ${t}`);
     break;
   }
   case 'add-link': {
@@ -665,6 +718,32 @@ switch (cmd) {
     card.workspaces = card.workspaces.filter((w) => w !== id);
     if (!card.workspaces.length) delete card.workspaces;
     commit(before, data, card.id, `unlinked workspace from ${short(card.id)}:\n  ${id}`);
+    break;
+  }
+  case 'link-thread': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const card = findCard(data, argv.shift());
+    const id = threadArg();
+    if ((card.threads || []).includes(id)) {
+      console.log(`card ${short(card.id)} already has thread ${id}`);
+      break;
+    }
+    card.threads = [...(card.threads || []), id];
+    commit(before, data, card.id, `linked T3 thread to ${short(card.id)} ${JSON.stringify(card.title)}:\n  ${id}`);
+    break;
+  }
+  case 'unlink-thread': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const card = findCard(data, argv.shift());
+    const id = threadArg({ detect: false });
+    if (!(card.threads || []).includes(id)) die(`card ${short(card.id)} has no thread ${id}`);
+    card.threads = card.threads.filter((t) => t !== id);
+    if (!card.threads.length) delete card.threads;
+    commit(before, data, card.id, `unlinked T3 thread from ${short(card.id)}:\n  ${id}`);
     break;
   }
   // Flag a card as waiting on the user, with why the agent stopped and what to
@@ -872,6 +951,14 @@ switch (cmd) {
           if (new Set(c.workspaces).size !== c.workspaces.length) problems.push(`${where}: duplicate workspace id`);
         }
       }
+      if (c.threads !== undefined) {
+        if (!Array.isArray(c.threads)) problems.push(`${where}: threads is not an array`);
+        else {
+          for (const t of c.threads)
+            if (typeof t !== 'string' || !UUID_RE.test(t)) problems.push(`${where}: bad thread id ${JSON.stringify(t)}`);
+          if (new Set(c.threads).size !== c.threads.length) problems.push(`${where}: duplicate thread id`);
+        }
+      }
       for (const key of ['createdAt', 'updatedAt', 'hiddenAt'])
         if (c[key] !== undefined && (typeof c[key] !== 'string' || Number.isNaN(Date.parse(c[key]))))
           problems.push(`${where}: ${key} is not an ISO timestamp`);
@@ -891,6 +978,6 @@ switch (cmd) {
     break;
   }
   default:
-    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 33).join('\n').replace(/^\/\/ ?/gm, ''));
+    console.error(readFileSync(new URL(import.meta.url)).toString().split('\n').slice(1, 35).join('\n').replace(/^\/\/ ?/gm, ''));
     process.exit(cmd ? 1 : 0);
 }

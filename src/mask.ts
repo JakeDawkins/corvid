@@ -11,6 +11,7 @@ export const MASK_CATEGORIES = [
   { key: "linearTitles", label: "Linear issue and project titles", on: true },
   { key: "linearResources", label: "Linear linked docs (Notion, Figma titles)", on: true },
   { key: "branches", label: "Deployment branch names", on: true },
+  { key: "threadTitles", label: "T3 Code thread titles", on: true },
   { key: "urls", label: "Link URLs (hover text and card editor)", on: true },
   { key: "colorLabels", label: "Color labels", on: false },
   { key: "repoNames", label: "Repo and Vercel project names", on: false },

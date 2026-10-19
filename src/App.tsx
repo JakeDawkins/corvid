@@ -4,7 +4,7 @@ import type { AgentsStatus, Card, ContextIndex, Data, IssueStatus, LinearResourc
 import { loadContextIndex, loadData, refresh, resolveLink, saveData } from "./api";
 import { domainName, linearKey, linkKind, linkTitle, normalizeCard, parsePrUrl, toUrl } from "./links";
 import type { VercelDeployment } from "./types";
-import { CardLink, IssueLine, PrLine, WorkspaceTag, resourceLabel } from "./Badges";
+import { CardLink, IssueLine, PrLine, ThreadBadge, WorkspaceTag, resourceLabel } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { ContextPage } from "./ContextPage";
 import { ComplexityBars } from "./Complexity";
@@ -16,7 +16,7 @@ import { Search } from "./Search";
 import { NeedsYouBanner } from "./NeedsYou";
 import { byHiddenAt, editCard, stamp } from "./cards";
 import { ClaudeLogo } from "./ClaudeLogo";
-import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH } from "./columns";
+import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
 import { useTheme } from "./theme";
 
@@ -36,6 +36,20 @@ function parseRoute(hash: string): ContextRoute | null {
 
 function routeHash(r: ContextRoute): string {
   return `#/context/${encodeURIComponent(r.cardId)}${r.tab ? `/${encodeURIComponent(r.tab)}` : ""}`;
+}
+
+// Settings > Next column after renaming column `from` to `to`, in both its
+// keys and its targets.
+function renameNextColumns(map: Record<string, string>, from: string, to: string) {
+  return Object.fromEntries(
+    Object.entries(map).map(([k, v]) => [k === from ? to : k, v === from ? to : v]),
+  );
+}
+
+// Settings > Next column without a deleted column. Columns that pointed at it
+// go back to the default, the next column on the board.
+function removeNextColumn(map: Record<string, string>, name: string) {
+  return Object.fromEntries(Object.entries(map).filter(([k, v]) => k !== name && v !== name));
 }
 
 // Insert a new card at the TOP of its column: just before the first card already
@@ -282,6 +296,7 @@ export default function App() {
       needsYouColumns: d.needsYouColumns?.map((c) => (c === from ? to : c)),
       highlightedColumns: d.highlightedColumns?.map((c) => (c === from ? to : c)),
       focusColumns: d.focusColumns?.map((c) => (c === from ? to : c)),
+      nextColumns: d.nextColumns && renameNextColumns(d.nextColumns, from, to),
     }));
   }
 
@@ -309,7 +324,19 @@ export default function App() {
       needsYouColumns: d.needsYouColumns?.filter((c) => c !== name),
       highlightedColumns: d.highlightedColumns?.filter((c) => c !== name),
       focusColumns: d.focusColumns?.filter((c) => c !== name),
+      nextColumns: d.nextColumns && removeNextColumn(d.nextColumns, name),
     }));
+  }
+
+  // Set where the advance button sends cards from `column`: a column name, ""
+  // for nowhere, or undefined to go back to the next column on the board.
+  function setNextColumn(column: string, target: string | undefined) {
+    setData((d) => {
+      const map = { ...d.nextColumns };
+      if (target === undefined) delete map[column];
+      else map[column] = target;
+      return { ...d, nextColumns: map };
+    });
   }
 
   // Add or remove a column from a per-column setting list: the high-contrast
@@ -877,7 +904,11 @@ export default function App() {
         </div>
       )}
 
-      {(tag || card.complexity || !!card.workspaces?.length || contexts[card.id]) && (
+      {(tag ||
+        card.complexity ||
+        !!card.workspaces?.length ||
+        !!card.threads?.length ||
+        contexts[card.id]) && (
         <div className="card-foot">
           {tag && (
             <span className="card-tag" style={{ "--card-color": card.color } as CSSProperties}>
@@ -888,6 +919,9 @@ export default function App() {
           <span className="spacer" />
           {card.workspaces?.map((id) => (
             <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
+          ))}
+          {card.threads?.map((id) => (
+            <ThreadBadge key={id} id={id} status={agents.threads?.[id]} compact />
           ))}
           {contexts[card.id] && (
             <button
@@ -1170,6 +1204,8 @@ export default function App() {
           onSetHighlightedColumn={(col, on) => setColumnFlag("highlightedColumns", col, on)}
           focusColumns={data.focusColumns ?? []}
           onSetFocusColumn={(col, on) => setColumnFlag("focusColumns", col, on)}
+          nextColumns={data.nextColumns ?? {}}
+          onSetNextColumn={setNextColumn}
           hiddenRepos={data.hiddenRepos ?? []}
           knownRepos={knownRepos}
           onSetRepoHidden={setRepoHidden}
@@ -1216,6 +1252,7 @@ export default function App() {
           key={editing.id}
           card={editing}
           columns={data.columns}
+          nextColumnFor={(col) => nextColumn(data.columns, col, data.nextColumns)}
           colorTags={data.colorTags ?? {}}
           cache={cache}
           repoNames={data.repoNames}

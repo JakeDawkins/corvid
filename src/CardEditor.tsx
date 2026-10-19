@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, MutableRefObject } from "react";
-import type { AgentsStatus, Cache, Card, ConductorRepo, Link, NeedsYou } from "./types";
-import { loadConductorRepos } from "./api";
-import { linkKind } from "./links";
-import { GenericLine, IssueLine, PrLine, WorkspaceBadge } from "./Badges";
+import type { AgentsStatus, Cache, Card, Link, NeedsYou } from "./types";
+import { linkKind, parseThreadId } from "./links";
+import { GenericLine, IssueLine, PrLine, ThreadBadge, WorkspaceBadge } from "./Badges";
+import { ClaudeLogo } from "./ClaudeLogo";
 import { COLORS, textOn } from "./colors";
 import { ComplexityPicker } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
@@ -18,11 +18,6 @@ const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
 
 // Tooltip on fields made read-only by masked mode, which shows placeholder text.
 const MASKED_HINT = "Masked mode is on (Shift+M to turn off)";
-
-// Last path segment, as a fallback name for a repo Conductor no longer lists.
-function baseName(path: string): string {
-  return path.replace(/\/+$/, "").split("/").pop() || path;
-}
 
 // The fields of `next` that differ from `prev`, so saving only writes what the
 // user edited and leaves fields an agent changed meanwhile (e.g. a linked
@@ -40,8 +35,9 @@ function changedFields(prev: Card, next: Card): Partial<Card> {
 
 // Build a paste-ready instruction for an AI agent to work on this card: the
 // task, its links (so the agent has full context), and standing instructions
-// to link its Conductor workspace and any PR it opens back to this card (by
-// id) on the Corvid board, and to flag the card when it's waiting on the user.
+// to link its Conductor workspace or T3 Code thread and any PR it opens back
+// to this card (by id) on the Corvid board, and to flag the card when it's
+// waiting on the user.
 // `instructions`: the user's own guidance typed in the Copy prompt dialog. It
 // goes near the top, marked as overriding everything else in the prompt.
 function buildAgentPrompt(card: Card, instructions = ""): string {
@@ -74,7 +70,7 @@ function buildAgentPrompt(card: Card, instructions = ""): string {
   }
   lines.push("");
   lines.push(
-    `Before you start, if you are running in Conductor, link your workspace to this card so the board shows when you're working on it: with the corvid skill, run \`link-workspace ${card.id}\`. It reads $CONDUCTOR_WORKSPACE_ID and does nothing if the card already has that workspace.`,
+    `Before you start, link your session to this card so the board shows when you're working on it. With the corvid skill: in Conductor, run \`link-workspace ${card.id}\` (it reads $CONDUCTOR_WORKSPACE_ID); in T3 Code, run \`link-thread ${card.id}\` (it finds the thread working in the current directory, or pass your thread id). Both do nothing if the card already has that link.`,
   );
   lines.push("");
   lines.push(
@@ -148,12 +144,6 @@ function PromptDialog({
   );
 }
 
-// Deep link that opens Conductor's new-workspace flow in the repo at `path`,
-// with `prompt` as the first message. See conductor.build/docs/reference/deep-links.
-function conductorLink(prompt: string, path: string): string {
-  return `conductor://prompt=${encodeURIComponent(prompt)}&path=${encodeURIComponent(path)}`;
-}
-
 // A pasted string that is a single http(s) URL, i.e. something to add as a link.
 const URL_RE = /^https?:\/\/\S+$/i;
 
@@ -197,6 +187,27 @@ function EditLink({ editing, onClick }: { editing: boolean; onClick: () => void 
   );
 }
 
+// Icons for the header's icon buttons, in the board's 2px-stroke style.
+function IdCardIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M6.17 15a3 3 0 0 1 5.66 0" />
+      <path d="M16 10h2" />
+      <path d="M16 14h2" />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
 function RemoveLink({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -204,6 +215,20 @@ function RemoveLink({ onClick }: { onClick: () => void }) {
       className="btn ghost icon-btn"
       title="Remove link"
       aria-label="Remove link"
+      onClick={onClick}
+    >
+      ✕
+    </button>
+  );
+}
+
+function UnlinkAgent({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className="btn ghost icon-btn detail-agent-unlink"
+      title={label}
+      aria-label={label}
       onClick={onClick}
     >
       ✕
@@ -228,6 +253,7 @@ function useAutosize(ref: React.RefObject<HTMLTextAreaElement>, value: string) {
 export function CardEditor({
   card,
   columns,
+  nextColumnFor,
   colorTags,
   cache,
   repoNames,
@@ -245,6 +271,8 @@ export function CardEditor({
 }: {
   card: Card;
   columns: string[];
+  // The column the advance button moves a card in `column` to, if any.
+  nextColumnFor: (column: string) => string | undefined;
   colorTags: Record<string, string>;
   // Fetched PR/Linear status, shown on those links' rows.
   cache: Cache;
@@ -273,6 +301,7 @@ export function CardEditor({
   const { m, on } = useMask();
   const [draft, setDraft] = useState<Card>({ ...card });
   const [promptCopied, setPromptCopied] = useState(false);
+  const [idCopied, setIdCopied] = useState(false);
   // The Copy prompt dialog, and the extra instructions typed into it.
   const [promptOpen, setPromptOpen] = useState(false);
   const [instructions, setInstructions] = useState("");
@@ -299,37 +328,15 @@ export function CardEditor({
   // editing started, restored by Escape.
   const [editingNotes, setEditingNotes] = useState(false);
   const notesBefore = useRef("");
-  // Conductor workspace id typed into the add box, not yet on the card.
-  const [newWorkspace, setNewWorkspace] = useState("");
-  // Whether the add-workspace box is shown (hidden behind a button by default).
-  const [addingWorkspace, setAddingWorkspace] = useState(false);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const workspaces = draft.workspaces ?? [];
-  // Repos in Conductor, for the repo picker. null until loaded.
-  const [repos, setRepos] = useState<ConductorRepo[] | null>(null);
-  const [reposError, setReposError] = useState<string>();
-  const [reposNotRunning, setReposNotRunning] = useState(false);
-  // Set when "Start in Conductor" was clicked on a card with no repo, so the
-  // header asks for one before opening Conductor.
-  const [pickingRepo, setPickingRepo] = useState(false);
+  const threads = draft.threads ?? [];
+  const next = nextColumnFor(draft.column);
 
   // Show current PR/Linear status rather than whatever the last refresh left.
   useEffect(() => {
     onRefreshLinks(card.links.map((l) => l.url));
-  }, []);
-
-  useEffect(() => {
-    loadConductorRepos()
-      .then((r) => {
-        setRepos(r.repos);
-        setReposError(r.error);
-        setReposNotRunning(!!r.notRunning);
-      })
-      .catch(() => {
-        setRepos([]);
-        setReposError("Couldn't load Conductor repos");
-      });
   }, []);
 
   const titleValue = m("cardTitles", draft.title);
@@ -366,15 +373,21 @@ export function CardEditor({
   }, []);
 
   // Pasting a URL anywhere on the card outside a text field starts adding it
-  // as a link, with the label box focused.
+  // as a link, with the label box focused. A T3 Code thread id or link is
+  // linked as a thread right away.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const t = e.target as HTMLElement;
       if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
       const text = e.clipboardData?.getData("text").trim() ?? "";
-      if (!URL_RE.test(text)) return;
-      e.preventDefault();
-      startLink(text);
+      const thread = parseThreadId(text);
+      if (thread) {
+        e.preventDefault();
+        addThread(thread);
+      } else if (URL_RE.test(text)) {
+        e.preventDefault();
+        startLink(text);
+      }
     };
     window.addEventListener("paste", onPaste);
     return () => window.removeEventListener("paste", onPaste);
@@ -391,14 +404,32 @@ export function CardEditor({
     }
   }
 
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(card.id);
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
   function startLink(url: string) {
     focusLabel.current = true;
     setNewUrl(url);
   }
 
+  // A T3 Code thread id or link typed into the link box is linked as a thread.
   function addLink() {
     const url = newUrl.trim();
     if (!url) return;
+    const thread = parseThreadId(url);
+    if (thread) {
+      addThread(thread);
+      setNewUrl("");
+      setNewLabel("");
+      return;
+    }
     setLinks((ls) => [...ls, { label: newLabel.trim(), url }]);
     if (linkKind(url) !== "generic") onRefreshLinks([url]);
     setNewUrl("");
@@ -474,30 +505,36 @@ export function CardEditor({
     }
   }
 
-  function addWorkspace() {
-    const id = newWorkspace.trim().toLowerCase();
-    if (!id) return;
-    if (!workspaces.includes(id)) set("workspaces", [...workspaces, id]);
-    setNewWorkspace("");
-    setAddingWorkspace(false);
-  }
-
   function removeWorkspace(id: string) {
     const rest = workspaces.filter((w) => w !== id);
     set("workspaces", rest.length ? rest : undefined);
+  }
+
+  // Functional updates, since the window paste listener holds the first
+  // render's closure.
+  function addThread(id: string) {
+    setDraft((d) => {
+      const ts = d.threads ?? [];
+      return ts.includes(id) ? d : { ...d, threads: [...ts, id] };
+    });
+  }
+
+  function removeThread(id: string) {
+    const rest = threads.filter((t) => t !== id);
+    set("threads", rest.length ? rest : undefined);
   }
 
   // The card as it would be saved now.
   function finalCard(): Card {
     // Keep a typed-but-not-added link rather than dropping it.
     const final = [...links];
-    if (newUrl.trim()) final.push({ label: newLabel.trim(), url: newUrl.trim() });
-    const ws = newWorkspace.trim().toLowerCase();
-    const finalWorkspaces = ws && !workspaces.includes(ws) ? [...workspaces, ws] : workspaces;
+    if (newUrl.trim() && !parseThreadId(newUrl)) final.push({ label: newLabel.trim(), url: newUrl.trim() });
+    const typedThread = parseThreadId(newUrl);
+    const finalThreads = typedThread && !threads.includes(typedThread) ? [...threads, typedThread] : threads;
     return {
       ...draft,
       links: final.filter((l) => l.url.trim()),
-      workspaces: finalWorkspaces.length ? finalWorkspaces : undefined,
+      threads: finalThreads.length ? finalThreads : undefined,
     };
   }
 
@@ -516,38 +553,12 @@ export function CardEditor({
     onOpenContext?.();
   }
 
-  // Open a new Conductor workspace for this card in the repo at `path`, seeded
-  // with the agent prompt. Saves and closes the editor first so the agent's
-  // link-workspace edit isn't overwritten by a later save of this stale draft.
-  function startInConductor(path: string) {
-    const next = { ...finalCard(), repo: path };
-    onSave(changedFields(card, next));
-    window.location.href = conductorLink(buildAgentPrompt(next), path);
-  }
-
-  function onStartClick() {
-    if (draft.repo) startInConductor(draft.repo);
-    else setPickingRepo(true);
-  }
-
   // Link rows in the card's order: Linear, then PRs, then other links, each
   // keeping its index into `links`.
   const KIND_ORDER = { linear: 0, pr: 1, generic: 2 };
   const linkRows = links
     .map((l, i) => ({ l, i, kind: linkKind(l.url) }))
     .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
-
-  // When Conductor is closed its section collapses to just the heading.
-  // Otherwise show one error at most: loading repos, else workspace status.
-  const conductorDown = reposNotRunning || !!agents.notRunning;
-  const conductorError = reposError || (workspaces.length ? agents.error : undefined);
-
-  // Repo options: Conductor's repos, plus the card's repo if Conductor no
-  // longer lists it, so the select still shows what's stored.
-  const repoOptions = [...(repos ?? [])];
-  if (draft.repo && repos && !repos.some((r) => r.path === draft.repo)) {
-    repoOptions.push({ name: `${baseName(draft.repo)} (not in Conductor)`, path: draft.repo });
-  }
 
   return (
     <div className="modal-backdrop" onClick={close}>
@@ -557,79 +568,59 @@ export function CardEditor({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
-          <label className="detail-column" title="Move to another column">
-            <span>{card.title ? "In" : "New card in"}</span>
-            <select value={draft.column} onChange={(e) => set("column", e.target.value)}>
-              {columns.map((c) => (
-                <option key={c} value={c}>{m("columnNames", c)}</option>
-              ))}
-            </select>
-          </label>
-          <div className="modal-head-actions">
-            {/* A card already being worked on links to its workspace(s) instead
-                of offering to start a new one. */}
-            {workspaces.length > 0 ? (
-              workspaces.map((id) => (
-                <WorkspaceBadge key={id} id={id} status={agents.workspaces[id]} />
-              ))
-            ) : (
-              <>
-                <div className="prompt-anchor">
-                  <button
-                    type="button"
-                    className={`btn${promptOpen ? " active" : ""}`}
-                    onClick={() => setPromptOpen((o) => !o)}
-                  >
-                    {promptCopied ? "Copied!" : "Copy prompt"}
-                  </button>
-                  {promptOpen && (
-                    <PromptDialog
-                      value={instructions}
-                      onChange={setInstructions}
-                      onCopy={copyPrompt}
-                      onClose={() => setPromptOpen(false)}
-                    />
-                  )}
-                </div>
-                {pickingRepo ? (
-                  <select
-                    autoFocus
-                    className="repo-pick"
-                    value=""
-                    disabled={!repos?.length}
-                    onChange={(e) => e.target.value && startInConductor(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") {
-                        // Cancel just the picker, not the whole card.
-                        e.stopPropagation();
-                        setPickingRepo(false);
-                      }
-                    }}
-                    onBlur={() => setPickingRepo(false)}
-                  >
-                    <option value="">
-                      {repos === null ? "Loading repos…" : repos.length ? "Pick a repo…" : "No repos"}
-                    </option>
-                    {repoOptions.map((r) => (
-                      <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn primary"
-                    title={
-                      draft.repo
-                        ? `New Conductor workspace in ${draft.repo}`
-                        : "Pick a repo, then open a new Conductor workspace"
-                    }
-                    onClick={onStartClick}
-                  >
-                    Start in Conductor
-                  </button>
-                )}
-              </>
+          <div className="detail-column-row">
+            <label className="detail-column" title="Move to another column">
+              <span>{card.title ? "In" : "New card in"}</span>
+              <select value={draft.column} onChange={(e) => set("column", e.target.value)}>
+                {columns.map((c) => (
+                  <option key={c} value={c}>{m("columnNames", c)}</option>
+                ))}
+              </select>
+            </label>
+            {next && (
+              <button
+                type="button"
+                className="btn advance-btn"
+                title={`Move to ${m("columnNames", next)} (set in Settings > Next column)`}
+                onClick={() => set("column", next)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                </svg>
+                {m("columnNames", next)}
+              </button>
             )}
+          </div>
+          <div className="modal-head-actions">
+            <button
+              type="button"
+              className="btn ghost head-icon-btn"
+              title={idCopied ? "Copied card ID" : "Copy card ID"}
+              aria-label="Copy card ID"
+              onClick={copyId}
+            >
+              {idCopied ? <CheckIcon /> : <IdCardIcon />}
+            </button>
+            <div className="prompt-anchor">
+              <button
+                type="button"
+                className={`btn ghost head-icon-btn prompt-btn${promptOpen ? " active" : ""}`}
+                title={promptCopied ? "Copied prompt" : "Copy prompt for an agent"}
+                aria-label="Copy prompt"
+                onClick={() => setPromptOpen((o) => !o)}
+              >
+                {promptCopied ? <CheckIcon /> : <ClaudeLogo className="claude-logo prompt-logo" />}
+              </button>
+              {promptOpen && (
+                <PromptDialog
+                  value={instructions}
+                  onChange={setInstructions}
+                  onCopy={copyPrompt}
+                  onClose={() => setPromptOpen(false)}
+                />
+              )}
+            </div>
           </div>
         </div>
 
@@ -653,6 +644,25 @@ export function CardEditor({
           }}
           placeholder="What are you working on?"
         />
+
+        {/* Where the card already has a conversation: linked Conductor
+            workspaces and T3 Code threads, each with an unlink button. */}
+        {(workspaces.length > 0 || threads.length > 0) && (
+          <div className="detail-agents">
+            {workspaces.map((id) => (
+              <span key={id} className="detail-agent">
+                <WorkspaceBadge id={id} status={agents.workspaces[id]} />
+                <UnlinkAgent label="Unlink workspace" onClick={() => removeWorkspace(id)} />
+              </span>
+            ))}
+            {threads.map((id) => (
+              <span key={id} className="detail-agent">
+                <ThreadBadge id={id} status={agents.threads?.[id]} />
+                <UnlinkAgent label="Unlink thread" onClick={() => removeThread(id)} />
+              </span>
+            ))}
+          </div>
+        )}
 
         {needsYou && (
           <NeedsYouBanner value={needsYou} loud={needsYouLoud} onClear={onClearNeedsYou} />
@@ -791,14 +801,20 @@ export function CardEditor({
             <input
               ref={newUrlRef}
               aria-label="New link URL"
-              placeholder="Paste a link (Slack, Notion, Figma, a PR…)"
+              placeholder="Paste a link (Slack, Notion, Figma, a PR…) or a T3 thread ID"
               value={newUrl}
               onChange={(e) => setNewUrl(e.target.value)}
               onPaste={(e) => {
                 const text = e.clipboardData.getData("text").trim();
-                if (newUrl.trim() || !URL_RE.test(text)) return;
-                e.preventDefault();
-                startLink(text);
+                if (newUrl.trim()) return;
+                const thread = parseThreadId(text);
+                if (thread) {
+                  e.preventDefault();
+                  addThread(thread);
+                } else if (URL_RE.test(text)) {
+                  e.preventDefault();
+                  startLink(text);
+                }
               }}
               onKeyDown={addLinkKeyDown}
             />
@@ -834,101 +850,6 @@ export function CardEditor({
             </div>
           </section>
         )}
-
-        <section className="detail-section">
-          <h3>
-            Conductor
-            {conductorDown && <span className="h3-note">Not running</span>}
-          </h3>
-          {/* Linked workspaces stay listed while Conductor is closed so they can still be unlinked. */}
-          {workspaces.map((id) => {
-            const w = agents.workspaces[id];
-            return (
-              <div key={id} className="link-row workspace-row">
-                <WorkspaceBadge id={id} status={w} />
-                <span className="link-url" title={id}>
-                  {w
-                    ? [w.repo && m("repoNames", w.repo), w.branch && m("branches", w.branch)]
-                        .filter(Boolean)
-                        .join(" · ")
-                    : id}
-                </span>
-                <button
-                  type="button"
-                  className="btn ghost icon-btn"
-                  title="Unlink workspace"
-                  aria-label="Unlink workspace"
-                  onClick={() => removeWorkspace(id)}
-                >
-                  ✕
-                </button>
-              </div>
-            );
-          })}
-          {!conductorDown && (
-            <>
-              {conductorError && <div className="hint error">{conductorError}</div>}
-              {addingWorkspace && (
-                <div className="link-add">
-                  <input
-                    autoFocus
-                    placeholder="Workspace ID ($CONDUCTOR_WORKSPACE_ID)"
-                    value={newWorkspace}
-                    onChange={(e) => setNewWorkspace(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addWorkspace();
-                      } else if (e.key === "Escape") {
-                        // Cancel just the add box, not the whole card.
-                        e.stopPropagation();
-                        setNewWorkspace("");
-                        setAddingWorkspace(false);
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={addWorkspace}
-                    disabled={!newWorkspace.trim()}
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => {
-                      setNewWorkspace("");
-                      setAddingWorkspace(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-              <div className="conductor-row">
-                <label className="detail-repo">
-                  <span>New workspaces in</span>
-                  <select
-                    value={draft.repo ?? ""}
-                    onChange={(e) => set("repo", e.target.value || undefined)}
-                  >
-                    <option value="">{repos === null ? "Loading…" : "Pick a repo"}</option>
-                    {repoOptions.map((r) => (
-                      <option key={r.path} value={r.path}>{m("repoNames", r.name)}</option>
-                    ))}
-                  </select>
-                </label>
-                {!addingWorkspace && (
-                  <button type="button" className="btn ghost" onClick={() => setAddingWorkspace(true)}>
-                    + Link workspace
-                  </button>
-                )}
-              </div>
-            </>
-          )}
-        </section>
 
         <div className="modal-actions">
           <button className="btn danger" onClick={onDelete}>Delete</button>
