@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // One-off migration: give every card a createdAt and updatedAt of now where it
-// has none. hiddenAt is left unset on cards that are already hidden, so they
+// has none. archivedAt is left unset on cards that are already hidden, so they
 // keep their current order at the bottom of the Hidden column. Safe to run
 // more than once: cards that already have a timestamp keep it.
 //
 // Usage: node scripts/migrate-card-timestamps.mjs [path/to/data.json] [--dry]
 // Defaults to tasks-data/data.json under the repo this script is in. Backs the
-// file up to ~/.pr-tracker-backups first, like the corvid skill's tracker.
+// file up to ~/.corvid-backups first, like the corvid skill's tracker.
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -29,14 +29,14 @@ for (const card of data.cards) {
   const before = JSON.stringify(card);
   card.createdAt ??= now;
   card.updatedAt ??= now;
-  if (!card.hidden) delete card.hiddenAt;
+  if (!card.hidden) delete card.archivedAt;
   if (JSON.stringify(card) !== before) changed++;
 }
 
 console.log(`${dataPath}: ${changed} of ${data.cards.length} cards ${dry ? 'would get' : 'got'} timestamps`);
 if (dry || !changed) process.exit(0);
 
-const backupDir = join(homedir(), '.pr-tracker-backups');
+const backupDir = join(homedir(), '.corvid-backups');
 mkdirSync(backupDir, { recursive: true });
 const backup = join(backupDir, `data.${now.replace(/[:.]/g, '-')}.json`);
 copyFileSync(dataPath, backup);

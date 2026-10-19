@@ -292,11 +292,15 @@ Two conveniences worth knowing:
   PRs from archived repos are always left out of My work.
 - Archived cards are stored as `"hidden": true`, the field's original name, so
   older boards and agents keep working.
-- Cards carry optional `createdAt`, `updatedAt`, and `hiddenAt` (while archived)
+- Cards carry optional `createdAt`, `updatedAt`, and `archivedAt` (while archived)
   ISO timestamps, set by the app and the tracker script. The Archived column
   lists the most recently archived cards first. Boards from before these fields work
   as is; `node scripts/migrate-card-timestamps.mjs` stamps every card that has
-  none with the current time.
+  none with the current time. Boards that still have the old `hiddenAt` name
+  need `node scripts/rename-hidden-at.mjs` once.
+- The corvid skill's `cold-storage` command moves archived cards off the board
+  into `tasks-data/cold-storage.jsonl`, an append-only JSON Lines file kept for
+  later analysis.
 - Any column whose name contains "claude" is treated as a suggestions column and
   moved out of the main board into its own toolbar popover with a count badge.
   It's an ordinary column otherwise, useful as a drop target for an agent that
@@ -335,7 +339,7 @@ node $S context-write "checkout redirect" learn-more --append < note.md
 Every mutation targets exactly one card, matched by uuid, title substring, or
 link substring; an ambiguous match aborts with the candidates rather than
 guessing. It refuses to write if any other card or the card ordering would
-change, backs the file up to `~/.pr-tracker-backups/` first (last 20 kept), and
+change, backs the file up to `~/.corvid-backups/` first (last 20 kept), and
 takes `--dry` to preview. Because the server watches `data.json`, an open board
 picks up these edits on its own.
 
@@ -352,7 +356,7 @@ column with work worth picking up — see
 
 By default it targets `tasks-data/data.json` in the repo the skill ships inside,
 resolved from the script's own location rather than the working directory. If
-your board lives in a different checkout, point `PR_TRACKER_DIR` at it. Linked
+your board lives in a different checkout, point `CORVID_DIR` at it. Linked
 git worktrees are refused, since their git-ignored `tasks-data/` is an empty
 decoy board.
 

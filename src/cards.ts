@@ -1,14 +1,14 @@
 import type { Card } from "./types";
 
 // Set a card's change timestamps for an edit from `prev` (undefined for a new
-// card) to `next`: updatedAt always, createdAt for a new card, and hiddenAt
+// card) to `next`: updatedAt always, createdAt for a new card, and archivedAt
 // when it's archived (dropped when it's unarchived).
 export function stamp(prev: Card | undefined, next: Card): Card {
   const now = new Date().toISOString();
   const out: Card = { ...next, updatedAt: now };
   if (!prev) out.createdAt ??= now;
-  if (out.hidden && !prev?.hidden) out.hiddenAt = now;
-  if (!out.hidden) delete out.hiddenAt;
+  if (out.hidden && !prev?.hidden) out.archivedAt = now;
+  if (!out.hidden) delete out.archivedAt;
   return out;
 }
 
@@ -18,8 +18,8 @@ export function editCard(card: Card, changes: Partial<Card>): Card {
 }
 
 // Archived column order: most recently archived first, then cards with no
-// hiddenAt (archived before it existed). Ties keep their board order (the sort is stable).
-export function byHiddenAt(a: Card, b: Card): number {
-  if (!a.hiddenAt || !b.hiddenAt) return (a.hiddenAt ? 0 : 1) - (b.hiddenAt ? 0 : 1);
-  return a.hiddenAt < b.hiddenAt ? 1 : a.hiddenAt > b.hiddenAt ? -1 : 0;
+// archivedAt (archived before it existed). Ties keep their board order (the sort is stable).
+export function byArchivedAt(a: Card, b: Card): number {
+  if (!a.archivedAt || !b.archivedAt) return (a.archivedAt ? 0 : 1) - (b.archivedAt ? 0 : 1);
+  return a.archivedAt < b.archivedAt ? 1 : a.archivedAt > b.archivedAt ? -1 : 0;
 }

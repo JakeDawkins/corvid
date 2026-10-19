@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Surgical editor for the PR tracker's data.json.
+// Surgical editor for the Corvid board's data.json.
 //
 // Every mutating command touches exactly one card, backs the file up first, and
 // verifies that no other card changed before writing. Card matching is strict:
@@ -25,6 +25,9 @@
 //   add-card --title T [--column C] [--link URL]... [--color HEX]
 //            [--complexity XS|S|M|L|XL] [--notes N] [--archived] [--top]
 //   add-column <name> [--after EXISTING]
+//   cold-storage --all | [--archived-before WHEN] [--archived-after WHEN] [--include-undated]
+//                // move archived cards out of data.json into cold-storage.jsonl
+//                // WHEN: an ISO date/time, or an age like 12h, 7d, 2w
 //   validate
 //   where                      // print the resolved tasks-data/data.json path and why
 //   context <query> [--tab TAB]          // print the card's project context (memory)
@@ -42,7 +45,7 @@
 // app from a worktree creates a fresh empty data.json there that looks like a
 // valid board but holds nothing. Only the main checkout is a real board.
 //
-// Env: PR_TRACKER_DIR overrides the project directory (the file is still
+// Env: CORVID_DIR overrides the project directory (the file is still
 // tasks-data/data.json under it); --data PATH overrides the full data.json path.
 // Either override still has to pass the location checks unless
 // --allow-nonstandard is also passed.
@@ -50,6 +53,11 @@
 import {
   readFileSync,
   writeFileSync,
+  appendFileSync,
+  openSync,
+  readSync,
+  closeSync,
+  statSync,
   mkdirSync,
   readdirSync,
   unlinkSync,
@@ -118,7 +126,7 @@ const ALLOW_NONSTANDARD = bareFlag('allow-nonstandard');
 // portable: clone the repo anywhere and the default target follows it.
 const SKILL_DIR = dirname(fileURLToPath(import.meta.url));
 const CANONICAL_DIR = resolve(SKILL_DIR, '..', '..', '..', '..');
-const BACKUP_DIR = join(homedir(), '.pr-tracker-backups');
+const BACKUP_DIR = join(homedir(), '.corvid-backups');
 const KEEP_BACKUPS = 20;
 
 function die(msg) {
@@ -130,7 +138,7 @@ function die(msg) {
 // Never from process.cwd(), so running this from a git worktree or anywhere
 // else still edits the one real board.
 // The board file lives at <checkout root>/tasks-data/data.json. The root is the
-// canonical checkout (or PR_TRACKER_DIR); only the child path moved under
+// canonical checkout (or CORVID_DIR); only the child path moved under
 // tasks-data/ so it can be synced on its own without node_modules et al.
 function resolveDataPath() {
   const explicit = flag('data');
@@ -138,10 +146,10 @@ function resolveDataPath() {
     const path = resolve(explicit);
     return { path, root: dirname(path), source: '--data' };
   }
-  const env = process.env.PR_TRACKER_DIR;
+  const env = process.env.CORVID_DIR;
   if (env) {
     const root = resolve(env);
-    return { path: join(root, 'tasks-data', 'data.json'), root, source: 'PR_TRACKER_DIR' };
+    return { path: join(root, 'tasks-data', 'data.json'), root, source: 'CORVID_DIR' };
   }
   return {
     path: join(CANONICAL_DIR, 'tasks-data', 'data.json'),
@@ -180,12 +188,12 @@ function guardDataPath({ path, root, source }) {
   }
 
   // The one location that is never right: a linked worktree. An explicit
-  // --data/PR_TRACKER_DIR pointing at any other checkout is a deliberate act and
+  // --data/CORVID_DIR pointing at any other checkout is a deliberate act and
   // is honoured, since a board can legitimately live in a different clone.
   if (isLinkedWorktree(realDir) && !ALLOW_NONSTANDARD) {
     const hint =
       source === 'canonical'
-        ? '  Point PR_TRACKER_DIR at the checkout that holds the real board, or pass\n  --allow-nonstandard if you really mean this copy.'
+        ? '  Point CORVID_DIR at the checkout that holds the real board, or pass\n  --allow-nonstandard if you really mean this copy.'
         : `  ${source} points at a worktree. Point it at the main checkout instead, or pass\n  --allow-nonstandard if you really mean this copy.`;
     die(
       `refusing to use ${path}\n  because ${realDir} is a linked git worktree, not the main checkout.\n` +
@@ -270,7 +278,7 @@ function appRunning() {
 }
 
 // Set the target card's change timestamps (ISO): updatedAt on any change,
-// createdAt for a new card, and hiddenAt when it's archived (removed when it's
+// createdAt for a new card, and archivedAt when it's archived (removed when it's
 // unarchived). Mirrors stamp() in src/cards.ts.
 function stampCard(beforeData, data, cardId) {
   const prev = beforeData.cards.find((c) => c.id === cardId);
@@ -279,8 +287,8 @@ function stampCard(beforeData, data, cardId) {
   const now = new Date().toISOString();
   if (!prev) card.createdAt ??= now;
   card.updatedAt = now;
-  if (card.hidden && !prev?.hidden) card.hiddenAt = now;
-  if (!card.hidden) delete card.hiddenAt;
+  if (card.hidden && !prev?.hidden) card.archivedAt = now;
+  if (!card.hidden) delete card.archivedAt;
 }
 
 function commit(before, data, cardId, summary) {
@@ -312,7 +320,7 @@ function writeAndReport(next, summary) {
   const port = appRunning();
   if (port)
     console.log(
-      `NOTE: the tracker app is running (port ${port}). It watches data.json and reloads ` +
+      `NOTE: the Corvid app is running (port ${port}). It watches data.json and reloads ` +
         `this change on its own. The one exception is an edit made in the browser in the same ` +
         `moment: the page's own unsaved state wins and would overwrite this write.`,
     );
@@ -326,6 +334,18 @@ function assertColumnsOnly(beforeData, afterData) {
   const kept = afterData.columns.filter((c) => beforeData.columns.includes(c));
   if (JSON.stringify(kept) !== JSON.stringify(beforeData.columns))
     die('refusing to write: the change would remove or reorder existing columns');
+}
+
+// Guard for cold-storage: the only change is that archived cards left the
+// array. Everything else, and the remaining cards' content and order, is as it was.
+function assertOnlyRemoved(beforeData, afterData, removedIds) {
+  const rest = (d) => JSON.stringify({ ...d, cards: undefined });
+  if (rest(beforeData) !== rest(afterData)) die('refusing to write: the change would affect more than the cards');
+  const kept = beforeData.cards.filter((c) => !removedIds.has(c.id));
+  if (JSON.stringify(kept) !== JSON.stringify(afterData.cards))
+    die('refusing to write: the change would modify or reorder the remaining cards');
+  for (const c of beforeData.cards)
+    if (removedIds.has(c.id) && !c.hidden) die(`refusing to write: ${short(c.id)} is not archived`);
 }
 
 function commitColumns(before, data, summary) {
@@ -353,6 +373,7 @@ function cardLine(c, i) {
     c.complexity ? c.complexity : '',
     c.needsYou ? 'NEEDS YOU' : '',
     c.updatedAt ? `updated ${c.updatedAt.slice(0, 10)}` : '',
+    c.archivedAt ? `archived ${c.archivedAt.slice(0, 10)}` : '',
   ].filter(Boolean);
   return `${String(i).padStart(3)}  ${bits.join('  ')}`;
 }
@@ -476,6 +497,36 @@ function normalizeColor(value, data) {
     die(`--color must be a #rrggbb hex value, "none", or a known color tag (${known.map(([h, n]) => `${n}=${h}`).join(', ')})`);
   }
   return value.toLowerCase();
+}
+
+// --- cold storage ---
+
+// Archived cards moved off the board, one JSON object per line:
+// {"movedAt": ISO, "card": Card}. Only ever appended to, never rewritten.
+const COLD_PATH = join(dirname(DATA_PATH), 'cold-storage.jsonl');
+
+// An ISO date/time, or an age ago from now: 12h, 7d, 2w.
+function parseWhen(value, name) {
+  if (typeof value !== 'string') die(`--${name} needs a value: an ISO date like 2026-10-12, or an age like 7d or 2w`);
+  const m = /^(\d+)([hdw])$/i.exec(value);
+  if (m) return Date.now() - Number(m[1]) * { h: 3600e3, d: 86400e3, w: 604800e3 }[m[2].toLowerCase()];
+  const t = Date.parse(value);
+  if (Number.isNaN(t)) die(`--${name} must be an ISO date like 2026-10-12, or an age like 7d or 2w, got ${JSON.stringify(value)}`);
+  return t;
+}
+
+// Append lines to the cold storage file, starting on a fresh line even if the
+// file was hand-edited and lost its trailing newline.
+function appendCold(lines) {
+  let lead = '';
+  if (existsSync(COLD_PATH) && statSync(COLD_PATH).size > 0) {
+    const fd = openSync(COLD_PATH, 'r');
+    const last = Buffer.alloc(1);
+    readSync(fd, last, 0, 1, statSync(COLD_PATH).size - 1);
+    closeSync(fd);
+    if (last.toString() !== '\n') lead = '\n';
+  }
+  appendFileSync(COLD_PATH, lead + lines.join('\n') + '\n');
 }
 
 // --- project context (see context.mjs) ---
@@ -615,7 +666,7 @@ switch (cmd) {
   case 'where': {
     printTarget();
     console.log(`repo root (from this script's location): ${CANONICAL_DIR}`);
-    console.log(`PR_TRACKER_DIR: ${process.env.PR_TRACKER_DIR ?? '(unset)'}`);
+    console.log(`CORVID_DIR: ${process.env.CORVID_DIR ?? '(unset)'}`);
     console.log(`cwd (never used to resolve the path): ${process.cwd()}`);
     console.log(existsSync(DATA_PATH) ? 'file exists' : 'file does NOT exist');
     if (existsSync(DATA_PATH)) {
@@ -636,11 +687,11 @@ switch (cmd) {
       cards = cards.filter((c) => c.column === column);
     }
     // Archived cards in the board's Archived column order: most recently
-    // archived first, then ones with no hiddenAt in board order.
+    // archived first, then ones with no archivedAt in board order.
     if (onlyArchived)
       cards = cards
         .filter((c) => c.hidden)
-        .sort((a, b) => (b.hiddenAt ?? '').localeCompare(a.hiddenAt ?? ''));
+        .sort((a, b) => (b.archivedAt ?? '').localeCompare(a.archivedAt ?? ''));
     else if (!all) cards = cards.filter((c) => !c.hidden);
     cards.forEach((c, i) => console.log(cardLine(c, i)));
     console.log(`\n${cards.length} card(s) shown of ${data.cards.length} total`);
@@ -930,6 +981,71 @@ switch (cmd) {
     );
     break;
   }
+  // Move archived cards off the board into cold-storage.jsonl. Appends to the
+  // cold storage file first, then removes the cards from data.json, so a failed
+  // write can duplicate a card in cold storage but never lose one.
+  case 'cold-storage': {
+    printTarget();
+    const before = readFileSync(DATA_PATH, 'utf8');
+    const data = load();
+    const all = bareFlag('all');
+    const beforeArg = flag('archived-before');
+    const afterArg = flag('archived-after');
+    const includeUndated = bareFlag('include-undated');
+    if (!all && beforeArg === undefined && afterArg === undefined)
+      die('cold-storage needs --all, --archived-before WHEN, or --archived-after WHEN');
+    if (all && (beforeArg !== undefined || afterArg !== undefined))
+      die('--all moves every archived card; drop it to filter by date');
+    if (includeUndated && beforeArg === undefined)
+      die('--include-undated only applies with --archived-before');
+    const beforeT = beforeArg === undefined ? undefined : parseWhen(beforeArg, 'archived-before');
+    const afterT = afterArg === undefined ? undefined : parseWhen(afterArg, 'archived-after');
+
+    const archived = data.cards.filter((c) => c.hidden);
+    const undated = archived.filter((c) => !c.archivedAt);
+    const picked = archived.filter((c) => {
+      if (all) return true;
+      // No archivedAt: archived before the timestamps existed, so older than
+      // any dated card but of unknown age.
+      if (!c.archivedAt) return includeUndated;
+      const t = Date.parse(c.archivedAt);
+      return (beforeT === undefined || t < beforeT) && (afterT === undefined || t > afterT);
+    });
+    const range = all
+      ? 'all archived cards'
+      : [
+          beforeT !== undefined && `archived before ${new Date(beforeT).toISOString()}`,
+          afterT !== undefined && `archived after ${new Date(afterT).toISOString()}`,
+        ]
+          .filter(Boolean)
+          .join(' and ');
+    const skippedUndated = !all && !includeUndated ? undated.length : 0;
+    const note = skippedUndated
+      ? `\n${skippedUndated} archived card(s) have no archivedAt (archived before timestamps existed) and were left on the board.` +
+        (beforeT !== undefined ? ' Add --include-undated to move them too.' : '')
+      : '';
+    if (!picked.length) {
+      console.log(`no archived cards match (${range}). ${archived.length} archived in total.${note}`);
+      break;
+    }
+
+    const removed = new Set(picked.map((c) => c.id));
+    const next = { ...data, cards: data.cards.filter((c) => !removed.has(c.id)) };
+    assertOnlyRemoved(JSON.parse(before), next, removed);
+    const list = picked
+      .map((c) => `  ${short(c.id)}  ${c.archivedAt ? c.archivedAt.slice(0, 10) : 'undated   '}  ${JSON.stringify(c.title)}`)
+      .join('\n');
+    const summary = `${DRY ? 'would move' : 'moved'} ${picked.length} of ${archived.length} archived card(s) (${range}) to ${COLD_PATH}:\n${list}${note}`;
+    if (DRY) {
+      console.log('--- DRY RUN, nothing written ---');
+      console.log(summary);
+      break;
+    }
+    const movedAt = new Date().toISOString();
+    appendCold(picked.map((card) => JSON.stringify({ movedAt, card })));
+    writeAndReport(serialize(next), summary);
+    break;
+  }
   case 'validate': {
     printTarget();
     const data = load();
@@ -973,10 +1089,12 @@ switch (cmd) {
           if (new Set(c.threads).size !== c.threads.length) problems.push(`${where}: duplicate thread id`);
         }
       }
-      for (const key of ['createdAt', 'updatedAt', 'hiddenAt'])
+      for (const key of ['createdAt', 'updatedAt', 'archivedAt'])
         if (c[key] !== undefined && (typeof c[key] !== 'string' || Number.isNaN(Date.parse(c[key]))))
           problems.push(`${where}: ${key} is not an ISO timestamp`);
-      if (c.hiddenAt !== undefined && !c.hidden) problems.push(`${where}: hiddenAt set on a card that isn't archived`);
+      if (c.archivedAt !== undefined && !c.hidden) problems.push(`${where}: archivedAt set on a card that isn't archived`);
+      if (c.hiddenAt !== undefined)
+        problems.push(`${where}: hiddenAt is the old name for archivedAt; run node scripts/rename-hidden-at.mjs`);
       if (c.needsYou !== undefined) {
         const n = c.needsYou;
         if (typeof n?.reason !== 'string' || typeof n?.action !== 'string' || typeof n?.since !== 'string')

@@ -14,7 +14,7 @@ import { Deployments } from "./Deployments";
 import { Settings } from "./Settings";
 import { Search } from "./Search";
 import { NeedsYouBanner } from "./NeedsYou";
-import { byHiddenAt, editCard, stamp } from "./cards";
+import { byArchivedAt, editCard, stamp } from "./cards";
 import { ClaudeLogo } from "./ClaudeLogo";
 import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
@@ -639,7 +639,7 @@ export default function App() {
 
   // Most recently archived first, then the rest in board order.
   const archivedCards = useMemo(
-    () => data.cards.filter((c) => c.hidden).sort(byHiddenAt),
+    () => data.cards.filter((c) => c.hidden).sort(byArchivedAt),
     [data],
   );
   const archivedCount = archivedCards.length;

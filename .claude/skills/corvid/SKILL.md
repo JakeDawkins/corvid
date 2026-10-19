@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/archive (hide) a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace or T3 Code thread to a card, flag a card as needing the user (or clear that flag), create a new card, read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace or T3 Code thread to that card and read its project context, and keep that context current while working on the card.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/archive (hide) a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace or T3 Code thread to a card, flag a card as needing the user (or clear that flag), create a new card, move archived cards to cold storage (all of them, or by when they were archived), read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace or T3 Code thread to that card and read its project context, and keep that context current while working on the card.
 ---
 
 # Corvid board edits
@@ -26,7 +26,7 @@ So:
 
 - The script resolves the path from its own location, never from the current
   directory. Don't `cd` anywhere first, and don't build a path from `pwd`.
-- Do **not** pass `--data` or set `PR_TRACKER_DIR` unless the user explicitly
+- Do **not** pass `--data` or set `CORVID_DIR` unless the user explicitly
   names a different file. The default is correct.
 - Paths inside a linked worktree or any other non-main checkout are refused.
   `--allow-nonstandard` overrides that, and is only for when the user has
@@ -72,7 +72,7 @@ A `Card`:
   },
   "createdAt": "2026-10-01T09:12:44.120Z",  // optional, ISO timestamps
   "updatedAt": "2026-10-04T16:52:16.084Z",
-  "hiddenAt": "2026-10-04T16:52:16.084Z"    // only while archived
+  "archivedAt": "2026-10-04T16:52:16.084Z"  // only while archived
 }
 ```
 
@@ -106,9 +106,9 @@ A `Card`:
   and what the user should do. It shows as a banner on the card, high-contrast
   in the columns the user picked in Settings (`needsYouColumns`) and muted
   elsewhere. Use `needs-you` / `clear-needs-you`; never hand-edit it.
-- **`createdAt` / `updatedAt` / `hiddenAt`** are change timestamps. The
+- **`createdAt` / `updatedAt` / `archivedAt`** are change timestamps. The
   tracker sets them on every write (createdAt for a new card, updatedAt on any
-  change, hiddenAt when a card is archived, removed when it's unarchived), and so
+  change, archivedAt when a card is archived, removed when it's unarchived), and so
   does the app. Never hand-edit them. Older cards may lack them; that's fine.
   The Archived column lists the most recently archived cards first.
 - `cache` holds the last-fetched PR/Linear statuses. Adding a link does not
@@ -137,6 +137,7 @@ node $S set <query> [--title T] [--column C] [--color HEX|NAME|none]
 node $S add-card --title T [--column C] [--link URL]... [--color C]
                  [--complexity XS|S|M|L|XL] [--notes N] [--archived] [--top]
 node $S add-column <name> [--after EXISTING]
+node $S cold-storage --all | [--archived-before WHEN] [--archived-after WHEN] [--include-undated]
 node $S validate                     # schema + JSON check
 
 node $S context <query> [--tab TAB]  # print the card's project context
@@ -235,6 +236,45 @@ node $S clear-needs-you <card id>
 ```
 
 It's a no-op if there's no flag, so it's safe to run whenever you resume. Don't flag a card when you're finished and nothing is waiting on the user.
+
+## Cold storage
+
+Cold storage holds archived cards taken off the board for later analysis. It is
+`tasks-data/cold-storage.jsonl` next to `data.json`: one line per card,
+`{"movedAt": "<ISO>", "card": { ...the card as it was... }}`. The command only
+ever appends to it, so earlier runs are never rewritten. Read it with
+`jq -s . tasks-data/cold-storage.jsonl` or any JSON Lines reader.
+
+`cold-storage` moves cards from the Archived column (`hidden: true`) only, picked
+by `archivedAt`. It appends them to the file first, then removes them from
+`data.json` (with the usual backup). Pass one of:
+
+| The user says | Flags |
+| --- | --- |
+| "move all the archived items to cold storage" | `--all` |
+| "archived more than a week ago", "older than a week" | `--archived-before 7d` |
+| "archived in the last week", "since last Monday" | `--archived-after 7d` / `--archived-after 2026-10-12` |
+
+`WHEN` is an ISO date or date-time (`2026-10-12` means midnight UTC), or an age
+counted back from now: `12h`, `7d`, `2w`. Both date flags together give a range.
+A phrase like "archived later than a week ago" can mean either direction. If
+the user's words don't settle it, ask which one they mean.
+
+Cards with no `archivedAt` were archived before the timestamps existed. `--all`
+moves them. The date flags skip them, and the output says how many were skipped.
+`--include-undated` adds them to an `--archived-before` run, since they are
+older than any dated card. When cards were skipped, tell the user the count and
+ask whether to include them.
+
+Steps:
+
+1. Run the command with `--dry` and show the user the count and the list.
+2. Only after the list matches what they asked for, run it without `--dry`.
+3. Report the count moved and the cold storage path.
+
+The card's project context in `tasks-data/context/<card id>/` stays where it is.
+There is no command to bring a card back from cold storage; if the user asks,
+say so and propose adding one.
 
 ## Project context (shared memory)
 
@@ -386,9 +426,10 @@ Rules for the content:
   first.
 - Deleting a card is not a script command on purpose. If the user wants one
   gone, prefer archiving it (`set <query> --archived true`); only hard-delete if they explicitly
-  ask, and confirm the exact card first.
+  ask, and confirm the exact card first. Moving archived cards to cold storage
+  (see Cold storage) is not a delete, since every card is kept in the file.
 - `data.json` is git-ignored, so there is no git history to recover from. Every
-  mutation writes a timestamped backup to `~/.pr-tracker-backups/` (last 20
+  mutation writes a timestamped backup to `~/.corvid-backups/` (last 20
   kept).
 
 ## Live-app caveat

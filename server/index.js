@@ -27,7 +27,7 @@ const DATA_PATH = join(DATA_DIR, 'data.json');
 // The corvid skill's tracker writes the same files, and backs them up to the
 // same place.
 const CONTEXT_ROOT = contextRoot(DATA_PATH);
-const BACKUP_DIR = join(homedir(), '.pr-tracker-backups');
+const BACKUP_DIR = join(homedir(), '.corvid-backups');
 
 // --- minimal .env.local loader (no dependency) ---
 function loadEnv() {
@@ -961,5 +961,5 @@ const dist = join(ROOT, 'dist');
 if (existsSync(dist)) app.use(express.static(dist));
 
 app.listen(PORT, HOST, () => {
-  console.log(`gh-pr-tracker server on http://${HOST}:${PORT}`);
+  console.log(`corvid server on http://${HOST}:${PORT}`);
 });

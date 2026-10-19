@@ -46,11 +46,11 @@ export type Card = {
   repo?: string;
   needsYou?: NeedsYou;
   // ISO timestamps: when the card was created, last changed, and last
-  // archived (hiddenAt, removed when it's unarchived). Cards from before these
+  // archived (archivedAt, removed when it's unarchived). Cards from before these
   // existed may lack them, so treat all three as optional.
   createdAt?: string;
   updatedAt?: string;
-  hiddenAt?: string;
+  archivedAt?: string;
 };
 
 // A repo added to Conductor. `path` is its root directory.
