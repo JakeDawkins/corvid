@@ -787,7 +787,7 @@ export default function App() {
       }}
       className={`card${dragItem ? " link-target" : ""}${
         dragOverId === card.id ? " drop-before" : ""
-      }${highlightId === card.id ? " highlight" : ""}${loud ? " needs-you-loud" : ""}`}
+      }${highlightId === card.id ? " highlight" : ""}`}
       style={
         card.color
           ? ({ borderLeftColor: card.color, "--card-color": card.color } as CSSProperties)

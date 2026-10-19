@@ -195,13 +195,9 @@ body {
 /* Insertion indicator when dragging a card above another to reorder it. */
 .card.drop-before { box-shadow: 0 -3px 0 var(--accent); }
 
-/* "Needs you": loud is a solid amber block and a card outline (in the card's
-   color if it has one, else amber), for the columns picked in Settings.
-   Elsewhere it's a quiet tinted box. */
-.card.needs-you-loud {
-  border-color: var(--card-color, var(--needs-you));
-  box-shadow: 0 0 0 1px var(--card-color, var(--needs-you));
-}
+/* "Needs you": loud is a solid amber block, for the columns picked in
+   Settings. Elsewhere it's a quiet tinted box. The card itself keeps its
+   normal border either way. */
 .needs-you {
   display: flex;
   border-radius: 6px;
@@ -1469,7 +1465,6 @@ select {
     var(--panel-2) 120px
   );
 }
-.context-card.needs-you-loud { border-color: var(--card-color, var(--needs-you)); border-top-color: var(--ctx); }
 .context-card-meta { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 11px; color: var(--muted); }
 .context-column {
   padding: 1px 8px;

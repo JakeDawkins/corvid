@@ -573,7 +573,7 @@ function CardInfo({
   // Long notes start clamped, so the project fields stay in view.
   const longNotes = !!card.notes && (card.notes.length > 320 || card.notes.split("\n").length > 6);
   return (
-    <section className={`context-card${card.needsYou && loud ? " needs-you-loud" : ""}`}>
+    <section className="context-card">
       <div className="context-card-meta">
         {tag && <span className="card-tag">{m("colorLabels", tag)}</span>}
         <span className="context-column">{m("columnNames", card.column)}</span>
