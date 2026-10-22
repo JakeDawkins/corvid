@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type { Mounted } from "pele/lazy";
@@ -21,8 +21,10 @@ function sanitize(html: string): string {
   return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: ALLOWED_URI });
 }
 
-export function renderMarkdown(md: string): string {
-  return sanitize(marked.parse(stripComments(md), { async: false, gfm: true }) as string);
+// `breaks` keeps single newlines as line breaks, for card notes written as
+// plain text before they rendered as Markdown.
+export function renderMarkdown(md: string, breaks = false): string {
+  return sanitize(marked.parse(stripComments(md), { async: false, gfm: true, breaks }) as string);
 }
 
 export function renderInline(md: string): string {
@@ -122,14 +124,20 @@ export function Markdown({
   text,
   className = "",
   onHeadings,
+  breaks = false,
+  headingIds = true,
 }: {
   text: string;
   className?: string;
   // Receives the rendered h2 and h3 headings, with the ids given to them.
   onHeadings?: (headings: Heading[]) => void;
+  breaks?: boolean;
+  // Off for card notes, so their headings don't collide with the ids of the
+  // context tab shown on the same page.
+  headingIds?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const html = useMemo(() => renderMarkdown(text), [text]);
+  const html = useMemo(() => renderMarkdown(text, breaks), [text, breaks]);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -154,7 +162,7 @@ export function Markdown({
     );
     const used = new Set<string>();
     const headings: Heading[] = [];
-    for (const h of el.querySelectorAll<HTMLElement>("h2, h3")) {
+    for (const h of headingIds ? el.querySelectorAll<HTMLElement>("h2, h3") : []) {
       let id = `s-${slug(h.textContent ?? "")}`;
       for (let n = 2; used.has(id); n++) id = `s-${slug(h.textContent ?? "")}-${n}`;
       used.add(id);
@@ -166,4 +174,41 @@ export function Markdown({
   }, [html]);
 
   return <div ref={ref} className={`markdown ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+// A card's notes: Markdown the user wrote, set apart from the app's own text by
+// a left rule, with headings kept close to body size. `clamp` caps the height
+// (the board card and the context page summary) and fades the cut-off edge
+// only when the notes actually overflow.
+export function NotesMarkdown({
+  text,
+  clamp = false,
+  onOverflow,
+}: {
+  text: string;
+  clamp?: boolean;
+  // Told whether the clamped notes are cut off, e.g. to offer "Show all".
+  onOverflow?: (overflowing: boolean) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [overflowing, setOverflowing] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !clamp) return setOverflowing(false);
+    const check = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    if (el.firstElementChild) ro.observe(el.firstElementChild);
+    return () => ro.disconnect();
+  }, [text, clamp]);
+
+  useLayoutEffect(() => onOverflow?.(overflowing), [overflowing]);
+
+  return (
+    <div ref={ref} className={`notes-md${clamp ? " clamped" : ""}${overflowing ? " overflowing" : ""}`}>
+      <Markdown text={text} breaks headingIds={false} />
+    </div>
+  );
 }

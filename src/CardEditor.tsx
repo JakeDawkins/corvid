@@ -8,6 +8,7 @@ import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { COLORS, textOn } from "./colors";
 import { ComplexityPicker } from "./Complexity";
 import { formatDueDate } from "./Due";
+import { NotesMarkdown } from "./Markdown";
 import { NeedsYouBanner } from "./NeedsYou";
 import { useMask } from "./mask";
 
@@ -149,28 +150,6 @@ function PromptDialog({
 
 // A pasted string that is a single http(s) URL, i.e. something to add as a link.
 const URL_RE = /^https?:\/\/\S+$/i;
-
-// URLs inside notes, so the detail view can make them clickable. Trailing
-// punctuation is left out of the match.
-const NOTES_URL_RE = /(https?:\/\/[^\s<>]*[^\s<>.,;:!?'")\]])/g;
-
-// Notes as text, with URLs turned into links. split() with a capture group
-// puts the matched URLs at the odd indices.
-function Linkified({ text }: { text: string }) {
-  return (
-    <>
-      {text.split(NOTES_URL_RE).map((part, i) =>
-        i % 2 ? (
-          <a key={i} href={part} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
-            {part}
-          </a>
-        ) : (
-          part
-        ),
-      )}
-    </>
-  );
-}
 
 function EditLink({ editing, onClick }: { editing: boolean; onClick: () => void }) {
   const label = editing ? "Done editing link" : "Edit link";
@@ -745,7 +724,7 @@ export function CardEditor({
                 <button type="button" className="btn primary" onClick={() => setEditingNotes(false)}>
                   Done
                 </button>
-                <span className="hint">⌘↵ to finish, Esc to undo</span>
+                <span className="hint">Markdown. ⌘↵ to finish, Esc to undo</span>
               </div>
             </>
           ) : (
@@ -754,7 +733,10 @@ export function CardEditor({
               role="button"
               tabIndex={0}
               title={on("cardNotes") ? MASKED_HINT : "Click to edit"}
-              onClick={startNotes}
+              // Links in the notes open; anywhere else starts editing.
+              onClick={(e) => {
+                if (!(e.target as HTMLElement).closest("a")) startNotes();
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -762,7 +744,7 @@ export function CardEditor({
                 }
               }}
             >
-              {notesValue ? <Linkified text={notesValue} /> : "Add notes…"}
+              {notesValue ? <NotesMarkdown text={notesValue} /> : "Add notes…"}
             </div>
           )}
         </section>

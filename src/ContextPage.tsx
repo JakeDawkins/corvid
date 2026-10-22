@@ -15,7 +15,7 @@ import { domainName, linkKind } from "./links";
 import { CardLink, IssueLine, PrLine, ThreadBadge, WorkspaceTag, resourceLabel } from "./Badges";
 import { ComplexityBars } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
-import { Markdown, countStatuses, statusClass } from "./Markdown";
+import { Markdown, NotesMarkdown, countStatuses, statusClass } from "./Markdown";
 import type { Heading } from "./Markdown";
 import { DecisionsView, decisionHeadings } from "./Decisions";
 import { useMask } from "./mask";
@@ -571,7 +571,7 @@ function CardInfo({
   const { m } = useMask();
   const [notesOpen, setNotesOpen] = useState(false);
   // Long notes start clamped, so the project fields stay in view.
-  const longNotes = !!card.notes && (card.notes.length > 320 || card.notes.split("\n").length > 6);
+  const [notesCut, setNotesCut] = useState(false);
   return (
     <section className="context-card">
       <div className="context-card-meta">
@@ -588,11 +588,9 @@ function CardInfo({
       </h1>
       {card.needsYou && <NeedsYouBanner value={card.needsYou} loud={loud} />}
       {card.notes && (
-        <div className={`context-card-notes${notesOpen || !longNotes ? "" : " clamped"}`}>
-          {m("cardNotes", card.notes)}
-        </div>
+        <NotesMarkdown text={m("cardNotes", card.notes)} clamp={!notesOpen} onOverflow={setNotesCut} />
       )}
-      {longNotes && (
+      {(notesCut || notesOpen) && (
         <button type="button" className="context-more" onClick={() => setNotesOpen(!notesOpen)}>
           {notesOpen ? "Show less" : "Show all notes"}
         </button>

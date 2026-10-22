@@ -332,16 +332,46 @@ body {
 .card-actions button:hover { opacity: 1; }
 .card-actions button svg { display: block; }
 
-/* Notes clamp to 4 lines on the card; the editor shows them in full. */
-.card-notes {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+/* Card notes: Markdown the user wrote. A left rule (in the card's color, when
+   it has one) sets it apart from the app's own text, and headings stay close to
+   body size so a "# Title" doesn't shout. */
+.notes-md {
+  min-width: 0;
+  padding: 1px 0 1px 9px;
+  border-left: 2px solid color-mix(in srgb, var(--card-color, var(--muted)) 45%, transparent);
+}
+.notes-md .markdown { font-size: 13px; line-height: 1.5; }
+.notes-md .markdown > :last-child { margin-bottom: 0; }
+.notes-md .markdown :is(p, ul, ol, pre, blockquote, table) { margin: 0 0 6px; }
+.notes-md .markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin: 10px 0 2px;
+  padding: 0;
+  border: none;
+  font-size: 1em;
+  font-weight: 700;
+  color: var(--text);
+}
+.notes-md .markdown h1 { font-size: 1.08em; }
+.notes-md .markdown :is(h4, h5, h6) { color: var(--muted); }
+.notes-md .markdown > :is(h1, h2, h3, h4, h5, h6):first-child { margin-top: 0; }
+.notes-md .markdown :is(ul, ol) { padding-left: 18px; }
+.notes-md .markdown li > p { margin: 0; }
+.notes-md .markdown li:has(> input[type="checkbox"]) { list-style: none; margin-left: -16px; }
+.notes-md .markdown input[type="checkbox"] { width: auto; margin: 0 5px 0 0; padding: 0; vertical-align: -1px; }
+.notes-md .markdown blockquote { padding: 0 8px; }
+.notes-md .markdown code { font-size: 0.9em; padding: 0 4px; }
+.notes-md .markdown pre { padding: 6px 8px; }
+.notes-md .markdown pre code { padding: 0; }
+.notes-md .markdown table { font-size: 12px; }
+.notes-md .markdown :is(th, td) { padding: 3px 6px; }
+.notes-md .markdown hr { margin: 8px 0; }
+/* On the board card: smaller and muted, capped at about 5 lines. */
+.card .notes-md .markdown { font-size: 12px; line-height: 1.45; color: var(--muted); }
+.notes-md.clamped { max-height: 88px; overflow: hidden; }
+.context-card .notes-md.clamped { max-height: 150px; }
+.notes-md.overflowing {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
 }
 
 /* A card's Linear issues and PRs, one flat line each: status dot, label, and
@@ -720,7 +750,6 @@ select {
   margin: 0 -8px;
   padding: 6px 8px;
   border-radius: 6px;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
   line-height: 1.5;
   cursor: text;
@@ -1522,13 +1551,6 @@ select {
   cursor: pointer;
 }
 .context-card-title button:hover { text-decoration: underline; text-decoration-color: var(--ctx); }
-.context-card-notes { color: var(--muted); font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
-.context-card-notes.clamped {
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
 .context-more {
   align-self: flex-start;
   margin-top: -4px;

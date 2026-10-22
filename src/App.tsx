@@ -8,6 +8,7 @@ import { CardLink, IssueLine, PrLine, ThreadBadge, WorkspaceTag, resourceLabel }
 import { CardEditor } from "./CardEditor";
 import { ContextPage } from "./ContextPage";
 import { ComplexityBars } from "./Complexity";
+import { NotesMarkdown } from "./Markdown";
 import { DueBadge } from "./Due";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
@@ -867,7 +868,7 @@ export default function App() {
         />
       )}
 
-      {card.notes && <div className="card-notes">{m("cardNotes", card.notes)}</div>}
+      {card.notes && <NotesMarkdown text={m("cardNotes", card.notes)} clamp />}
 
       {linearUrls.length + prUrls.length > 0 && (
         <div className="status-lines">
