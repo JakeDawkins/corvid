@@ -435,9 +435,16 @@ function teamQuery(teamId) {
 }
 
 // Every project the token can see: the personal account plus each team. Each
-// project is tagged with its teamId so deployment lookups hit the right scope.
+// project is tagged with its teamId so deployment lookups hit the right scope,
+// and with its dashboard URL (vercel.com/<team or username>/<project>).
 async function listVercelProjects() {
   const scopes = [undefined];
+  let username;
+  try {
+    username = (await vercelFetch('/v2/user'))?.user?.username;
+  } catch {
+    // Without it, personal projects just get no dashboard link.
+  }
   try {
     const teams = (await vercelFetch('/v2/teams'))?.teams || [];
     for (const t of teams) scopes.push({ id: t.id, slug: t.slug });
@@ -452,7 +459,14 @@ async function listVercelProjects() {
     for (const p of data.projects || []) {
       if (seen.has(p.id)) continue;
       seen.add(p.id);
-      projects.push({ id: p.id, name: p.name, teamId, teamSlug: scope?.slug });
+      const slug = scope?.slug ?? username;
+      projects.push({
+        id: p.id,
+        name: p.name,
+        teamId,
+        teamSlug: scope?.slug,
+        url: slug ? `https://vercel.com/${slug}/${encodeURIComponent(p.name)}` : undefined,
+      });
     }
   }
   projects.sort((a, b) => a.name.localeCompare(b.name));

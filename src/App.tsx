@@ -8,6 +8,7 @@ import { CardLink, IssueLine, PrLine, ThreadBadge, WorkspaceTag, resourceLabel }
 import { CardEditor } from "./CardEditor";
 import { ContextPage } from "./ContextPage";
 import { ComplexityBars } from "./Complexity";
+import { DueBadge } from "./Due";
 import { Inbox } from "./Inbox";
 import type { DragItem } from "./Inbox";
 import { Deployments } from "./Deployments";
@@ -889,6 +890,7 @@ export default function App() {
 
       {(tag ||
         card.complexity ||
+        card.dueDate ||
         !!card.workspaces?.length ||
         !!card.threads?.length ||
         contexts[card.id]) && (
@@ -899,6 +901,9 @@ export default function App() {
             </span>
           )}
           {card.complexity && <ComplexityBars value={card.complexity} color={card.color} />}
+          {card.dueDate && (
+            <DueBadge date={card.dueDate} thresholds={data.dueThresholds} muted={card.hidden} />
+          )}
           <span className="spacer" />
           {card.workspaces?.map((id) => (
             <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
@@ -1189,6 +1194,8 @@ export default function App() {
           onSetFocusColumn={(col, on) => setColumnFlag("focusColumns", col, on)}
           nextColumns={data.nextColumns ?? {}}
           onSetNextColumn={setNextColumn}
+          dueThresholds={data.dueThresholds}
+          onSetDueThresholds={(t) => setData((d) => ({ ...d, dueThresholds: t }))}
           hiddenRepos={data.hiddenRepos ?? []}
           knownRepos={knownRepos}
           onSetRepoHidden={setRepoHidden}

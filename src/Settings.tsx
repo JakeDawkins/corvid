@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
 import { loadVercelProjects } from "./api";
 import { COLORS } from "./colors";
+import { DEFAULT_DUE_THRESHOLDS } from "./Due";
 import { hasName } from "./links";
 import { MASK_CATEGORIES, categoryOn, useMask } from "./mask";
 import type { MaskSettings } from "./mask";
 import { THEMES } from "./theme";
 import type { Theme } from "./theme";
-import type { VercelProject } from "./types";
+import type { DueThresholds, VercelProject } from "./types";
 
 // Why a proposed column name can't be used, or null if it's fine. `current` is
 // the column being renamed, so keeping (or re-casing) its own name is allowed.
@@ -33,6 +34,8 @@ export function Settings({
   onSetFocusColumn,
   nextColumns,
   onSetNextColumn,
+  dueThresholds,
+  onSetDueThresholds,
   hiddenRepos,
   knownRepos,
   onSetRepoHidden,
@@ -64,6 +67,8 @@ export function Settings({
   nextColumns: Record<string, string>;
   // A column name, "" for none, or undefined for the next column on the board.
   onSetNextColumn: (column: string, target: string | undefined) => void;
+  dueThresholds?: DueThresholds;
+  onSetDueThresholds: (t: DueThresholds) => void;
   hiddenRepos: string[];
   // "owner/repo" slugs seen on the board, offered as suggestions.
   knownRepos: string[];
@@ -179,6 +184,7 @@ export function Settings({
           selected={needsYouColumns}
           onSet={onSetNeedsYouColumn}
         />
+        <DueDates thresholds={dueThresholds ?? DEFAULT_DUE_THRESHOLDS} onChange={onSetDueThresholds} />
         <MaskedMode settings={maskSettings} onChange={onSetMaskSettings} />
         <ColorLabels tags={colorTags} onSetTag={onSetColorTag} />
         <HiddenRepos hidden={hiddenRepos} known={knownRepos} onSetHidden={onSetRepoHidden} />
@@ -280,6 +286,76 @@ function NextColumns({
         );
       })}
     </section>
+  );
+}
+
+// When a card's due date pill turns urgent (red) or soon (amber). Past the soon
+// threshold it just shows the days left.
+function DueDates({
+  thresholds,
+  onChange,
+}: {
+  thresholds: DueThresholds;
+  onChange: (t: DueThresholds) => void;
+}) {
+  return (
+    <section className="settings-section">
+      <h3>Due dates</h3>
+      <p className="hint">
+        Cards with a due date show the days left. They turn red within the urgent window and amber
+        within the soon window. Overdue cards are always red.
+      </p>
+      <DayCount
+        tone="urgent"
+        value={thresholds.urgentDays}
+        // Soon can't end before urgent does, so it moves up with it.
+        onChange={(n) => onChange({ urgentDays: n, soonDays: Math.max(n, thresholds.soonDays) })}
+      />
+      <DayCount
+        tone="soon"
+        value={thresholds.soonDays}
+        onChange={(n) => onChange({ urgentDays: Math.min(n, thresholds.urgentDays), soonDays: n })}
+      />
+      <p className="hint">0 means due today, 1 means today or tomorrow.</p>
+    </section>
+  );
+}
+
+// One threshold row. Keeps its own text so the box can be cleared while
+// typing; only whole numbers from 0 to 365 are saved.
+function DayCount({
+  tone,
+  value,
+  onChange,
+}: {
+  tone: "urgent" | "soon";
+  value: number;
+  onChange: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  useEffect(() => setText(String(value)), [value]);
+  return (
+    <div className="settings-row">
+      <label className="settings-row-main settings-due">
+        <span className={`due-badge ${tone}`}>{tone === "urgent" ? "Urgent" : "Soon"}</span>
+        <span className="settings-name">when due within</span>
+        <input
+          type="number"
+          min={0}
+          max={365}
+          step={1}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            const n = Number(e.target.value);
+            if (e.target.value !== "" && Number.isInteger(n) && n >= 0 && n <= 365) onChange(n);
+          }}
+          onBlur={() => setText(String(value))}
+          aria-label={`${tone === "urgent" ? "Urgent" : "Soon"} when due within this many days`}
+        />
+        <span className="settings-due-unit">{value === 1 ? "day" : "days"}</span>
+      </label>
+    </div>
   );
 }
 

@@ -20,10 +20,10 @@
 //   needs-you <query> --reason TEXT --action TEXT
 //   clear-needs-you <query>
 //   set <query> [--title T] [--column C] [--color HEX|none]
-//              [--complexity XS|S|M|L|XL|none] [--notes N]
+//              [--complexity XS|S|M|L|XL|none] [--due YYYY-MM-DD|none] [--notes N]
 //              [--append-notes N] [--archived true|false]
 //   add-card --title T [--column C] [--link URL]... [--color HEX]
-//            [--complexity XS|S|M|L|XL] [--notes N] [--archived] [--top]
+//            [--complexity XS|S|M|L|XL] [--due YYYY-MM-DD] [--notes N] [--archived] [--top]
 //   add-column <name> [--after EXISTING]
 //   cold-storage --all | [--archived-before WHEN] [--archived-after WHEN] [--include-undated]
 //                // move archived cards out of data.json into cold-storage.jsonl
@@ -371,6 +371,7 @@ function cardLine(c, i) {
     c.threads?.length ? `${c.threads.length} thread${c.threads.length === 1 ? '' : 's'}` : '',
     c.color ? c.color : '',
     c.complexity ? c.complexity : '',
+    c.dueDate ? `due ${c.dueDate}` : '',
     c.needsYou ? 'NEEDS YOU' : '',
     c.updatedAt ? `updated ${c.updatedAt.slice(0, 10)}` : '',
     c.archivedAt ? `archived ${c.archivedAt.slice(0, 10)}` : '',
@@ -486,6 +487,15 @@ function normalizeComplexity(value) {
   if (!COMPLEXITY.includes(up))
     die(`--complexity must be one of ${COMPLEXITY.join(' | ')}, or "none"`);
   return up;
+}
+
+// A due date is a day (YYYY-MM-DD), no time. "none"/"" clears it.
+const DUE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function normalizeDue(value) {
+  if (value === 'none' || value === '') return undefined;
+  if (!DUE_RE.test(value) || Number.isNaN(Date.parse(value)))
+    die('--due must be a date as YYYY-MM-DD, or "none"');
+  return value;
 }
 
 function normalizeColor(value, data) {
@@ -853,6 +863,7 @@ switch (cmd) {
     const column = flag('column');
     const color = flag('color');
     const complexity = flag('complexity');
+    const due = flag('due');
     const notes = flag('notes');
     const appendNotes = flag('append-notes');
     const hidden = flagEither('archived', 'hidden');
@@ -878,6 +889,12 @@ switch (cmd) {
       if (next === undefined) delete card.complexity;
       else card.complexity = next;
     }
+    if (typeof due === 'string') {
+      const next = normalizeDue(due);
+      changes.push(`due: ${card.dueDate ?? 'none'} -> ${next ?? 'none'}`);
+      if (next === undefined) delete card.dueDate;
+      else card.dueDate = next;
+    }
     if (typeof notes === 'string') {
       changes.push(`notes replaced (${(card.notes || '').length} -> ${notes.length} chars)`);
       card.notes = notes;
@@ -893,7 +910,7 @@ switch (cmd) {
       changes.push(`archived: ${card.hidden} -> ${v}`);
       card.hidden = v;
     }
-    if (!changes.length) die('set needs at least one of --title --column --color --complexity --notes --append-notes --archived');
+    if (!changes.length) die('set needs at least one of --title --column --color --complexity --due --notes --append-notes --archived');
     commit(before, data, card.id, `updated ${short(card.id)} ${JSON.stringify(card.title)}:\n  ${changes.join('\n  ')}`);
     break;
   }
@@ -905,6 +922,7 @@ switch (cmd) {
     const column = flag('column') || data.columns[0];
     const color = flag('color');
     const complexity = flag('complexity');
+    const due = flag('due');
     const notes = flag('notes');
     const top = bareFlag('top');
     const hidden = bareFlagEither('archived', 'hidden');
@@ -926,6 +944,10 @@ switch (cmd) {
     if (typeof complexity === 'string') {
       const next = normalizeComplexity(complexity);
       if (next) card.complexity = next;
+    }
+    if (typeof due === 'string') {
+      const next = normalizeDue(due);
+      if (next) card.dueDate = next;
     }
     // Card array order is the in-column display order, so append by default and
     // only jump the queue when asked.
@@ -1073,6 +1095,8 @@ switch (cmd) {
         problems.push(`${where}: bad color ${c.color}`);
       if (c.complexity !== undefined && !COMPLEXITY.includes(c.complexity))
         problems.push(`${where}: bad complexity ${c.complexity}`);
+      if (c.dueDate !== undefined && (typeof c.dueDate !== 'string' || !DUE_RE.test(c.dueDate)))
+        problems.push(`${where}: bad dueDate ${JSON.stringify(c.dueDate)} (want YYYY-MM-DD)`);
       if (c.workspaces !== undefined) {
         if (!Array.isArray(c.workspaces)) problems.push(`${where}: workspaces is not an array`);
         else {

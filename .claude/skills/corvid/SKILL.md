@@ -61,6 +61,7 @@ A `Card`:
   "notes": "",                      // optional, free text
   "color": "#3b9eff",               // optional, one of the preset hexes below
   "complexity": "M",                // optional, t-shirt size XS|S|M|L|XL
+  "dueDate": "2026-10-24",          // optional, a day as YYYY-MM-DD (no time)
   "links": [ { "label": "", "url": "https://..." } ],
   "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"],  // optional
   "threads": ["2ffc0a11-3b4c-480b-aebd-f1cab0a3a8cd"],     // optional, T3 Code thread ids
@@ -91,6 +92,11 @@ A `Card`:
   uppercase). It renders as a 1-5 bar meter under the card title; omit the field
   (or set `none`) to leave the card unsized and hide the meter. Input is
   case-insensitive, so `--complexity l` and `--complexity L` both set `L`.
+- **`dueDate`** is an optional day as `YYYY-MM-DD`, with no time. The card shows
+  the days left in a pill, red when due within `dueThresholds.urgentDays`
+  (default 1, so today or tomorrow), amber within `dueThresholds.soonDays`
+  (default 2), and red-filled once overdue. The user sets the thresholds in
+  Settings. Use `--due` on `set` / `add-card`; `--due none` clears it.
 - **`workspaces`** is an optional list of Conductor workspace ids (UUIDs, the
   value of `$CONDUCTOR_WORKSPACE_ID`). A card can have several, e.g. one per
   repo. Each shows as a badge at the top of the card, which turns into an
@@ -132,10 +138,10 @@ node $S unlink-thread <query> <thread-id>
 node $S needs-you <query> --reason TEXT --action TEXT
 node $S clear-needs-you <query>
 node $S set <query> [--title T] [--column C] [--color HEX|NAME|none]
-                    [--complexity XS|S|M|L|XL|none]
+                    [--complexity XS|S|M|L|XL|none] [--due YYYY-MM-DD|none]
                     [--notes N] [--append-notes N] [--archived true|false]
 node $S add-card --title T [--column C] [--link URL]... [--color C]
-                 [--complexity XS|S|M|L|XL] [--notes N] [--archived] [--top]
+                 [--complexity XS|S|M|L|XL] [--due YYYY-MM-DD] [--notes N] [--archived] [--top]
 node $S add-column <name> [--after EXISTING]
 node $S cold-storage --all | [--archived-before WHEN] [--archived-after WHEN] [--include-undated]
 node $S validate                     # schema + JSON check

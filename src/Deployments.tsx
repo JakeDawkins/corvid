@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { VercelDeployment, VercelProject } from "./types";
 import { loadVercelDeployments, loadVercelProjects } from "./api";
+import { ExternalLinkIcon } from "./icons";
 import { hasName } from "./links";
 import { useMask } from "./mask";
 import { timeAgo } from "./time";
@@ -202,7 +203,21 @@ export function Deployments({
               return (
                 <section className="inbox-section" key={p.id}>
                   <h3>
-                    {m("repoNames", p.name)} <span className="count">{deps.length}</span>
+                    {p.url ? (
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="dep-project"
+                        title="Open in Vercel (new tab)"
+                      >
+                        {m("repoNames", p.name)}
+                        <ExternalLinkIcon size={11} />
+                      </a>
+                    ) : (
+                      m("repoNames", p.name)
+                    )}{" "}
+                    <span className="count">{deps.length}</span>
                   </h3>
                   {deps.length === 0 ? (
                     <p className="hint">No deployments.</p>

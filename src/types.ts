@@ -31,6 +31,9 @@ export type Card = {
   notes?: string;
   color?: string;
   complexity?: Complexity;
+  // Due date as YYYY-MM-DD (a day, no time). The card shows the days left,
+  // tinted by urgency per Data.dueThresholds.
+  dueDate?: string;
   // A flat list of links (GitHub PRs, Linear issues/projects, and misc URLs).
   // Each link's kind is derived from its URL via linkKind(), not stored.
   links: Link[];
@@ -152,7 +155,13 @@ export type Data = {
   // current column. A column with no entry advances to the next column on the
   // board; an empty string turns the button off for that column.
   nextColumns?: Record<string, string>;
+  // When a card's due date counts as urgent or soon. Defaults in Due.tsx.
+  dueThresholds?: DueThresholds;
 };
+
+// Days left at or under which a due date is shown as urgent, then as soon.
+// Further out, the card just shows the days left.
+export type DueThresholds = { urgentDays: number; soonDays: number };
 
 // A Vercel project (personal or under a team), used for the Deployments sidebar.
 export type VercelProject = {
@@ -160,6 +169,8 @@ export type VercelProject = {
   name: string;
   teamId?: string;
   teamSlug?: string;
+  // Dashboard page on vercel.com. Absent when the account's scope is unknown.
+  url?: string;
 };
 
 export type VercelDeployment = {

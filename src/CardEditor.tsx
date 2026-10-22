@@ -7,6 +7,7 @@ import { ClaudeLogo } from "./ClaudeLogo";
 import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { COLORS, textOn } from "./colors";
 import { ComplexityPicker } from "./Complexity";
+import { formatDueDate } from "./Due";
 import { NeedsYouBanner } from "./NeedsYou";
 import { useMask } from "./mask";
 
@@ -48,6 +49,7 @@ function buildAgentPrompt(card: Card, instructions = ""): string {
   lines.push(`Task: ${card.title.trim() || "(untitled)"}`);
   lines.push(`Card ID: ${card.id}`);
   if (card.complexity) lines.push(`Estimated complexity: ${card.complexity}`);
+  if (card.dueDate) lines.push(`Due: ${formatDueDate(card.dueDate)}`);
   if (instructions.trim()) {
     lines.push("");
     lines.push(
@@ -677,6 +679,28 @@ export function CardEditor({
               color={draft.color}
               onChange={(c) => set("complexity", c)}
             />
+          </div>
+          <div className="detail-section">
+            <h3>Due date</h3>
+            <div className="due-picker">
+              <input
+                type="date"
+                aria-label="Due date"
+                value={draft.dueDate ?? ""}
+                onChange={(e) => set("dueDate", e.target.value || undefined)}
+              />
+              {draft.dueDate && (
+                <button
+                  type="button"
+                  className="btn ghost"
+                  title="Clear due date"
+                  aria-label="Clear due date"
+                  onClick={() => set("dueDate", undefined)}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           </div>
           <div className="detail-section">
             <h3>Color</h3>
