@@ -15,6 +15,11 @@
         var t = localStorage.getItem("corvid_theme_v1");
         if (t === "system") t = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
         document.documentElement.dataset.theme = t === "light" ? "light" : "dark";
+        // Same for density and column width (see src/density.ts).
+        var d = localStorage.getItem("corvid_density_v1");
+        document.documentElement.dataset.density = d === "compact" || d === "comfortable" ? d : "default";
+        var w = localStorage.getItem("corvid_column_width_v1");
+        document.documentElement.dataset.columnWidth = w === "narrow" || w === "wide" ? w : "default";
       })();
     </script>
   </head>

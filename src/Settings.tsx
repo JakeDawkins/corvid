@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
 import { loadVercelProjects } from "./api";
 import { COLORS } from "./colors";
+import { COLUMN_WIDTHS, DENSITIES } from "./density";
+import type { ColumnWidth, Density } from "./density";
 import { DEFAULT_DUE_THRESHOLDS } from "./Due";
 import { hasName } from "./links";
 import { MASK_CATEGORIES, categoryOn, useMask } from "./mask";
@@ -47,6 +49,10 @@ export function Settings({
   onSetMaskSettings,
   theme,
   onSetTheme,
+  density,
+  onSetDensity,
+  columnWidth,
+  onSetColumnWidth,
   onExport,
   onImport,
   onClose,
@@ -81,6 +87,10 @@ export function Settings({
   onSetMaskSettings: (s: MaskSettings) => void;
   theme: Theme;
   onSetTheme: (t: Theme) => void;
+  density: Density;
+  onSetDensity: (d: Density) => void;
+  columnWidth: ColumnWidth;
+  onSetColumnWidth: (w: ColumnWidth) => void;
   onExport: () => void;
   // Replaces the whole board with the file's contents.
   onImport: (file: File) => void;
@@ -101,20 +111,16 @@ export function Settings({
         <section className="settings-section">
           <h3>Appearance</h3>
           <p className="hint">Saved in this browser. System follows your OS light/dark setting.</p>
-          <div className="segmented" role="radiogroup" aria-label="Theme">
-            {THEMES.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                role="radio"
-                aria-checked={theme === t.value}
-                className={`segmented-option${theme === t.value ? " selected" : ""}`}
-                onClick={() => onSetTheme(t.value)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          <Segmented label="Theme" options={THEMES} value={theme} onChange={onSetTheme} />
+          <p className="hint settings-subhint">Density sets the text size and card spacing.</p>
+          <Segmented label="Density" options={DENSITIES} value={density} onChange={onSetDensity} />
+          <p className="hint settings-subhint">Column width of the board.</p>
+          <Segmented
+            label="Column width"
+            options={COLUMN_WIDTHS}
+            value={columnWidth}
+            onChange={onSetColumnWidth}
+          />
         </section>
 
         <section className="settings-section">
@@ -192,6 +198,36 @@ export function Settings({
         <ImportExport onExport={onExport} onImport={onImport} />
       </div>
     </aside>
+  );
+}
+
+// Single-choice control drawn as a row of joined buttons.
+function Segmented<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="segmented" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          className={`segmented-option${value === o.value ? " selected" : ""}`}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

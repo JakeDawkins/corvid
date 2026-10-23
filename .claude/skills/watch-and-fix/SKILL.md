@@ -293,10 +293,11 @@ they can do), do both of these:
    ~~~
 
 2. **Flag the Corvid card**, if there is one, with the corvid skill's
-   `needs-you <card> --reason "..." --action "..."`. The reason sums up what's
-   waiting (for example "2 QA replies drafted, 1 product question"). The action
-   is the most important next step, with a pointer to the drafts in the
-   workspace. Run it again whenever the set of waiting items changes.
+   `needs-you <card> --reason "..." --action "..."`. Keep both to a few words;
+   the details belong in the session, not the card. The reason says what's
+   waiting (for example "2 QA replies, 1 question"). The action points back to
+   the session, for example "Drafts in the T3 thread". Run it again whenever the
+   set of waiting items changes.
 
 In this mode you keep working while the flag is up, so the flag tracks what's
 waiting on the user, not whether you're working. Clear it with

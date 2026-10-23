@@ -67,8 +67,8 @@ A `Card`:
   "threads": ["2ffc0a11-3b4c-480b-aebd-f1cab0a3a8cd"],     // optional, T3 Code thread ids
   "repo": "/Users/jane/code/acme-web",  // optional, legacy Conductor repo root path
   "needsYou": {                     // optional, set/cleared by agents
-    "reason": "Plan ready for review",
-    "action": "Open the workspace and approve or redirect the plan",
+    "reason": "Plan ready",
+    "action": "Review it in the T3 thread",
     "since": "2026-10-04T16:52:16.084Z"
   },
   "createdAt": "2026-10-01T09:12:44.120Z",  // optional, ISO timestamps
@@ -225,11 +225,18 @@ before ending your turn:
 node $S needs-you <card id> --reason "<why you stopped>" --action "<what to do>"
 ```
 
-- `--reason` is one short sentence on why you stopped, e.g. "Plan ready for
-  review" or "Tests need a staging API key I don't have".
-- `--action` is the concrete next step for the user, e.g. "Approve or redirect
-  the plan in the workspace" or "Add STAGING_KEY to .env.local, then tell me
-  to continue". Name the place to do it.
+Keep both as short as you can. The flag is a few words in a yellow callout on
+the card, not a summary: it tells the user that something is waiting and where
+to look. The details (what's ready, the options, your recommendation) go in
+your thread or workspace, where the action points them.
+
+- `--reason` is a few words on what's waiting, e.g. "Plan ready", "3 QA
+  replies drafted" or "Needs a staging API key". No IDs, flag names, or lists.
+- `--action` points the user back to where the details are, e.g. "Review it in
+  the T3 thread" or "Details in the workspace". Name the place; don't restate
+  the steps.
+- Aim for under 8 words each. If you're writing a second clause, it belongs in
+  the thread instead.
 - Running it again replaces the message and resets its timestamp.
 
 Clear it as soon as nothing is waiting on the user anymore. Usually that's

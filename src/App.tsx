@@ -21,6 +21,7 @@ import { ClaudeLogo } from "./ClaudeLogo";
 import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
+import { useColumnWidth, useDensity } from "./density";
 import { useTheme } from "./theme";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
@@ -101,6 +102,8 @@ export default function App() {
   // goes back in history) rather than loaded from a link.
   const contextFromBoard = useRef(false);
   const [theme, setTheme] = useTheme();
+  const [density, setDensity] = useDensity();
+  const [columnWidth, setColumnWidth] = useColumnWidth();
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The open card editor's close-and-save, set by CardEditor.
@@ -896,22 +899,26 @@ export default function App() {
         !!card.threads?.length ||
         contexts[card.id]) && (
         <div className="card-foot">
-          {tag && (
-            <span className="card-tag" style={{ "--card-color": card.color } as CSSProperties}>
-              {m("colorLabels", tag)}
-            </span>
-          )}
-          {card.complexity && <ComplexityBars value={card.complexity} color={card.color} />}
-          {card.dueDate && (
-            <DueBadge date={card.dueDate} thresholds={data.dueThresholds} muted={card.hidden} />
-          )}
-          <span className="spacer" />
-          {card.workspaces?.map((id) => (
-            <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
-          ))}
-          {card.threads?.map((id) => (
-            <ThreadBadge key={id} id={id} status={agents.threads?.[id]} compact />
-          ))}
+          {/* Tag, size and due date lead; workspaces and threads follow on the
+              same line and wrap below when they don't fit. The context button
+              stays pinned to the right of the first line. */}
+          <div className="card-foot-items">
+            {tag && (
+              <span className="card-tag" style={{ "--card-color": card.color } as CSSProperties}>
+                {m("colorLabels", tag)}
+              </span>
+            )}
+            {card.complexity && <ComplexityBars value={card.complexity} color={card.color} />}
+            {card.dueDate && (
+              <DueBadge date={card.dueDate} thresholds={data.dueThresholds} muted={card.hidden} />
+            )}
+            {card.workspaces?.map((id) => (
+              <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
+            ))}
+            {card.threads?.map((id) => (
+              <ThreadBadge key={id} id={id} status={agents.threads?.[id]} compact />
+            ))}
+          </div>
           {contexts[card.id] && (
             <button
               className="card-context"
@@ -1208,6 +1215,10 @@ export default function App() {
           onSetMaskSettings={setMaskSettings}
           theme={theme}
           onSetTheme={setTheme}
+          density={density}
+          onSetDensity={setDensity}
+          columnWidth={columnWidth}
+          onSetColumnWidth={setColumnWidth}
           onExport={exportJson}
           onImport={importJson}
           onClose={() => setShowSettings(false)}
