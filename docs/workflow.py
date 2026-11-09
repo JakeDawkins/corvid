@@ -13,7 +13,7 @@ LANE_Y0 = HEAD_Y + HEAD_H + 16
 cells = {
  "Human": [
   ("ask",  ["Pick what to work on", "Add from My work", "or paste a link"], []),
-  ("gate", ["Click Start in", "Conductor"], []),
+  ("gate", ["Click Start in T3", "on the card"], []),
   ("ask",  ["Answer blocking", "product or design", "questions"], []),
   ("gate", ["Post handoff in Slack", "Linear to In QA", "PR ready for review", "Request reviewers"], []),
   ("gate", ["Send drafted replies", "Make product calls", "Resolve human threads"], []),
@@ -22,7 +22,7 @@ cells = {
  ],
  "Agent": [
   ("agent", ["Scheduled routine", "suggests cards"], ["corvid"]),
-  ("agent", ["Link workspace", "to the card"], ["corvid"]),
+  ("agent", ["Read the card and", "project context"], ["corvid"]),
   ("agent", ["Implement + test", "Draft PR, add to card", "Set up Statsig exp", "Test in a browser", "Fix CI + bot comments"], ["watch-and-fix", "corvid"]),
   ("agent", ["Draft handoff message", "with previews and", "Statsig overrides", "Flag the card"], ["watch-and-fix", "qa-handoff"]),
   ("agent", ["Watch Slack, PRs, Linear", "Fix bugs + push", "Re-test in a browser", "Draft replies"], ["watch-and-fix"]),

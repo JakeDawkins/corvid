@@ -8,6 +8,7 @@ import type {
   Inbox,
   IssueStatus,
   PrStatus,
+  T3Project,
   VercelDeployment,
   VercelProject,
 } from "./types";
@@ -52,6 +53,32 @@ export async function loadInbox(): Promise<Inbox> {
   inbox.issues ??= [];
   inbox.projects ??= [];
   return inbox;
+}
+
+export async function loadT3Projects(): Promise<{ projects: T3Project[]; error?: string }> {
+  const res = await fetch("/api/t3/projects");
+  const data = (await res.json()) as { projects?: T3Project[]; error?: string };
+  return { projects: data.projects ?? [], error: data.error };
+}
+
+export type StartedThread = { threadId: string; environmentId?: string; link?: string };
+
+// Starts a T3 Code thread with `prompt` as its first message. Throws with the
+// server's error message on failure.
+export async function startT3Thread(body: {
+  projectId: string;
+  prompt: string;
+  title?: string;
+  worktree: boolean;
+}): Promise<StartedThread> {
+  const res = await fetch("/api/t3/threads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json()) as StartedThread & { error?: string };
+  if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
 }
 
 export async function loadVercelProjects(): Promise<{

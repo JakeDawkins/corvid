@@ -1,5 +1,5 @@
-// The Claude starburst mark. Used for the Suggested toolbar button and, spinning,
-// as the "agent working" indicator on cards.
+// The Claude starburst mark. Used for the Suggested toolbar button and the
+// card's agent prompt button.
 export function ClaudeLogo({ className = "claude-logo" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">

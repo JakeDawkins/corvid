@@ -4,7 +4,7 @@ import type { AgentsStatus, Card, ContextIndex, Data, IssueStatus, LinearResourc
 import { loadContextIndex, loadData, refresh, resolveLink, saveData } from "./api";
 import { domainName, linearKey, linkKind, linkTitle, normalizeCard, parsePrUrl, toUrl } from "./links";
 import type { VercelDeployment } from "./types";
-import { CardLink, IssueLine, PrLine, ThreadBadge, WorkspaceTag, resourceLabel } from "./Badges";
+import { CardLink, IssueLine, PrLine, ThreadBadge, resourceLabel } from "./Badges";
 import { CardEditor } from "./CardEditor";
 import { ContextPage } from "./ContextPage";
 import { ComplexityBars } from "./Complexity";
@@ -91,8 +91,8 @@ export default function App() {
   const [deploymentsPaused, setDeploymentsPaused] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  // Live Conductor status of workspaces linked on cards, pushed by the server.
-  const [agents, setAgents] = useState<AgentsStatus>({ workspaces: {} });
+  // Live T3 Code status of threads linked on cards, pushed by the server.
+  const [agents, setAgents] = useState<AgentsStatus>({});
   // Cards with a project context, and a counter per card bumped when its
   // context changes on disk, so an open context page reloads.
   const [contexts, setContexts] = useState<ContextIndex>({});
@@ -262,7 +262,7 @@ export default function App() {
 
   // Save the fields edited in the editor onto the live card (or add `card` as
   // new), so anything else an agent changed while the editor was open, like
-  // `needsYou` or a linked workspace, isn't undone by the save.
+  // `needsYou` or a linked thread, isn't undone by the save.
   function upsertCard(card: Card, changes: Partial<Card>) {
     setData((d) => {
       const live = d.cards.find((c) => c.id === card.id);
@@ -895,11 +895,10 @@ export default function App() {
       {(tag ||
         card.complexity ||
         card.dueDate ||
-        !!card.workspaces?.length ||
         !!card.threads?.length ||
         contexts[card.id]) && (
         <div className="card-foot">
-          {/* Tag, size and due date lead; workspaces and threads follow on the
+          {/* Tag, size and due date lead; threads follow on the
               same line and wrap below when they don't fit. The context button
               stays pinned to the right of the first line. */}
           <div className="card-foot-items">
@@ -912,9 +911,6 @@ export default function App() {
             {card.dueDate && (
               <DueBadge date={card.dueDate} thresholds={data.dueThresholds} muted={card.hidden} />
             )}
-            {card.workspaces?.map((id) => (
-              <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
-            ))}
             {card.threads?.map((id) => (
               <ThreadBadge key={id} id={id} status={agents.threads?.[id]} compact />
             ))}

@@ -467,7 +467,7 @@ body {
 .card-link .resource-icon { font-size: calc(10px * var(--text-scale)); opacity: 0.85; }
 .card-link span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Footer: color tag, complexity, and linked workspaces, with the context
+/* Footer: color tag, complexity, and linked threads, with the context
    button on the right of the first line. Every item is one line tall so the
    button lines up with the first row however the items wrap. */
 .card-foot {
@@ -525,7 +525,7 @@ body {
 }
 .card-context:hover { color: var(--text); }
 .card-context svg { display: block; }
-.workspace-tag {
+.thread-tag {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -534,13 +534,11 @@ body {
   color: var(--muted);
   text-decoration: none;
 }
-.workspace-tag:hover { color: var(--text); }
-.workspace-tag.working { color: var(--claude); }
-.workspace-tag.waiting { color: var(--text); }
-.workspace-tag.waiting .claude-logo { fill: var(--claude); }
-.workspace-tag .claude-logo { width: 12px; height: 12px; fill: currentColor; }
-.workspace-tag .t3-logo { width: 12px; height: 12px; }
-.workspace-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-tag:hover { color: var(--text); }
+.thread-tag.working { color: var(--claude); }
+.thread-tag.waiting { color: var(--text); }
+.thread-tag .t3-logo { width: 12px; height: 12px; }
+.thread-tag span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Complexity meter on a card: five segments, filled to the size's rank. */
 .complexity { display: flex; align-items: center; gap: 8px; }
@@ -716,6 +714,23 @@ body {
 }
 .prompt-dialog textarea:focus { outline: none; border-color: var(--accent); }
 .prompt-dialog-actions { display: flex; align-items: center; gap: 6px; }
+.prompt-t3-row { display: flex; align-items: center; gap: 10px; }
+.prompt-t3-row select { flex: 1; min-width: 0; padding: 6px 8px; }
+.prompt-dialog .prompt-t3-worktree {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.prompt-t3-worktree input { width: auto; margin: 0; }
+.prompt-t3-error {
+  font-size: calc(12px * var(--text-scale));
+  color: var(--bad);
+  overflow-wrap: anywhere;
+}
 
 input, textarea, select {
   background: var(--panel-2);
@@ -815,7 +830,7 @@ select {
   text-transform: none;
   letter-spacing: 0;
 }
-/* Linked Conductor workspaces and T3 Code threads, under the title. Each
+/* Linked T3 Code threads, under the title. Each
    shows its unlink button on hover. */
 .detail-agents { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 16px; }
 .detail-agent { position: relative; display: inline-flex; min-width: 0; max-width: 100%; }
@@ -867,11 +882,10 @@ select {
   white-space: nowrap;
 }
 
-/* A linked Conductor workspace on a card. Neutral while idle, Claude orange
-   with a spinning mark while an agent is working in it, and a softer orange
-   with a pulsing orange mark and dashed border while it's waiting to resume
-   on its own. */
-.chip.workspace-badge {
+/* A linked T3 Code thread on a card. Neutral while idle, Claude orange while
+   a run is in progress, and a dashed border while a run is paused on the
+   user. */
+.chip.thread-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -881,29 +895,19 @@ select {
   padding: 3px 9px;
   color: var(--muted);
 }
-.chip.workspace-badge .claude-logo { width: 13px; height: 13px; fill: currentColor; }
 /* T3 Code's mark keeps its own colors in every state. */
 .t3-logo { width: 14px; height: 14px; flex: none; }
-.chip.workspace-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.chip.workspace-badge.working {
+.chip.thread-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.thread-badge.working {
   color: var(--claude);
   background: color-mix(in srgb, var(--claude) 16%, var(--panel));
   border-color: color-mix(in srgb, var(--claude) 55%, var(--border));
 }
-.chip.workspace-badge.working:hover { border-color: var(--claude); }
-.chip.workspace-badge.waiting { border-style: dashed; }
-.chip.workspace-badge.waiting .claude-logo { fill: var(--claude); }
-.chip.workspace-badge.waiting:hover { border-color: var(--claude); }
-.workspace-badge-state { font-weight: 700; }
-.workspace-badge-state::after { content: " ·"; font-weight: 500; }
-.claude-logo.spinning { animation: agent-spin 2.4s linear infinite; }
-@keyframes agent-spin { to { transform: rotate(360deg); } }
-.claude-logo.pulsing { animation: agent-pulse 2.4s ease-in-out infinite; }
-@keyframes agent-pulse { 50% { opacity: 0.3; } }
-@media (prefers-reduced-motion: reduce) {
-  .claude-logo.spinning,
-  .claude-logo.pulsing { animation: none; }
-}
+.chip.thread-badge.working:hover { border-color: var(--claude); }
+.chip.thread-badge.waiting { border-style: dashed; }
+.chip.thread-badge.waiting:hover { border-color: var(--claude); }
+.thread-badge-state { font-weight: 700; }
+.thread-badge-state::after { content: " ·"; font-weight: 500; }
 
 .modal-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 
@@ -1609,7 +1613,7 @@ select {
   cursor: pointer;
 }
 .context-more:hover { text-decoration: underline; }
-.context-workspaces {
+.context-threads {
   display: flex;
   flex-direction: column;
   gap: 4px;

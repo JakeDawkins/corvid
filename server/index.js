@@ -2,7 +2,7 @@ import express from 'express';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -499,197 +499,138 @@ async function listVercelDeployments(projectId, teamId, limit = 5) {
   return (data.deployments || []).map(shapeDeployment);
 }
 
-// ---------------- Conductor (agent activity) ----------------
-// Conductor keeps its workspace and session state in a local SQLite file. We read
-// it (read-only, via the sqlite3 CLI that ships with macOS) to tell whether an
-// agent is working in any workspace linked on a card. The schema is internal to
-// Conductor, so any failure just means "no activity info", never a board error.
-const CONDUCTOR_DB =
-  process.env.CONDUCTOR_DB ||
-  join(homedir(), 'Library', 'Application Support', 'com.conductor.app', 'conductor.db');
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Run a read-only query against Conductor's database and parse its rows.
-async function queryConductor(sql) {
-  const { stdout } = await execFileP(
-    'sqlite3',
-    ['-readonly', '-json', '-cmd', '.timeout 2000', CONDUCTOR_DB, sql],
-    { maxBuffer: 32 * 1024 * 1024 },
-  );
-  // sqlite3 prints nothing (not "[]") when there are no rows.
-  return stdout.trim() ? JSON.parse(stdout) : [];
-}
-
-// sqlite3 can't open the database while Conductor is closed, so flag that
-// (the UI collapses its Conductor section) instead of surfacing the raw
-// SQLite error.
-function conductorErr(e) {
-  const msg = cleanErr(e);
-  return /unable to open database file/i.test(msg)
-    ? { error: "Conductor isn't running", notRunning: true }
-    : { error: msg };
-}
-
-// How far back to look for scheduled wakeups and background tasks. Claude Code
-// caps a wakeup at 1h and a background command at 2h, so anything older has
-// fired or ended (or its session died without saying so).
-const WAIT_LOOKBACK_MS = 2 * 60 * 60 * 1000;
-// A wakeup counts as pending a little past its due time, so the gap between it
-// firing and the session flipping to "working" doesn't flash "idle".
-const WAKE_GRACE_MS = 2 * 60 * 1000;
-
-// What idle sessions in these workspaces are waiting on, keyed by workspace
-// local_id: background tasks (Bash run_in_background, Monitor, background
-// agents) that haven't ended, and the next ScheduleWakeup of a /loop. Either
-// re-invokes the agent on its own, so the workspace is "waiting", not "idle".
-async function fetchWaits(localIds) {
-  if (!localIds.length) return {};
-  const list = localIds.map((id) => `'${id}'`).join(',');
-  const since = new Date(Date.now() - WAIT_LOOKBACK_MS).toISOString();
-  const rows = await queryConductor(`
-    select s.workspace_id as ws, s.id as session, m.sent_at as at, m.content as content
-    from sessions s join session_messages m on m.session_id = s.id
-    where s.workspace_id in (${list}) and m.sent_at > '${since}'
-      and (m.content like '{"type":"system","subtype":"task_started"%'
-        or m.content like '{"type":"system","subtype":"task_updated"%'
-        or m.content like '{"type":"system","subtype":"task_notification"%'
-        or m.content like '%"name":"ScheduleWakeup"%')
-    order by m.sent_at`);
-  const tasks = new Map(); // task_id -> { ws, description, background, done }
-  const wakeups = new Map(); // session id -> { ws, at (ms) } for its latest wakeup
-  for (const r of rows) {
-    let msg;
-    try {
-      msg = JSON.parse(r.content);
-    } catch {
-      continue;
-    }
-    if (msg.type === 'system') {
-      const task = tasks.get(msg.task_id);
-      if (msg.subtype === 'task_started') {
-        tasks.set(msg.task_id, {
-          ws: r.ws,
-          description: msg.description,
-          background: msg.is_backgrounded === true,
-          done: false,
-        });
-      } else if (task && msg.subtype === 'task_updated') {
-        if (msg.patch?.is_backgrounded) task.background = true;
-        if (msg.patch?.status) task.done = true;
-      } else if (task && msg.subtype === 'task_notification') {
-        task.done = true;
-      }
-    } else if (msg.type === 'assistant') {
-      for (const c of msg.message?.content || []) {
-        if (c.type !== 'tool_use' || c.name !== 'ScheduleWakeup') continue;
-        // A newer call replaces the session's pending wakeup; stop cancels it.
-        if (c.input?.stop) {
-          wakeups.delete(r.session);
-        } else {
-          const delay = Math.min(3600, Math.max(60, Number(c.input?.delaySeconds) || 0));
-          wakeups.set(r.session, { ws: r.ws, at: Date.parse(r.at) + delay * 1000 });
-        }
-      }
-    }
-  }
-  const out = {};
-  const entry = (ws) => (out[ws] ||= { waitingOn: [] });
-  for (const t of tasks.values()) {
-    if (t.background && !t.done) entry(t.ws).waitingOn.push(t.description || 'Background task');
-  }
-  const now = Date.now();
-  for (const w of wakeups.values()) {
-    if (w.at + WAKE_GRACE_MS < now) continue;
-    const e = entry(w.ws);
-    if (!e.wakeAt || w.at < e.wakeAt) e.wakeAt = w.at;
-  }
-  return out;
-}
-
-// Status for each requested workspace id, keyed by that id. Ids Conductor
-// doesn't know (deleted, or from another machine) are simply absent.
-async function fetchWorkspaces(ids) {
-  // Ids are interpolated into SQL, so only well-formed UUIDs get through.
-  const wanted = [...new Set(ids)].filter((id) => UUID_RE.test(id));
-  if (!wanted.length) return { workspaces: {} };
-  if (!existsSync(CONDUCTOR_DB)) {
-    return { workspaces: {}, error: `Conductor database not found at ${CONDUCTOR_DB}` };
-  }
-  const list = wanted.map((id) => `'${id}'`).join(',');
-  const sql = `
-    select w.local_id as local_id, w.id as id, w.directory_name as name,
-      w.branch as branch, w.state as state, r.name as repo,
-      max(case when s.status = 'working' then 1 else 0 end) as working
-    from workspaces w
-    left join repos r on r.id = w.repository_id
-    left join sessions s on s.workspace_id = w.local_id
-    where w.local_id in (${list}) or w.id in (${list})
-    group by w.local_id`;
-  try {
-    const rows = await queryConductor(sql);
-    // Waits are a refinement of "idle"; if reading them fails, fall back to
-    // working/idle rather than dropping the whole status.
-    const waits = await fetchWaits(
-      rows.filter((r) => r.working !== 1 && r.state !== 'archived').map((r) => r.local_id),
-    ).catch(() => ({}));
-    const out = {};
-    for (const r of rows) {
-      const wait = r.working === 1 ? undefined : waits[r.local_id];
-      const status = {
-        name: r.name,
-        repo: r.repo,
-        branch: r.branch,
-        state: r.state,
-        activity: r.working === 1 ? 'working' : wait ? 'waiting' : 'idle',
-        working: r.working === 1,
-      };
-      if (wait?.waitingOn.length) status.waitingOn = wait.waitingOn;
-      if (wait?.wakeAt) status.wakeAt = new Date(wait.wakeAt).toISOString();
-      for (const id of [r.local_id, r.id]) if (wanted.includes(id)) out[id] = status;
-    }
-    return { workspaces: out };
-  } catch (e) {
-    return { workspaces: {}, ...conductorErr(e) };
-  }
-}
-
-// Repos added to Conductor, in sidebar order, for a card's repo picker. root_path
-// is what a conductor:// deep link's `path` matches to pick the repo.
-async function fetchConductorRepos() {
-  if (!existsSync(CONDUCTOR_DB)) {
-    return { repos: [], error: `Conductor database not found at ${CONDUCTOR_DB}` };
-  }
-  const sql = `
-    select name, root_path as path from repos
-    where coalesce(hidden, 0) = 0 and root_path is not null
-    order by display_order, name`;
-  try {
-    return { repos: await queryConductor(sql) };
-  } catch (e) {
-    return { repos: [], ...conductorErr(e) };
-  }
-}
-
 // ---------------- T3 Code (thread titles and activity) ----------------
 // T3 Code keeps its threads in a local SQLite file too. We read the title,
 // archived state, and whether a run is in progress for each thread linked on a
-// card, plus the environment id its t3code:// deep links need. Like Conductor,
-// the schema is internal, so a failure only means no thread info.
+// card, plus the environment id its t3code:// deep links need. We read it
+// read-only, via the sqlite3 CLI that ships with macOS. The schema is internal
+// to T3, so a failure only means no thread info, never a board error.
 const T3_HOME = process.env.T3CODE_HOME || join(homedir(), '.t3');
 const T3_DB = process.env.T3_DB || join(T3_HOME, 'userdata', 'statev2.sqlite');
 const T3_ENV_FILE = join(T3_HOME, 'userdata', 'environment-id');
+// The t3 CLI, which starts threads on the running T3 server. Falls back to `t3`
+// on PATH when T3's own launcher isn't there.
+const T3_BIN = process.env.T3_BIN || (existsSync(join(T3_HOME, 'bin', 't3')) ? join(T3_HOME, 'bin', 't3') : 't3');
 // Run states T3 treats as unfinished. "waiting" is a run paused on the user.
 const T3_WORKING = ['queued', 'preparing', 'starting', 'running'];
+// T3 thread ids: a bare UUID, or a prefixed id such as "mcp:<uuid>" for threads
+// started by the CLI or an agent. Ids are interpolated into SQL, so only these
+// characters (no quotes) get through.
+const T3_THREAD_RE = /^[A-Za-z0-9:%._-]{1,512}$/;
+
+async function readT3EnvironmentId() {
+  try {
+    return (await readFile(T3_ENV_FILE, 'utf8')).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function queryT3(sql) {
+  const { stdout } = await execFileP(
+    'sqlite3',
+    ['-readonly', '-json', '-cmd', '.timeout 2000', T3_DB, sql],
+    { maxBuffer: 8 * 1024 * 1024 },
+  );
+  return stdout.trim() ? JSON.parse(stdout) : [];
+}
+
+// Projects in T3 Code, for a card's "Start in T3" project picker.
+async function fetchT3Projects() {
+  if (!existsSync(T3_DB)) return { projects: [], error: `T3 Code database not found at ${T3_DB}` };
+  try {
+    const rows = await queryT3(`
+      select project_id as id, title as name, workspace_root as path from projection_projects
+      where deleted_at is null and archived_at is null
+      order by pinned_at is null, lower(title)`);
+    return { projects: rows };
+  } catch (e) {
+    return { projects: [], error: cleanErr(e) };
+  }
+}
+
+// What a new worktree for a project starts from: the remote's default branch
+// (e.g. "origin/main"), fetched first so it's current, else the checked-out
+// branch. Null when the project isn't a git repo, so the thread runs in the
+// project folder instead.
+async function worktreeBase(root) {
+  const git = (...args) =>
+    execFileP('git', ['-C', root, ...args], { timeout: 20000 }).then((r) => r.stdout.trim());
+  try {
+    const remoteHead = await git('symbolic-ref', '--short', 'refs/remotes/origin/HEAD');
+    const branch = remoteHead.replace(/^origin\//, '');
+    await git('fetch', '--quiet', 'origin', branch).catch(() => {});
+    return remoteHead;
+  } catch {
+    // No origin/HEAD: fall back to the checked-out branch.
+  }
+  try {
+    const head = await git('rev-parse', '--abbrev-ref', 'HEAD');
+    return head && head !== 'HEAD' ? head : null;
+  } catch {
+    return null;
+  }
+}
+
+// Run a command with `input` on stdin; resolves with stdout, rejects with an
+// error carrying stderr.
+function runWithInput(cmd, args, input, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    const timer = setTimeout(() => child.kill('SIGTERM'), timeoutMs);
+    child.stdout.on('data', (d) => (stdout += d));
+    child.stderr.on('data', (d) => (stderr += d));
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) return resolve(stdout);
+      const err = new Error(signal ? `${cmd} timed out` : `${cmd} exited with code ${code}`);
+      err.stderr = stderr || stdout;
+      reject(err);
+    });
+    child.stdin.end(input);
+  });
+}
+
+// Start a T3 Code thread in `projectId` with `prompt` as its first message, in
+// a new worktree when `worktree` is set. Returns its id and deep link.
+async function startT3Thread({ projectId, prompt, title, worktree }) {
+  const { projects, error } = await fetchT3Projects();
+  const project = projects.find((p) => p.id === projectId);
+  if (!project) throw new Error(error || 'Unknown T3 Code project');
+  const args = ['thread', 'start', project.id, '-', '--json'];
+  if (title) args.push('--title', title.slice(0, 200));
+  if (worktree) {
+    const base = await worktreeBase(project.path);
+    if (base) args.push('--worktree', base);
+  }
+  const out = await runWithInput(T3_BIN, args, prompt, 60000);
+  let threadId;
+  try {
+    threadId = JSON.parse(out).threadId;
+  } catch {
+    // Handled below.
+  }
+  if (typeof threadId !== 'string' || !T3_THREAD_RE.test(threadId)) {
+    throw new Error(`Unexpected output from t3 thread start: ${out.trim().slice(0, 200)}`);
+  }
+  const environmentId = await readT3EnvironmentId();
+  const link = environmentId
+    ? `t3code://threads/${encodeURIComponent(environmentId)}/${encodeURIComponent(threadId)}`
+    : undefined;
+  return { threadId, environmentId, link };
+}
 
 async function fetchThreads(ids) {
-  const wanted = [...new Set(ids)].filter((id) => UUID_RE.test(id));
+  const wanted = [...new Set(ids)].filter((id) => T3_THREAD_RE.test(id));
   if (!wanted.length || !existsSync(T3_DB)) return {};
-  let environmentId;
-  try {
-    environmentId = (await readFile(T3_ENV_FILE, 'utf8')).trim() || undefined;
-  } catch {
-    // No environment id: show titles without a deep link.
-  }
+  // Without an environment id, titles show without a deep link.
+  const environmentId = await readT3EnvironmentId();
   const list = wanted.map((id) => `'${id}'`).join(',');
   const working = T3_WORKING.map((s) => `'${s}'`).join(',');
   const sql = `
@@ -700,12 +641,7 @@ async function fetchThreads(ids) {
     where t.thread_id in (${list}) and t.deleted_at is null
     group by t.thread_id`;
   try {
-    const { stdout } = await execFileP(
-      'sqlite3',
-      ['-readonly', '-json', '-cmd', '.timeout 2000', T3_DB, sql],
-      { maxBuffer: 8 * 1024 * 1024 },
-    );
-    const rows = stdout.trim() ? JSON.parse(stdout) : [];
+    const rows = await queryT3(sql);
     const out = {};
     for (const r of rows) {
       out[r.id] = {
@@ -721,15 +657,11 @@ async function fetchThreads(ids) {
   }
 }
 
-// Workspace and T3 thread ids linked on any card, read from disk so a link
-// added by the UI or a skill is picked up on the next poll.
-async function linkedAgentIds() {
+// T3 thread ids linked on any card, read from disk so a link added by the UI
+// or a skill is picked up on the next poll.
+async function linkedThreadIds() {
   const data = await readData();
-  const cards = data.cards || [];
-  return {
-    workspaces: cards.flatMap((c) => (Array.isArray(c.workspaces) ? c.workspaces : [])),
-    threads: cards.flatMap((c) => (Array.isArray(c.threads) ? c.threads : [])),
-  };
+  return (data.cards || []).flatMap((c) => (Array.isArray(c.threads) ? c.threads : []));
 }
 
 // ---------------- app ----------------
@@ -747,8 +679,7 @@ app.put('/api/data', async (req, res) => {
 
 // Server-sent events stream. The browser subscribes and reloads data.json when
 // it changes on disk from outside the UI (e.g. a skill editing the file). It
-// also carries `agents` events with the Conductor status of linked workspaces
-// and the T3 Code status of linked threads.
+// also carries `agents` events with the T3 Code status of linked threads.
 const sseClients = new Set();
 function broadcastDataChanged() {
   for (const res of sseClients) res.write('event: data\ndata: {}\n\n');
@@ -762,12 +693,8 @@ function writeAgents(res, payload) {
 }
 
 async function pollAgents() {
-  const ids = await linkedAgentIds();
-  const [workspaces, threads] = await Promise.all([
-    fetchWorkspaces(ids.workspaces),
-    fetchThreads(ids.threads),
-  ]);
-  const payload = JSON.stringify({ ...workspaces, threads });
+  const threads = await fetchThreads(await linkedThreadIds());
+  const payload = JSON.stringify({ threads });
   if (payload === lastAgents) return;
   lastAgents = payload;
   for (const res of sseClients) writeAgents(res, payload);
@@ -825,7 +752,7 @@ setInterval(() => {
   }
 }, 1000);
 
-// Poll Conductor for agent activity while anyone is watching. Cleared when the
+// Poll T3 Code for thread activity while anyone is watching. Cleared when the
 // last subscriber leaves so a reconnect always starts from a fresh read.
 let agentsPolling = false;
 setInterval(async () => {
@@ -935,9 +862,31 @@ app.get('/api/inbox', async (_req, res) => {
   res.json({ ...gh, ...linear });
 });
 
-// Repos in Conductor, for picking where a card's workspace starts.
-app.get('/api/conductor/repos', async (_req, res) => {
-  res.json(await fetchConductorRepos());
+// Projects in T3 Code, for picking where a card's thread starts.
+app.get('/api/t3/projects', async (_req, res) => {
+  res.json(await fetchT3Projects());
+});
+
+// Start a T3 Code thread for a card: { projectId, prompt, title?, worktree? }.
+app.post('/api/t3/threads', async (req, res) => {
+  const { projectId, prompt, title, worktree } = req.body || {};
+  if (typeof projectId !== 'string' || !projectId) return res.status(400).json({ error: 'No project' });
+  if (typeof prompt !== 'string' || !prompt.trim()) return res.status(400).json({ error: 'No prompt' });
+  try {
+    res.json(
+      await startT3Thread({
+        projectId,
+        prompt,
+        title: typeof title === 'string' ? title.trim() : undefined,
+        worktree: worktree !== false,
+      }),
+    );
+  } catch (e) {
+    const msg = cleanErr(e);
+    res.status(502).json({
+      error: /ENOENT/.test(msg) ? `t3 CLI not found (${T3_BIN})` : msg,
+    });
+  }
 });
 
 // Vercel projects the token can see (for the Deployments sidebar toggles).

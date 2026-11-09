@@ -13,9 +13,9 @@ export function stripComments(md: string): string {
   return md.replace(/<!--[\s\S]*?-->/g, "");
 }
 
-// DOMPurify's default URI rule, plus conductor:// (workspace links) and slack://.
+// DOMPurify's default URI rule, plus t3code:// (thread links) and slack://.
 const ALLOWED_URI =
-  /^(?:(?:https?|mailto|tel|conductor|slack):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
+  /^(?:(?:https?|mailto|tel|t3code|slack):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
 
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: ALLOWED_URI });

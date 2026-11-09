@@ -48,7 +48,7 @@ of, or shipping a Statsig experiment.
 
 1. **Find the project's hub.** If you were given a Corvid Card ID, that card
    lists the project's links (Linear issues, PRs, Slack threads). Use the
-   `corvid` skill to read it, link your Conductor workspace to it, and add any PR
+   `corvid` skill to read it, link your T3 Code thread to it, and add any PR
    you open. Otherwise, take the links from the conversation.
 2. **Read the project context.** With a Card ID, run the corvid skill's
    `context <card id>` and read it before you plan: earlier threads recorded
@@ -60,8 +60,8 @@ of, or shipping a Statsig experiment.
 3. **Read the spec.** Fetch each Linear issue for its description, acceptance
    criteria, and comments.
 4. **Write a state file** so polls don't repeat or drop work. Use
-   `.context/watch/<id>.json` if the repo has a git-ignored `.context/`
-   (Conductor). Otherwise use `.watch/<id>.json` and add `.watch/` to
+   `.context/watch/<id>.json` if the repo has a git-ignored `.context/`.
+   Otherwise use `.watch/<id>.json` and add `.watch/` to
    `.git/info/exclude`. Track:
    - `phase`: `build` | `handoff` | `watch` | `done`
    - Linear issue ids, PR URLs, branch, preview URLs
@@ -108,7 +108,7 @@ into which group (if there's an experiment), and a short list of what to check. 
 so it copies cleanly.
 
 Then flag the user, for example: reason "Ready for QA", action "Post the QA
-handoff drafted in the workspace to #qa, then move ENG-123 to In QA." Add
+handoff drafted in the thread to #qa, then move ENG-123 to In QA." Add
 "mark the PR ready for review" if reviewers should start now.
 
 Go straight to watching. You don't need to wait for the user to confirm the

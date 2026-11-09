@@ -37,16 +37,13 @@ export type Card = {
   // A flat list of links (GitHub PRs, Linear issues/projects, and misc URLs).
   // Each link's kind is derived from its URL via linkKind(), not stored.
   links: Link[];
-  // Conductor workspace ids (CONDUCTOR_WORKSPACE_ID) doing work for this card.
-  // A card can span several workspaces, e.g. one per repo. The board shows an
-  // activity indicator while an agent is working in any of them.
-  workspaces?: string[];
   // T3 Code thread ids for this card, so the board shows where it already has
-  // a conversation. Linked like workspaces, by an agent or by pasting the id.
+  // a conversation and whether an agent is working in it. Linked by "Start in
+  // T3", by an agent, or by pasting the id. A card can have several.
   threads?: string[];
-  // Root path of the Conductor repo to start new workspaces for this card in
-  // (e.g. "/Users/jane/code/my-app"), as listed by /api/conductor/repos.
-  repo?: string;
+  // T3 Code project id that "Start in T3" last started a thread in for this
+  // card, as listed by /api/t3/projects.
+  t3Project?: string;
   needsYou?: NeedsYou;
   // ISO timestamps: when the card was created, last changed, and last
   // archived (archivedAt, removed when it's unarchived). Cards from before these
@@ -56,27 +53,8 @@ export type Card = {
   archivedAt?: string;
 };
 
-// A repo added to Conductor. `path` is its root directory.
-export type ConductorRepo = { name: string; path: string };
-
-// Live Conductor status for one linked workspace, pushed by the server over SSE.
-export type WorkspaceStatus = {
-  name?: string;
-  repo?: string;
-  branch?: string;
-  // Conductor's workspace state, e.g. "ready" or "archived".
-  state?: string;
-  // working: an agent is mid-turn. waiting: idle, but a background task or a
-  // scheduled wakeup (/loop) will re-invoke it on its own. idle: neither.
-  // Absent from servers that predate it; fall back to `working`.
-  activity?: "working" | "waiting" | "idle";
-  // True while any session in the workspace has an agent working.
-  working: boolean;
-  // While waiting: descriptions of the background tasks it's waiting on.
-  waitingOn?: string[];
-  // While waiting: when the next scheduled wakeup fires (ISO).
-  wakeAt?: string;
-};
+// A project in T3 Code. `path` is its root directory.
+export type T3Project = { id: string; name: string; path: string };
 
 // Live T3 Code status for one linked thread, read from T3's local database.
 export type ThreadStatus = {
@@ -89,12 +67,9 @@ export type ThreadStatus = {
   activity: "working" | "waiting" | "idle";
 };
 
+// Live status of the T3 Code threads linked on cards, pushed by the server
+// over SSE, keyed by thread id. Ids T3 doesn't know are absent.
 export type AgentsStatus = {
-  workspaces: Record<string, WorkspaceStatus>;
-  error?: string;
-  // Conductor's database couldn't be opened because the app is closed.
-  notRunning?: boolean;
-  // Linked T3 Code threads, keyed by thread id. Ids T3 doesn't know are absent.
   threads?: Record<string, ThreadStatus>;
 };
 

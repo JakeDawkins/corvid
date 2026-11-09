@@ -188,9 +188,9 @@ also be here. For each link, say what it contains and when it was read, or
 "Not read". Use only verified URLs: never build one from an ID or a title.
 Leave out a group with no items. Groups, in this order when they apply:
 ${groups}
-The card's own links and Conductor workspaces show in the page's sidebar on
-their own. List other agent workspaces (T3 Code threads, other machines) under
-"Agent workspaces".
+The card's own links and T3 Code threads show in the page's sidebar on their
+own. List other agent sessions (other machines or tools) under "Agent
+workspaces".
 
 ## Ticket and plan
 

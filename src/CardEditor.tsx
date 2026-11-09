@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, MutableRefObject } from "react";
-import type { AgentsStatus, Cache, Card, Link, NeedsYou } from "./types";
+import type { AgentsStatus, Cache, Card, Link, NeedsYou, T3Project } from "./types";
 import { linkKind, parseThreadId } from "./links";
-import { GenericLine, IssueLine, PrLine, ThreadBadge, WorkspaceBadge } from "./Badges";
+import { loadT3Projects, startT3Thread } from "./api";
+import { GenericLine, IssueLine, PrLine, ThreadBadge } from "./Badges";
 import { ClaudeLogo } from "./ClaudeLogo";
 import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { COLORS, textOn } from "./colors";
@@ -24,7 +25,7 @@ const MASKED_HINT = "Masked mode is on (Shift+M to turn off)";
 
 // The fields of `next` that differ from `prev`, so saving only writes what the
 // user edited and leaves fields an agent changed meanwhile (e.g. a linked
-// workspace or PR) alone.
+// thread or PR) alone.
 function changedFields(prev: Card, next: Card): Partial<Card> {
   const changes: Partial<Card> = {};
   const keys = new Set([...Object.keys(prev), ...Object.keys(next)] as (keyof Card)[]);
@@ -38,7 +39,7 @@ function changedFields(prev: Card, next: Card): Partial<Card> {
 
 // Build a paste-ready instruction for an AI agent to work on this card: the
 // task, its links (so the agent has full context), and standing instructions
-// to link its Conductor workspace or T3 Code thread and any PR it opens back
+// to link its T3 Code thread and any PR it opens back
 // to this card (by id) on the Corvid board, and to flag the card when it's
 // waiting on the user.
 // `instructions`: the user's own guidance typed in the Copy prompt dialog. It
@@ -74,7 +75,7 @@ function buildAgentPrompt(card: Card, instructions = ""): string {
   }
   lines.push("");
   lines.push(
-    `Before you start, link your session to this card so the board shows when you're working on it. With the corvid skill: in Conductor, run \`link-workspace ${card.id}\` (it reads $CONDUCTOR_WORKSPACE_ID); in T3 Code, run \`link-thread ${card.id}\` (it finds the thread working in the current directory, or pass your thread id). Both do nothing if the card already has that link.`,
+    `Before you start, link your T3 Code thread to this card so the board shows when you're working on it: with the corvid skill, run \`link-thread ${card.id}\` (it finds the thread working in the current directory, or pass your thread id). It does nothing if the card already has that thread.`,
   );
   lines.push("");
   lines.push(
@@ -99,22 +100,72 @@ function buildAgentPrompt(card: Card, instructions = ""): string {
   return lines.join("\n");
 }
 
-// The Copy prompt dialog: a box for extra instructions that go into the prompt
-// marked as a priority, e.g. where the user disagrees with the ticket or wants
-// to steer the work before it starts. Empty is fine. ⌘↵ copies, Esc closes.
+// Per-browser memory of the last T3 project and worktree choice, so a card
+// that has never been started in T3 defaults to them.
+const T3_PROJECT_KEY = "corvid.t3Project";
+const T3_WORKTREE_KEY = "corvid.t3Worktree";
+function readPref(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function writePref(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+// The agent prompt dialog: a box for extra instructions that go into the
+// prompt marked as a priority, e.g. where the user disagrees with the ticket
+// or wants to steer the work before it starts. Empty is fine. The prompt is
+// copied, or sent as the first message of a new T3 Code thread in the chosen
+// project. ⌘↵ copies, ⌘⇧↵ starts in T3, Esc closes.
 function PromptDialog({
   value,
   onChange,
   onCopy,
   onClose,
+  t3,
 }: {
   value: string;
   onChange: (v: string) => void;
   onCopy: () => void;
   onClose: () => void;
+  t3: {
+    // null while loading.
+    projects: T3Project[] | null;
+    error?: string;
+    project: string;
+    onProject: (id: string) => void;
+    worktree: boolean;
+    onWorktree: (on: boolean) => void;
+    onStart: () => void;
+    starting: boolean;
+    startError?: string;
+  };
 }) {
+  const canStart = !!t3.project && !t3.starting;
   return (
-    <div className="prompt-dialog" role="dialog" aria-label="Copy prompt">
+    <div
+      className="prompt-dialog"
+      role="dialog"
+      aria-label="Agent prompt"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          if (!e.shiftKey) onCopy();
+          else if (canStart) t3.onStart();
+        } else if (e.key === "Escape") {
+          // Close just the dialog, not the whole card.
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
       <label htmlFor="prompt-instructions">Additional instructions</label>
       <textarea
         id="prompt-instructions"
@@ -123,25 +174,56 @@ function PromptDialog({
         value={value}
         placeholder="Anything you disagree with in the ticket or resources, or guidance before work starts. Marked as a priority for the agent."
         onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            onCopy();
-          } else if (e.key === "Escape") {
-            // Close just the dialog, not the whole card.
-            e.stopPropagation();
-            onClose();
-          }
-        }}
       />
+      <label htmlFor="prompt-t3-project">T3 Code project</label>
+      <div className="prompt-t3-row">
+        <select
+          id="prompt-t3-project"
+          value={t3.project}
+          disabled={!t3.projects?.length}
+          onChange={(e) => t3.onProject(e.target.value)}
+        >
+          {t3.projects === null ? (
+            <option value="">Loading projects…</option>
+          ) : (
+            <>
+              <option value="">{t3.projects.length ? "Choose a project" : "No T3 projects"}</option>
+              {t3.projects.map((p) => (
+                <option key={p.id} value={p.id} title={p.path}>
+                  {p.name}
+                </option>
+              ))}
+            </>
+          )}
+        </select>
+        <label className="prompt-t3-worktree" title="Run in a new git worktree from the default branch, instead of the project folder">
+          <input
+            type="checkbox"
+            checked={t3.worktree}
+            onChange={(e) => t3.onWorktree(e.target.checked)}
+          />
+          New worktree
+        </label>
+      </div>
+      {(t3.startError || t3.error) && (
+        <div className="prompt-t3-error" role="alert">
+          {t3.startError || t3.error}
+        </div>
+      )}
       <div className="prompt-dialog-actions">
-        <span className="hint">⌘↵ to copy</span>
+        <span className="hint">⌘↵ copy · ⌘⇧↵ start</span>
         <span className="spacer" />
-        <button type="button" className="btn" onClick={onClose}>
-          Cancel
-        </button>
-        <button type="button" className="btn primary" onClick={onCopy}>
+        <button type="button" className="btn" onClick={onCopy}>
           Copy prompt
+        </button>
+        <button
+          type="button"
+          className="btn primary"
+          disabled={!canStart}
+          title={t3.project ? "Start a T3 Code thread with this prompt and open it" : "Choose a T3 Code project first"}
+          onClick={t3.onStart}
+        >
+          {t3.starting ? "Starting…" : "Start in T3"}
         </button>
       </div>
     </div>
@@ -269,6 +351,29 @@ export function CardEditor({
   // The Copy prompt dialog, and the extra instructions typed into it.
   const [promptOpen, setPromptOpen] = useState(false);
   const [instructions, setInstructions] = useState("");
+  // Start in T3: its projects (null until loaded, on first open of the
+  // dialog), the chosen one, and the request in flight.
+  const [t3Projects, setT3Projects] = useState<T3Project[] | null>(null);
+  const [t3ProjectsError, setT3ProjectsError] = useState<string>();
+  const [t3Project, setT3Project] = useState(card.t3Project ?? readPref(T3_PROJECT_KEY) ?? "");
+  const [t3Worktree, setT3Worktree] = useState(readPref(T3_WORKTREE_KEY) !== "false");
+  const [t3Starting, setT3Starting] = useState(false);
+  const [t3StartError, setT3StartError] = useState<string>();
+
+  useEffect(() => {
+    if (!promptOpen || t3Projects) return;
+    loadT3Projects()
+      .then((r) => {
+        setT3Projects(r.projects);
+        setT3ProjectsError(r.error);
+        // Drop a remembered project T3 no longer has.
+        setT3Project((p) => (r.projects.some((x) => x.id === p) ? p : ""));
+      })
+      .catch(() => {
+        setT3Projects([]);
+        setT3ProjectsError("Couldn't load T3 Code projects");
+      });
+  }, [promptOpen]);
 
   function set<K extends keyof Card>(key: K, value: Card[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -294,7 +399,6 @@ export function CardEditor({
   const notesBefore = useRef("");
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const notesRef = useRef<HTMLTextAreaElement>(null);
-  const workspaces = draft.workspaces ?? [];
   const threads = draft.threads ?? [];
   const next = nextColumnFor(draft.column);
 
@@ -365,6 +469,37 @@ export function CardEditor({
       setTimeout(() => setPromptCopied(false), 1500);
     } catch {
       /* clipboard unavailable */
+    }
+  }
+
+  // Start a T3 Code thread for this card with the prompt as its first message,
+  // link the thread to the card, save and close the card, and open the thread.
+  async function startInT3() {
+    if (!t3Project || t3Starting) return;
+    setT3Starting(true);
+    setT3StartError(undefined);
+    const base = finalCard();
+    try {
+      const t = await startT3Thread({
+        projectId: t3Project,
+        prompt: buildAgentPrompt(base, instructions),
+        title: base.title.trim() || undefined,
+        worktree: t3Worktree,
+      });
+      writePref(T3_PROJECT_KEY, t3Project);
+      writePref(T3_WORKTREE_KEY, String(t3Worktree));
+      const ts = base.threads ?? [];
+      onSave(
+        changedFields(card, {
+          ...base,
+          t3Project,
+          threads: ts.includes(t.threadId) ? ts : [...ts, t.threadId],
+        }),
+      );
+      if (t.link) window.location.href = t.link;
+    } catch (e) {
+      setT3StartError(e instanceof Error ? e.message : String(e));
+      setT3Starting(false);
     }
   }
 
@@ -467,11 +602,6 @@ export function CardEditor({
       set("notes", notesBefore.current || undefined);
       setEditingNotes(false);
     }
-  }
-
-  function removeWorkspace(id: string) {
-    const rest = workspaces.filter((w) => w !== id);
-    set("workspaces", rest.length ? rest : undefined);
   }
 
   // Functional updates, since the window paste listener holds the first
@@ -577,8 +707,8 @@ export function CardEditor({
               <button
                 type="button"
                 className={`btn ghost head-icon-btn prompt-btn${promptOpen ? " active" : ""}`}
-                title={promptCopied ? "Copied prompt" : "Copy prompt for an agent"}
-                aria-label="Copy prompt"
+                title={promptCopied ? "Copied prompt" : "Copy the agent prompt, or start it in T3 Code"}
+                aria-label="Agent prompt"
                 onClick={() => setPromptOpen((o) => !o)}
               >
                 {promptCopied ? <CheckIcon /> : <ClaudeLogo className="claude-logo prompt-logo" />}
@@ -589,6 +719,17 @@ export function CardEditor({
                   onChange={setInstructions}
                   onCopy={copyPrompt}
                   onClose={() => setPromptOpen(false)}
+                  t3={{
+                    projects: t3Projects,
+                    error: t3ProjectsError,
+                    project: t3Project,
+                    onProject: setT3Project,
+                    worktree: t3Worktree,
+                    onWorktree: setT3Worktree,
+                    onStart: startInT3,
+                    starting: t3Starting,
+                    startError: t3StartError,
+                  }}
                 />
               )}
             </div>
@@ -627,16 +768,10 @@ export function CardEditor({
           placeholder="What are you working on?"
         />
 
-        {/* Where the card already has a conversation: linked Conductor
-            workspaces and T3 Code threads, each with an unlink button. */}
-        {(workspaces.length > 0 || threads.length > 0) && (
+        {/* Where the card already has a conversation: linked T3 Code
+            threads, each with an unlink button. */}
+        {threads.length > 0 && (
           <div className="detail-agents">
-            {workspaces.map((id) => (
-              <span key={id} className="detail-agent">
-                <WorkspaceBadge id={id} status={agents.workspaces[id]} />
-                <UnlinkAgent label="Unlink workspace" onClick={() => removeWorkspace(id)} />
-              </span>
-            ))}
             {threads.map((id) => (
               <span key={id} className="detail-agent">
                 <ThreadBadge id={id} status={agents.threads?.[id]} />

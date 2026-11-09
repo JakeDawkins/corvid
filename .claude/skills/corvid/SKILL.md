@@ -1,6 +1,6 @@
 ---
 name: corvid
-description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/archive (hide) a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current Conductor workspace or T3 Code thread to a card, flag a card as needing the user (or clear that flag), create a new card, move archived cards to cold storage (all of them, or by when they were archived), read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the Conductor workspace or T3 Code thread to that card and read its project context, and keep that context current while working on the card.
+description: Read and edit the Corvid board's data.json (a local Kanban of tasks with Linear, GitHub, Slack, Figma and Notion links). Use when the user asks to add/update/move/archive (hide) a card, attach a PR or Linear or Slack or Figma link to an existing card, add notes, set a card color, set a card's complexity/size (XS/S/M/L/XL), link the current T3 Code thread to a card, flag a card as needing the user (or clear that flag), create a new card, move archived cards to cold storage (all of them, or by when they were archived), read or update a card's project context (its shared memory: decisions, implementation, QA plan, monitoring, references), or asks what's on the board / in a column. Also use at the start of any task that references a Corvid Card ID, to link the T3 Code thread to that card and read its project context, and keep that context current while working on the card.
 ---
 
 # Corvid board edits
@@ -63,9 +63,8 @@ A `Card`:
   "complexity": "M",                // optional, t-shirt size XS|S|M|L|XL
   "dueDate": "2026-10-24",          // optional, a day as YYYY-MM-DD (no time)
   "links": [ { "label": "", "url": "https://..." } ],
-  "workspaces": ["1037e896-2225-4a69-8609-03832bde673e"],  // optional
   "threads": ["2ffc0a11-3b4c-480b-aebd-f1cab0a3a8cd"],     // optional, T3 Code thread ids
-  "repo": "/Users/jane/code/acme-web",  // optional, legacy Conductor repo root path
+  "t3Project": "d4644c9c-9824-4ba3-8cdd-8b9b2e4cf2c4",  // optional, T3 project "Start in T3" uses
   "needsYou": {                     // optional, set/cleared by agents
     "reason": "Plan ready",
     "action": "Review it in the T3 thread",
@@ -97,17 +96,16 @@ A `Card`:
   (default 1, so today or tomorrow), amber within `dueThresholds.soonDays`
   (default 2), and red-filled once overdue. The user sets the thresholds in
   Settings. Use `--due` on `set` / `add-card`; `--due none` clears it.
-- **`workspaces`** is an optional list of Conductor workspace ids (UUIDs, the
-  value of `$CONDUCTOR_WORKSPACE_ID`). A card can have several, e.g. one per
-  repo. Each shows as a badge at the top of the card, which turns into an
-  orange "Working" badge while an agent is working in that workspace, or a softer "Waiting" badge while the agent is
-  idle but has a background task or scheduled wakeup pending. Use `link-workspace` / `unlink-workspace`; never
-  hand-edit it.
-- **`threads`** is an optional list of T3 Code thread ids (UUIDs). Each shows
-  as a T3 badge with the thread's title, linking to the thread in T3 Code. Use
-  `link-thread` / `unlink-thread`; never hand-edit it.
-- **`repo`** is a legacy Conductor repo root path from the removed "Start in
-  Conductor" button. Leave it alone.
+- **`threads`** is an optional list of T3 Code thread ids (a UUID, or a
+  prefixed id like `mcp:<uuid>` for threads started from the board or by an
+  agent). A card can have several. Each shows as a T3 badge with the thread's
+  title, linking to the thread in T3 Code. It turns into an orange "Working"
+  badge while a run is in progress, or a dashed "Waiting" badge while a run is
+  paused on the user. Use `link-thread` / `unlink-thread`; never hand-edit it.
+- **`t3Project`** is the T3 Code project id the board's "Start in T3" button
+  last used for this card. Leave it alone.
+- **`workspaces`** and **`repo`** may still be on older cards, from the
+  removed Conductor support. The board ignores them. Leave them alone.
 - **`needsYou`** marks a card as waiting on the user: why the agent stopped
   and what the user should do. It shows as a banner on the card, high-contrast
   in the columns the user picked in Settings (`needsYouColumns`) and muted
@@ -131,8 +129,6 @@ node $S list                         # visible cards; --column NAME, --archived,
 node $S show <query>                 # full JSON of one card
 node $S add-link <query> <url> [--label TEXT] [--first]
 node $S remove-link <query> <url>
-node $S link-workspace <query> [workspace-id]     # default: $CONDUCTOR_WORKSPACE_ID
-node $S unlink-workspace <query> [workspace-id]   # default: $CONDUCTOR_WORKSPACE_ID
 node $S link-thread <query> [thread-id]           # default: the T3 Code thread in this directory
 node $S unlink-thread <query> <thread-id>
 node $S needs-you <query> --reason TEXT --action TEXT
@@ -156,8 +152,7 @@ EOF
 
 `<query>` picks the card by uuid, uuid prefix (4+ chars), a case-insensitive
 substring of the title, a substring of any link URL, or an exact linked
-workspace or T3 thread id (so `show $CONDUCTOR_WORKSPACE_ID` finds the card this workspace
-is working on). **Exactly one card must
+T3 thread id. **Exactly one card must
 match** — zero or multiple aborts with the candidate list, so a vague query can
 never edit the wrong card.
 
@@ -181,27 +176,10 @@ node $S show "checkout redirect"
 node $S add-link "checkout redirect" https://github.com/acme/acme-web/pull/317
 ```
 
-## Linking a Conductor workspace
-
-When you start working on a card from inside Conductor (`$CONDUCTOR_WORKSPACE_ID`
-is set), link the workspace to it so the board can show that an agent is
-actively on it:
-
-```bash
-node $S link-workspace <card id>
-```
-
-It defaults to `$CONDUCTOR_WORKSPACE_ID` and is a no-op if the card already has
-that workspace, so it's safe to run every time. Only link the card you were told
-to work on (the "Card ID" in a copied agent prompt, or one the user named). Don't
-link a workspace to a card you are merely reading or editing on the user's
-behalf, and don't guess a card from the branch name. Outside Conductor the
-variable is unset and the command fails; skip it there.
-
 ## Linking a T3 Code thread
 
-When you start working on a card from inside T3 Code, link your thread the same
-way:
+When you start working on a card from inside T3 Code, link your thread to it so
+the board can show that an agent is actively on it:
 
 ```bash
 node $S link-thread <card id>
@@ -212,12 +190,16 @@ the one non-archived T3 thread whose worktree is the current git checkout. If
 none or several match (e.g. several threads share the main checkout), it fails
 and lists them; then pass your thread id if you know it, or skip linking. It
 also accepts a `t3code://threads/<environment>/<thread>` link. It's a no-op if
-the card already has that thread. The same rules apply as for workspaces: only
-the card you were told to work on.
+the card already has that thread, so it's safe to run every time. A thread
+started with the board's "Start in T3" button is already linked. Only link the
+card you were told to work on (the "Card ID" in the agent prompt, or one the
+user named). Don't link a thread to a card you are merely reading or editing on
+the user's behalf, and don't guess a card from the branch name. Outside T3 Code
+the command finds no thread and fails; skip it there.
 
 ## Flagging a card that needs the user
 
-When you are working on a card (you linked your workspace to it, or were given
+When you are working on a card (you linked your thread to it, or were given
 its Card ID) and you stop because something is waiting on the user, flag it
 before ending your turn:
 
@@ -228,12 +210,12 @@ node $S needs-you <card id> --reason "<why you stopped>" --action "<what to do>"
 Keep both as short as you can. The flag is a few words in a yellow callout on
 the card, not a summary: it tells the user that something is waiting and where
 to look. The details (what's ready, the options, your recommendation) go in
-your thread or workspace, where the action points them.
+your thread, where the action points them.
 
 - `--reason` is a few words on what's waiting, e.g. "Plan ready", "3 QA
   replies drafted" or "Needs a staging API key". No IDs, flag names, or lists.
 - `--action` points the user back to where the details are, e.g. "Review it in
-  the T3 thread" or "Details in the workspace". Name the place; don't restate
+  the T3 thread" or "Details in the thread". Name the place; don't restate
   the steps.
 - Aim for under 8 words each. If you're writing a second clause, it belongs in
   the thread instead.
@@ -297,7 +279,7 @@ thread updates it as it works, so the next one starts where the last one
 stopped. The user reads the same content as the card's context page in the app
 (the book icon on the card, or "Open context" in the card editor): the tabs on
 the left, the open tab in the middle, and a sidebar on the right with the card
-(its links, PR and Linear status, and workspaces) and the project fields (goal,
+(its links, PR and Linear status, and T3 threads) and the project fields (goal,
 status, next step, owner). It follows the structure of the team's project
 registry template.
 
@@ -410,8 +392,8 @@ Rules for the content:
 - No credentials, tokens, customer data, or phone numbers. Summarize instead.
 - Keep it short and plain. People scan it, and agents read it starting cold.
 - The page's sidebar already shows the card's links (with live PR and Linear
-  status), Conductor workspaces, and T3 Code threads. List other workspaces
-  (other machines) under an "Agent workspaces" group in `references`.
+  status) and T3 Code threads. List other agent sessions (other machines or
+  tools) under an "Agent workspaces" group in `references`.
 
 ## Rules
 

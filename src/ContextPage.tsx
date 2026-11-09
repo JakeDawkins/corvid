@@ -12,7 +12,7 @@ import type {
 } from "./types";
 import { createContext, loadContext, saveContextProject, saveContextTab } from "./api";
 import { domainName, linkKind } from "./links";
-import { CardLink, IssueLine, PrLine, ThreadBadge, WorkspaceTag, resourceLabel } from "./Badges";
+import { CardLink, IssueLine, PrLine, ThreadBadge, resourceLabel } from "./Badges";
 import { ComplexityBars } from "./Complexity";
 import { NeedsYouBanner } from "./NeedsYou";
 import { Markdown, NotesMarkdown, countStatuses, statusClass } from "./Markdown";
@@ -156,7 +156,7 @@ type TabDraft = { id: string; text: string; baseHash: string; conflict?: boolean
 // A card's project context: the shared memory agents read before they start
 // and keep current as they work. One page per card: the tabs on the left, with
 // the open tab's sections under it, the open tab in the middle, and the card
-// and project info (goal, status, next step, links, workspaces) in a sidebar on
+// and project info (goal, status, next step, links, threads) in a sidebar on
 // the right. Tabs are Markdown files in tasks-data/context/<card id>/, so
 // agents can edit them too; the page reloads when they do.
 export function ContextPage({
@@ -554,7 +554,7 @@ export function ContextPage({
 }
 
 // The card itself, as on the board: color tag, column, and size, then the
-// title, the "Needs you" message, notes, and linked workspaces and threads.
+// title, the "Needs you" message, notes, and linked threads.
 function CardInfo({
   card,
   agents,
@@ -595,11 +595,8 @@ function CardInfo({
           {notesOpen ? "Show less" : "Show all notes"}
         </button>
       )}
-      {(!!card.workspaces?.length || !!card.threads?.length) && (
-        <div className="context-workspaces">
-          {card.workspaces?.map((id) => (
-            <WorkspaceTag key={id} id={id} status={agents.workspaces[id]} />
-          ))}
+      {!!card.threads?.length && (
+        <div className="context-threads">
           {card.threads?.map((id) => (
             <ThreadBadge key={id} id={id} status={agents.threads?.[id]} compact />
           ))}

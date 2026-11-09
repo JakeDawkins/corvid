@@ -100,12 +100,25 @@ export function linkTitle(url: string): string {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// The T3 Code thread id in pasted text: a bare thread id (a UUID) or a
-// t3code://threads/<environment>/<thread> deep link. Lowercased, so matching
-// is exact. Null for anything else.
+// A thread id started by T3's CLI or an agent: "mcp:<uuid>".
+const MCP_THREAD_RE = /^mcp:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// Any T3 thread id, as found in a deep link. The server allows the same set.
+const ANY_THREAD_RE = /^[A-Za-z0-9:%._-]{1,512}$/;
+
+// The T3 Code thread id in pasted text: a bare thread id (a UUID or
+// "mcp:<uuid>") or a t3code://threads/<environment>/<thread> deep link.
+// Bare UUIDs are lowercased, so matching is exact. Null for anything else.
 export function parseThreadId(text: string): string | null {
   const s = text.trim();
-  if (UUID_RE.test(s)) return s.toLowerCase();
+  if (UUID_RE.test(s) || MCP_THREAD_RE.test(s)) return s.toLowerCase();
   const m = s.match(/^t3code(?:-[a-z]+)?:\/\/threads\/[^/]+\/([^/?#]+)/i);
-  return m && UUID_RE.test(m[1]) ? m[1].toLowerCase() : null;
+  if (!m) return null;
+  let id: string;
+  try {
+    id = decodeURIComponent(m[1]);
+  } catch {
+    return null;
+  }
+  if (UUID_RE.test(id)) return id.toLowerCase();
+  return ANY_THREAD_RE.test(id) ? id : null;
 }
