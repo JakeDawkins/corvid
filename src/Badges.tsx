@@ -1,6 +1,7 @@
 import type { IssueStatus, LinearResource, PrStatus, ThreadStatus } from "./types";
 import { useMask } from "./mask";
-import { domainName } from "./links";
+import { domainName, safeHref, siteOf } from "./links";
+import { SiteIcon } from "./SiteIcon";
 import { T3Logo } from "./T3Logo";
 
 // A small glyph per resource type so Figma designs and Notion specs are
@@ -22,8 +23,9 @@ export function siteTitle(site: string, title?: string): string {
   return title ? `${site} - ${title}` : site;
 }
 
-// A card link as plain muted text with a small icon: the link glyph for the
-// card's own links, or a resource glyph for docs pulled from its Linear items.
+// A card link as plain muted text with a small icon: the site's mark for
+// Slack, GitHub, Figma, Notion and Linear, else a resource glyph for docs
+// pulled from its Linear items, else the link glyph.
 export function CardLink({
   url,
   label,
@@ -34,9 +36,12 @@ export function CardLink({
   type?: LinearResource["type"];
 }) {
   const { m } = useMask();
+  const site = siteOf(url);
   return (
-    <a href={url} target="_blank" rel="noreferrer" className="card-link" title={m("urls", url)}>
-      {type ? (
+    <a href={safeHref(url)} target="_blank" rel="noreferrer" className="card-link" title={m("urls", url)}>
+      {site ? (
+        <SiteIcon site={site} />
+      ) : type ? (
         <span className="resource-icon">{RESOURCE_ICON[type]}</span>
       ) : (
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -152,7 +157,7 @@ function stateBadge(s: PrStatus["state"], isDraft?: boolean) {
   }
 }
 
-// Pick a single status color for a PR's status dot, in priority order:
+// Pick a single status color for a PR's GitHub mark, in priority order:
 // merged/closed/draft take precedence, then problems (red), then in-progress
 // (yellow), then healthy (green). Falls back to a neutral accent.
 function prCardClass(status?: PrStatus): string {
@@ -195,7 +200,7 @@ function repoLabel(slug: string, repoNames?: Record<string, string>): string {
   return slug;
 }
 
-// A card's PR as one flat line: a dot for its overall status, the repo (without
+// A card's PR as one flat line: the GitHub mark in its overall status color, the repo (without
 // owner, unless renamed in data.repoNames) and number, then review, CI, and
 // unresolved threads on the right. Merged/closed PRs show just their state; the
 // full detail is always in the hover text. `detailed` (the card detail view)
@@ -237,13 +242,13 @@ export function PrLine({
 
   return (
     <a
-      href={url}
+      href={safeHref(url)}
       target="_blank"
       rel="noreferrer"
       className={`status-line${status?.state === "MERGED" ? " done" : ""}${detailed ? " detailed" : ""}`}
       title={tip}
     >
-      <span className={`status-dot ${prCardClass(status)}`} />
+      <SiteIcon site="github" className={`status-icon ${prCardClass(status)}`} />
       <span className="status-label">
         {detailed && (
           <span className="status-title">
@@ -280,8 +285,9 @@ export function PrLine({
   );
 }
 
-// A card's Linear issue/project as one flat line: a dot in its workflow-state
-// color, its identifier (or project name), and the state name on the right.
+// A card's Linear issue/project as one flat line: the Linear mark in its
+// workflow-state color, its identifier (or project name), and the state name
+// on the right.
 // Its linked resources render with the card's other links, not here.
 export function IssueLine({
   status,
@@ -304,15 +310,16 @@ export function IssueLine({
       : m("linearTitles", status?.title) || "Linear");
   return (
     <a
-      href={url}
+      href={safeHref(url)}
       target="_blank"
       rel="noreferrer"
       className={`status-line${detailed ? " detailed" : ""}`}
       title={[m("linearTitles", status?.title) || m("urls", url), status?.error].filter(Boolean).join("\n")}
     >
-      <span
-        className="status-dot"
-        style={{ background: (!status?.error && status?.stateColor) || "var(--muted)" }}
+      <SiteIcon
+        site="linear"
+        className="status-icon"
+        style={{ color: (!status?.error && status?.stateColor) || "var(--muted)" }}
       />
       <span className="status-label">
         {detailed ? (
@@ -336,22 +343,24 @@ export function IssueLine({
   );
 }
 
-// A card's freeform link as a flat line like PrLine and IssueLine: a gray dot
-// (there's no status to show), then its label with the site name muted after
-// it, or just the site name if it has no label.
+// A card's freeform link as a flat line like PrLine and IssueLine: the site's
+// mark, or a gray dot for other sites (there's no status to show), then its
+// label with the site name muted after it, or just the site name if it has no
+// label.
 export function GenericLine({ url, label }: { url: string; label?: string }) {
   const { m } = useMask();
   const site = domainName(url);
   const title = label ? m("linkLabels", label) : undefined;
+  const known = siteOf(url);
   return (
     <a
-      href={url}
+      href={safeHref(url)}
       target="_blank"
       rel="noreferrer"
       className="status-line detailed"
       title={m("urls", url)}
     >
-      <span className="status-dot muted" />
+      {known ? <SiteIcon site={known} className="status-icon muted" /> : <span className="status-dot muted" />}
       <span className="status-label">
         <span className="status-title">{title || site}</span>
         {title && <span className="status-name">{site}</span>}

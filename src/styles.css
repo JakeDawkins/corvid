@@ -425,6 +425,14 @@ body {
 .status-dot.run { background: var(--run); }
 .status-dot.merged { background: var(--merged); }
 .status-dot.muted { background: var(--muted); }
+/* A PR or Linear line's site mark, in its status color, where other lines
+   have a dot. */
+.status-icon { width: calc(12px * var(--text-scale)); height: calc(12px * var(--text-scale)); flex: none; color: var(--accent); }
+.status-icon.ok { color: var(--ok); }
+.status-icon.bad { color: var(--bad); }
+.status-icon.run { color: var(--run); }
+.status-icon.merged { color: var(--merged); }
+.status-icon.muted { color: var(--muted); }
 .status-label { display: flex; gap: 4px; min-width: 0; }
 .status-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .status-num { flex: none; color: var(--muted); }
@@ -464,6 +472,7 @@ body {
 }
 .card-link:hover { color: var(--text); }
 .card-link svg { flex: none; }
+.card-link .site-icon { width: calc(11px * var(--text-scale)); height: calc(11px * var(--text-scale)); }
 .card-link .resource-icon { font-size: calc(10px * var(--text-scale)); opacity: 0.85; }
 .card-link span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

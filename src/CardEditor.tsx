@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, MutableRefObject } from "react";
 import type { AgentsStatus, Cache, Card, Link, NeedsYou, T3Project } from "./types";
-import { linkKind, parseThreadId } from "./links";
+import { cleanLink, linkKind, parseThreadId, pastedLink } from "./links";
 import { loadT3Projects, startT3Thread } from "./api";
 import { GenericLine, IssueLine, PrLine, ThreadBadge } from "./Badges";
 import { ClaudeLogo } from "./ClaudeLogo";
@@ -230,9 +230,6 @@ function PromptDialog({
   );
 }
 
-// A pasted string that is a single http(s) URL, i.e. something to add as a link.
-const URL_RE = /^https?:\/\/\S+$/i;
-
 function EditLink({ editing, onClick }: { editing: boolean; onClick: () => void }) {
   const label = editing ? "Done editing link" : "Edit link";
   return (
@@ -385,6 +382,8 @@ export function CardEditor({
   // before it's added.
   const [newUrl, setNewUrl] = useState("");
   const [newLabel, setNewLabel] = useState("");
+  // Why the last link typed in wasn't added or changed, e.g. it wasn't a URL.
+  const [linkError, setLinkError] = useState<string | null>(null);
   const newUrlRef = useRef<HTMLInputElement>(null);
   const newLabelRef = useRef<HTMLInputElement>(null);
   // Set by a paste, so the label box (mounted by that render) gets focus.
@@ -392,6 +391,8 @@ export function CardEditor({
   // Index of the link whose edit button was clicked. Links show as text, and
   // only the one being edited shows its label and URL inputs.
   const [editingLink, setEditingLink] = useState<number | null>(null);
+  // That link as it was before editing, restored if the edit isn't a URL.
+  const linkBefore = useRef<Link | null>(null);
   const editUrlRef = useRef<HTMLInputElement>(null);
   // Notes show as text until clicked. `notesBefore` is their value when
   // editing started, restored by Escape.
@@ -449,12 +450,13 @@ export function CardEditor({
       if (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
       const text = e.clipboardData?.getData("text").trim() ?? "";
       const thread = parseThreadId(text);
+      const link = thread ? null : pastedLink(text);
       if (thread) {
         e.preventDefault();
         addThread(thread);
-      } else if (URL_RE.test(text)) {
+      } else if (link) {
         e.preventDefault();
-        startLink(text);
+        startLink(link.url, link.label);
       }
     };
     window.addEventListener("paste", onPaste);
@@ -513,24 +515,35 @@ export function CardEditor({
     }
   }
 
-  function startLink(url: string) {
+  // A pasted Markdown link's text becomes the label, ready to edit.
+  function startLink(url: string, label = "") {
     focusLabel.current = true;
+    setLinkError(null);
     setNewUrl(url);
+    setNewLabel(label);
   }
 
   // A T3 Code thread id or link typed into the link box is linked as a thread.
+  // Anything else must be a link; a Markdown "[label](url)" is split up.
   function addLink() {
-    const url = newUrl.trim();
-    if (!url) return;
-    const thread = parseThreadId(url);
+    const text = newUrl.trim();
+    if (!text) return;
+    const thread = parseThreadId(text);
     if (thread) {
       addThread(thread);
       setNewUrl("");
       setNewLabel("");
+      setLinkError(null);
       return;
     }
-    setLinks((ls) => [...ls, { label: newLabel.trim(), url }]);
-    if (linkKind(url) !== "generic") onRefreshLinks([url]);
+    const link = cleanLink({ label: newLabel, url: text });
+    if (!link) {
+      setLinkError("That doesn't look like a link.");
+      return;
+    }
+    setLinkError(null);
+    setLinks((ls) => [...ls, link]);
+    if (linkKind(link.url) !== "generic") onRefreshLinks([link.url]);
     setNewUrl("");
     setNewLabel("");
     newUrlRef.current?.focus();
@@ -546,6 +559,7 @@ export function CardEditor({
       e.stopPropagation();
       setNewUrl("");
       setNewLabel("");
+      setLinkError(null);
       newUrlRef.current?.focus();
     }
   }
@@ -561,13 +575,31 @@ export function CardEditor({
 
   function toggleEditLink(i: number) {
     if (editingLink === i) finishEditLink();
-    else setEditingLink(i);
+    else {
+      if (editingLink !== null) finishEditLink();
+      linkBefore.current = links[i] ?? null;
+      setLinkError(null);
+      setEditingLink(i);
+    }
+  }
+
+  // The link being edited as it should be kept: cleaned up, or as it was
+  // before editing if its URL isn't a link.
+  function committedEdit(link: Link): Link {
+    return cleanLink(link) ?? linkBefore.current ?? link;
   }
 
   // Leaves edit mode, fetching status if the URL is now a PR or Linear item.
+  // A URL that isn't a link is put back as it was.
   function finishEditLink() {
-    const url = editingLink === null ? undefined : links[editingLink]?.url.trim();
-    if (url && linkKind(url) !== "generic") onRefreshLinks([url]);
+    const i = editingLink;
+    const link = i === null ? undefined : links[i];
+    if (i !== null && link) {
+      const kept = committedEdit(link);
+      setLinkError(cleanLink(link) ? null : "That doesn't look like a link, so the URL wasn't changed.");
+      setLinks((ls) => ls.map((l, j) => (j === i ? kept : l)));
+      if (linkKind(kept.url) !== "generic") onRefreshLinks([kept.url]);
+    }
     setEditingLink(null);
   }
 
@@ -620,9 +652,10 @@ export function CardEditor({
 
   // The card as it would be saved now.
   function finalCard(): Card {
-    // Keep a typed-but-not-added link rather than dropping it.
-    const final = [...links];
-    if (newUrl.trim() && !parseThreadId(newUrl)) final.push({ label: newLabel.trim(), url: newUrl.trim() });
+    const final = links.map((l, i) => (i === editingLink ? committedEdit(l) : l));
+    // Keep a typed-but-not-added link rather than dropping it, if it's a link.
+    const typed = newUrl.trim() && !parseThreadId(newUrl) ? cleanLink({ label: newLabel, url: newUrl }) : null;
+    if (typed) final.push(typed);
     const typedThread = parseThreadId(newUrl);
     const finalThreads = typedThread && !threads.includes(typedThread) ? [...threads, typedThread] : threads;
     return {
@@ -945,17 +978,21 @@ export function CardEditor({
               aria-label="New link URL"
               placeholder="Paste a link (Slack, Notion, Figma, a PR…) or a T3 thread ID"
               value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
+              onChange={(e) => {
+                setNewUrl(e.target.value);
+                if (linkError) setLinkError(null);
+              }}
               onPaste={(e) => {
                 const text = e.clipboardData.getData("text").trim();
                 if (newUrl.trim()) return;
                 const thread = parseThreadId(text);
+                const link = thread ? null : pastedLink(text);
                 if (thread) {
                   e.preventDefault();
                   addThread(thread);
-                } else if (URL_RE.test(text)) {
+                } else if (link) {
                   e.preventDefault();
-                  startLink(text);
+                  startLink(link.url, link.label);
                 }
               }}
               onKeyDown={addLinkKeyDown}
@@ -975,6 +1012,7 @@ export function CardEditor({
               Add
             </button>
           </div>
+          {linkError && <span className="hint error">{linkError}</span>}
         </section>
 
         {onOpenContext && (

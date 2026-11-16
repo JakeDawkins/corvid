@@ -86,6 +86,73 @@ export function toUrl(text: string): string | null {
   }
 }
 
+// A Markdown link, "[label](url)", as Linear and other apps copy links. The
+// label match is greedy so a "]" inside it survives, and the URL may sit in
+// angle brackets.
+const MARKDOWN_LINK_RE = /^\[(.*)\]\(\s*<?(\S+?)>?\s*\)$/s;
+
+// A link typed or pasted by hand, as the label and URL to store: a URL, a bare
+// domain like "notion.so/page", or a Markdown link "[label](url)". The label is
+// the Markdown link's text, else "". Null if it isn't an http(s) link, so text
+// like "[title](url)" is never stored as a URL. Mirrored by the tracker's
+// parseLink.
+export function parseLink(text: string): { label: string; url: string } | null {
+  const s = text.trim();
+  const md = s.match(MARKDOWN_LINK_RE);
+  const raw = md ? md[2] : s;
+  // Another scheme ("conductor://…") would otherwise become "https://conductor://…".
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) && !/^https?:\/\//i.test(raw)) return null;
+  const url = toUrl(raw);
+  return url ? { label: md ? md[1].trim() : "", url } : null;
+}
+
+// A pasted string to treat as a link rather than as text: a single http(s)
+// URL or a Markdown link to one.
+export function pastedLink(text: string): { label: string; url: string } | null {
+  const s = text.trim();
+  return /^https?:\/\/\S+$/i.test(s) || MARKDOWN_LINK_RE.test(s) ? parseLink(s) : null;
+}
+
+// A link edited by hand, cleaned up for storage: a Markdown link is split into
+// its URL and its text, which becomes the label if the link has none. Null if
+// the URL isn't a link.
+export function cleanLink(link: Link): Link | null {
+  const parsed = parseLink(link.url);
+  return parsed ? { label: link.label.trim() || parsed.label, url: parsed.url } : null;
+}
+
+// The URL to put in an href: only http(s), since anything else (a stray
+// "[title](url)", an old app scheme) would open as a path on the Corvid server
+// and show "Cannot GET".
+export function safeHref(url: string): string | undefined {
+  return /^https?:\/\//i.test(url.trim()) ? url.trim() : undefined;
+}
+
+// Sites with their own icon, by hostname. Subdomains count, so
+// "homeaglow.slack.com" is Slack and "app.notion.com" is Notion.
+export type Site = "linear" | "slack" | "github" | "figma" | "notion";
+const SITE_DOMAINS: [string, Site][] = [
+  ["linear.app", "linear"],
+  ["slack.com", "slack"],
+  ["github.com", "github"],
+  ["figma.com", "figma"],
+  ["notion.so", "notion"],
+  ["notion.site", "notion"],
+  ["notion.com", "notion"],
+];
+
+export function siteOf(url: string): Site | null {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  for (const [domain, site] of SITE_DOMAINS)
+    if (host === domain || host.endsWith(`.${domain}`)) return site;
+  return null;
+}
+
 // Starting title for a card quick-added from a link whose real title isn't
 // available: "acme-web #482" for a PR, "ENG-42" for a Linear issue, else the
 // site name, e.g. "Slack link".

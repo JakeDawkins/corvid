@@ -127,7 +127,7 @@ node $S where                        # resolved data.json path + card count
 node $S columns                      # columns + card counts + color tags
 node $S list                         # visible cards; --column NAME, --archived, --all
 node $S show <query>                 # full JSON of one card
-node $S add-link <query> <url> [--label TEXT] [--first]
+node $S add-link <query> <url> [--label TEXT] [--first]   # url may be a Markdown [label](url)
 node $S remove-link <query> <url>
 node $S link-thread <query> [thread-id]           # default: the T3 Code thread in this directory
 node $S unlink-thread <query> <thread-id>

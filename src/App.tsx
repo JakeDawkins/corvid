@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { AgentsStatus, Card, ContextIndex, Data, IssueStatus, LinearResource, PrStatus } from "./types";
 import { loadContextIndex, loadData, refresh, resolveLink, saveData } from "./api";
-import { domainName, linearKey, linkKind, linkTitle, normalizeCard, parsePrUrl, toUrl } from "./links";
+import { domainName, linearKey, linkKind, linkTitle, normalizeCard, parseLink, parsePrUrl } from "./links";
 import type { VercelDeployment } from "./types";
 import { CardLink, IssueLine, PrLine, ThreadBadge, resourceLabel } from "./Badges";
 import { CardEditor } from "./CardEditor";
@@ -442,15 +442,17 @@ export default function App() {
   // Quick-create a card from any pasted link, at the top of the Todo column,
   // and flash it. PRs and Linear items start with their resolved title and
   // pre-cached status; other links, or ones that can't be resolved, start
-  // with a placeholder title like "Slack link" to rename later.
+  // with a placeholder title like "Slack link" to rename later. A Markdown
+  // link's text is used as the title and label instead.
   async function quickCreate() {
     const text = quickLink.trim();
     if (!text || quickBusy) return;
-    const url = toUrl(text);
-    if (!url) {
+    const link = parseLink(text);
+    if (!link) {
       setQuickError("That doesn't look like a link.");
       return;
     }
+    const { url, label } = link;
     const column = quickAddColumn;
     if (!column) return;
     setQuickBusy(true);
@@ -461,10 +463,10 @@ export default function App() {
       const status = result && result.kind !== "unknown" ? result.status : undefined;
       const card = stamp(undefined, {
         id: crypto.randomUUID(),
-        title: (!status?.error && status?.title) || linkTitle(url),
+        title: (!status?.error && status?.title) || label || linkTitle(url),
         column,
         hidden: false,
-        links: [{ label: "", url }],
+        links: [{ label, url }],
       });
       setData((d) => ({
         ...d,

@@ -11,7 +11,7 @@
 //   list [--column NAME] [--archived] [--all]
 //   show <query>
 //   columns
-//   add-link <query> <url> [--label TEXT] [--first]
+//   add-link <query> <url> [--label TEXT] [--first]   // url may be a Markdown [label](url)
 //   remove-link <query> <url>
 //   link-thread <query> [thread-id]           // default: the T3 Code thread in this directory
 //   unlink-thread <query> <thread-id>
@@ -410,6 +410,32 @@ function linkKind(url) {
   return 'generic';
 }
 
+// A link given on the command line, as the label and URL to store: a URL, a
+// bare domain like "notion.so/page", or a Markdown link "[label](url)", whose
+// text becomes the label. Null if it isn't an http(s) link. Mirrors the app's
+// parseLink in src/links.ts.
+const MARKDOWN_LINK_RE = /^\[(.*)\]\(\s*<?(\S+?)>?\s*\)$/s;
+
+function parseLink(text) {
+  const s = String(text).trim();
+  const md = s.match(MARKDOWN_LINK_RE);
+  const raw = md ? md[2] : s;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) && !/^https?:\/\//i.test(raw)) return null;
+  const url = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    if (/\s/.test(raw) || !new URL(url).hostname.includes('.')) return null;
+  } catch {
+    return null;
+  }
+  return { label: md ? md[1].trim() : '', url };
+}
+
+function requireLink(text) {
+  const link = parseLink(text);
+  if (!link) die(`not a link: ${JSON.stringify(text)} (want an http(s) URL or a Markdown [label](url))`);
+  return link;
+}
+
 function requireColumn(data, column) {
   if (!data.columns.includes(column))
     die(`column ${JSON.stringify(column)} does not exist. Columns: ${data.columns.join(' | ')}`);
@@ -738,19 +764,20 @@ switch (cmd) {
     const label = flag('label');
     const first = bareFlag('first');
     if (!url || url.startsWith('--')) die('missing url');
+    const parsed = requireLink(url);
     const card = findCard(data, query);
-    if (card.links.some((l) => l.url === url)) {
-      console.log(`card ${short(card.id)} already has ${url}`);
+    if (card.links.some((l) => l.url === parsed.url)) {
+      console.log(`card ${short(card.id)} already has ${parsed.url}`);
       break;
     }
-    const link = { label: typeof label === 'string' ? label : '', url };
+    const link = { label: typeof label === 'string' ? label : parsed.label, url: parsed.url };
     if (first) card.links.unshift(link);
     else card.links.push(link);
     commit(
       before,
       data,
       card.id,
-      `added ${linkKind(url)} link to ${short(card.id)} ${JSON.stringify(card.title)}:\n  ${url}`,
+      `added ${linkKind(link.url)} link to ${short(card.id)} ${JSON.stringify(card.title)}:\n  ${link.url}`,
     );
     break;
   }
@@ -909,7 +936,7 @@ switch (cmd) {
       column,
       hidden,
       notes: typeof notes === 'string' ? notes : '',
-      links: links.map((url) => ({ label: '', url })),
+      links: links.map((url) => requireLink(url)),
     };
     if (typeof color === 'string') {
       const next = normalizeColor(color, data);
@@ -1061,6 +1088,8 @@ switch (cmd) {
         for (const l of c.links) {
           if (typeof l?.url !== 'string' || typeof l?.label !== 'string')
             problems.push(`${where}: link must be {label, url}: ${JSON.stringify(l)}`);
+          else if (!/^https?:\/\//i.test(l.url))
+            problems.push(`${where}: link is not an http(s) URL, so it can't open: ${JSON.stringify(l.url)}`);
           else if (urls.has(l.url)) problems.push(`${where}: duplicate link ${l.url}`);
           else urls.add(l.url);
         }
