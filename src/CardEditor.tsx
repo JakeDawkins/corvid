@@ -12,6 +12,7 @@ import { formatDueDate } from "./Due";
 import { NotesMarkdown } from "./Markdown";
 import { NeedsYouBanner } from "./NeedsYou";
 import { useMask } from "./mask";
+import { arrows, typedArrows } from "./arrows";
 
 // Human label for a link's auto-detected kind, shown beside each link row.
 const KIND_LABEL: Record<ReturnType<typeof linkKind>, string> = {
@@ -788,10 +789,10 @@ export function CardEditor({
           // one opens as a view.
           autoFocus={!card.title}
           aria-label="Title"
-          value={titleValue}
+          value={arrows(titleValue)}
           readOnly={on("cardTitles")}
           title={on("cardTitles") ? MASKED_HINT : undefined}
-          onChange={(e) => set("title", e.target.value.replace(/\n/g, " "))}
+          onChange={(e) => set("title", typedArrows(e.currentTarget).replace(/\n/g, " "))}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -933,10 +934,10 @@ export function CardEditor({
                   className="link-edit-label"
                   aria-label="Link label"
                   placeholder="Label (optional)"
-                  value={m("linkLabels", l.label)}
+                  value={arrows(m("linkLabels", l.label))}
                   readOnly={on("linkLabels")}
                   title={on("linkLabels") ? MASKED_HINT : undefined}
-                  onChange={(e) => updateLink(i, { label: e.target.value })}
+                  onChange={(e) => updateLink(i, { label: typedArrows(e.currentTarget) })}
                   onKeyDown={editLinkKeyDown}
                 />
                 <input
@@ -1003,8 +1004,8 @@ export function CardEditor({
                 className="link-add-label"
                 aria-label="New link label"
                 placeholder="Label (optional)"
-                value={newLabel}
-                onChange={(e) => setNewLabel(e.target.value)}
+                value={arrows(newLabel)}
+                onChange={(e) => setNewLabel(typedArrows(e.currentTarget))}
                 onKeyDown={addLinkKeyDown}
               />
             )}
