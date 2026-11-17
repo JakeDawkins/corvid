@@ -24,6 +24,7 @@ import { MaskContext, makeMask, useMaskSettings } from "./mask";
 import { arrows } from "./arrows";
 import { useColumnWidth, useDensity } from "./density";
 import { useTheme } from "./theme";
+import { readSession, useSessionState, writeSession } from "./session";
 
 const EMPTY: Data = { columns: [], cards: [], cache: { prs: {}, issues: {} }, colorTags: {} };
 
@@ -72,9 +73,9 @@ function insertAtColumnTop(cards: Card[], card: Card): Card[] {
 export default function App() {
   const [data, setData] = useState<Data>(EMPTY);
   const [loaded, setLoaded] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
+  const [showArchived, setShowArchived] = useSessionState("showArchived", false);
   // Focus mode shows only the columns picked in Settings > Focused columns.
-  const [focusMode, setFocusMode] = useState(false);
+  const [focusMode, setFocusMode] = useSessionState("focusMode", false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [editing, setEditing] = useState<Card | null>(null);
@@ -84,10 +85,10 @@ export default function App() {
   const [quickLink, setQuickLink] = useState("");
   const [quickBusy, setQuickBusy] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
-  const [showInbox, setShowInbox] = useState(false);
-  const [showDeployments, setShowDeployments] = useState(false);
-  const [showClaude, setShowClaude] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showInbox, setShowInbox] = useSessionState("showInbox", false);
+  const [showDeployments, setShowDeployments] = useSessionState("showDeployments", false);
+  const [showClaude, setShowClaude] = useSessionState("showClaude", false);
+  const [showSettings, setShowSettings] = useSessionState("showSettings", false);
   const [showSearch, setShowSearch] = useState(false);
   const [deploymentsPaused, setDeploymentsPaused] = useState(false);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -117,10 +118,27 @@ export default function App() {
   useEffect(() => {
     loadData().then((d) => {
       setData(d);
+      // Reopen the card that was open before a reload.
+      const openId = readSession<string | null>("editing", null);
+      const open = openId ? d.cards.find((c) => c.id === openId) : undefined;
+      if (open) setEditing(open);
       setLoaded(true);
     });
     loadContextIndex().then(setContexts).catch(() => {});
   }, []);
+
+  // Remember the open card for a reload. A new card isn't on the board yet, so
+  // there's nothing to reopen.
+  useEffect(() => {
+    if (!loaded) return;
+    writeSession("editing", editing && data.cards.some((c) => c.id === editing.id) ? editing.id : null);
+  }, [editing?.id, loaded]);
+
+  // Restore the board's horizontal scroll once its columns have rendered.
+  const boardRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (loaded && boardRef.current) boardRef.current.scrollLeft = readSession("boardScroll", 0);
+  }, [loaded]);
 
   useEffect(() => {
     const onHash = () => setContextRoute(parseRoute(location.hash));
@@ -1091,7 +1109,11 @@ export default function App() {
           </div>
         </aside>
       )}
-      <div className="board">
+      <div
+        className="board"
+        ref={boardRef}
+        onScroll={(e) => writeSession("boardScroll", e.currentTarget.scrollLeft)}
+      >
         {visibleColumns.map((col) => {
           const column = (
             <div
@@ -1225,7 +1247,8 @@ export default function App() {
       )}
       </div>
 
-      {contextRoute && (
+      {/* Wait for the board data, so a reload doesn't flash "Card not found". */}
+      {contextRoute && loaded && (
         <ContextPage
           key={contextRoute.cardId}
           cardId={contextRoute.cardId}
