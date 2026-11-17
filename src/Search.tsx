@@ -4,13 +4,16 @@ import type { Cache, Card } from "./types";
 import { linkKind } from "./links";
 import { useMask } from "./mask";
 import type { MaskCategory } from "./mask";
+import { arrows } from "./arrows";
 
 // What a search hit matched on, in priority order: a card title beats a Linear
 // task id, which beats a link's title, which beats its raw URL.
 type FieldKind = "title" | "linear" | "label" | "url";
 const RANK: Record<FieldKind, number> = { title: 0, linear: 1, label: 2, url: 3 };
 
-type Field = { kind: FieldKind; text: string; mask?: MaskCategory };
+// `arrows`: the field is shown with typed arrows as arrow characters, so it is
+// matched and highlighted that way too.
+type Field = { kind: FieldKind; text: string; mask?: MaskCategory; arrows?: boolean };
 type Hit = { card: Card; field: Field; score: number };
 
 // Cap the list so typing stays snappy on a big board.
@@ -25,7 +28,7 @@ function linearId(url: string): string | null {
 // Everything a card can be found by. Link titles are the user's label or, failing
 // that, the PR/issue title from the status cache.
 function cardFields(card: Card, cache: Cache): Field[] {
-  const fields: Field[] = [{ kind: "title", text: card.title, mask: "cardTitles" }];
+  const fields: Field[] = [{ kind: "title", text: card.title, mask: "cardTitles", arrows: true }];
   const ids = new Set<string>();
   for (const l of card.links) {
     const id = linearId(l.url) ?? cache.issues[l.url]?.identifier;
@@ -35,7 +38,7 @@ function cardFields(card: Card, cache: Cache): Field[] {
     }
   }
   for (const l of card.links) {
-    if (l.label.trim()) fields.push({ kind: "label", text: l.label.trim(), mask: "linkLabels" });
+    if (l.label.trim()) fields.push({ kind: "label", text: l.label.trim(), mask: "linkLabels", arrows: true });
     const kind = linkKind(l.url);
     const fetched =
       kind === "pr" ? cache.prs[l.url]?.title : kind === "linear" ? cache.issues[l.url]?.title : undefined;
@@ -50,8 +53,10 @@ function cardFields(card: Card, cache: Cache): Field[] {
 // Score a field against the query, lower is better, or null if it doesn't match.
 // Every word of the query must appear in the field. Within a kind, a match at
 // the very start beats one at a word start, which beats one mid-word.
-function scoreField(field: Field, query: string, words: string[]): number | null {
-  const text = field.text.toLowerCase();
+function scoreField(field: Field, rawQuery: string, rawWords: string[]): number | null {
+  const text = (field.arrows ? arrows(field.text) : field.text).toLowerCase();
+  const query = field.arrows ? arrows(rawQuery) : rawQuery;
+  const words = field.arrows ? rawWords.map(arrows) : rawWords;
   if (!words.every((w) => text.includes(w))) return null;
   const at = text.indexOf(query);
   const quality = at === 0 ? 0 : at > 0 && !/[a-z0-9]/.test(text[at - 1]) ? 1 : 2;
@@ -123,6 +128,7 @@ export function Search({
   }, [cards, columns]);
   const hits = useMemo(() => search(ordered, cache, query), [ordered, cache, query]);
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const arrowWords = words.map(arrows);
 
   useEffect(() => setSelected(0), [query]);
 
@@ -213,12 +219,14 @@ export function Search({
                 <span className="search-hit-dot" />
                 <div className="search-hit-main">
                   <div className="search-hit-title">
-                    {highlight(m("cardTitles", card.title) || "(untitled)", words)}
+                    {highlight(arrows(m("cardTitles", card.title)) || "(untitled)", arrowWords)}
                   </div>
                   {detail && (
                     <div className="search-hit-detail">
                       <span className="search-hit-kind">{KIND_LABEL[detail.kind as Exclude<FieldKind, "title">]}</span>
-                      {highlight(detail.mask ? m(detail.mask, detail.text) : detail.text, words)}
+                      {detail.arrows
+                        ? highlight(arrows(detail.mask ? m(detail.mask, detail.text) : detail.text), arrowWords)
+                        : highlight(detail.mask ? m(detail.mask, detail.text) : detail.text, words)}
                     </div>
                   )}
                 </div>

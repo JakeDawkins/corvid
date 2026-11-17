@@ -1,5 +1,6 @@
 import type { IssueStatus, LinearResource, PrStatus, ThreadStatus } from "./types";
 import { useMask } from "./mask";
+import { arrows } from "./arrows";
 import { domainName, safeHref, siteOf } from "./links";
 import { SiteIcon } from "./SiteIcon";
 import { T3Logo } from "./T3Logo";
@@ -350,7 +351,7 @@ export function IssueLine({
 export function GenericLine({ url, label }: { url: string; label?: string }) {
   const { m } = useMask();
   const site = domainName(url);
-  const title = label ? m("linkLabels", label) : undefined;
+  const title = label ? arrows(m("linkLabels", label)) : undefined;
   const known = siteOf(url);
   return (
     <a

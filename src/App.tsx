@@ -21,6 +21,7 @@ import { ClaudeLogo } from "./ClaudeLogo";
 import { ArchiveIcon, CheckIcon, IdCardIcon, UnarchiveIcon } from "./icons";
 import { BACKLOG_MATCH, CLAUDE_MATCH, TODO_MATCH, nextColumn } from "./columns";
 import { MaskContext, makeMask, useMaskSettings } from "./mask";
+import { arrows } from "./arrows";
 import { useColumnWidth, useDensity } from "./density";
 import { useTheme } from "./theme";
 
@@ -769,7 +770,7 @@ export default function App() {
       seenUrls.add(l.url);
       otherLinks.push({
         url: l.url,
-        label: l.label?.trim() ? m("linkLabels", l.label.trim()) : domainName(l.url),
+        label: l.label?.trim() ? arrows(m("linkLabels", l.label.trim())) : domainName(l.url),
       });
     }
     for (const u of linearUrls) {
@@ -850,7 +851,7 @@ export default function App() {
             }
           }}
         >
-          {m("cardTitles", card.title) || "(untitled)"}
+          {arrows(m("cardTitles", card.title)) || "(untitled)"}
         </span>
         <div className="card-actions">
           <button

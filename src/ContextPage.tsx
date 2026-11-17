@@ -19,6 +19,7 @@ import { Markdown, NotesMarkdown, countStatuses, statusClass } from "./Markdown"
 import type { Heading } from "./Markdown";
 import { DecisionsView, decisionHeadings } from "./Decisions";
 import { useMask } from "./mask";
+import { arrows } from "./arrows";
 
 export const TYPE_LABEL: Record<ContextType, string> = {
   regular: "Regular project",
@@ -583,7 +584,7 @@ function CardInfo({
       </div>
       <h1 className="context-card-title">
         <button type="button" onClick={onEditCard} title="Open the card">
-          {m("cardTitles", card.title) || "(untitled)"}
+          {arrows(m("cardTitles", card.title)) || "(untitled)"}
         </button>
       </h1>
       {card.needsYou && <NeedsYouBanner value={card.needsYou} loud={loud} />}
@@ -620,7 +621,7 @@ function CardLinks({ card, cache, repoNames }: { card: Card; cache: Cache; repoN
   for (const l of card.links) {
     if (!l.url.trim() || linkKind(l.url) !== "generic" || seen.has(l.url)) continue;
     seen.add(l.url);
-    other.push({ url: l.url, label: l.label?.trim() ? m("linkLabels", l.label.trim()) : domainName(l.url) });
+    other.push({ url: l.url, label: l.label?.trim() ? arrows(m("linkLabels", l.label.trim())) : domainName(l.url) });
   }
   for (const u of linearUrls) {
     for (const r of cache.issues[u]?.resources ?? []) {
