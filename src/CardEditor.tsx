@@ -80,6 +80,10 @@ function buildAgentPrompt(card: Card, instructions = ""): string {
   );
   lines.push("");
   lines.push(
+    "When you start work, mark this task's Linear issue and Linear project (from the links, notes, or ticket) as In Progress: move the issue to its team's In Progress state and set the project's status to In Progress. Only move ones that haven't started yet (triage, backlog, todo, or planned). Leave anything already in progress, in review, done, or canceled where it is.",
+  );
+  lines.push("");
+  lines.push(
     `This card has a project context: shared memory between the agent threads that work on it (why we do it, decisions, implementation, QA plan, monitoring, learn more, references). Before you start, read it with the corvid skill: \`context ${card.id}\`. If it has none yet, create it with \`context-init ${card.id} --type regular|bug|research\` and fill in what you learn from the ticket and links, marking what you don't know as unknown. Keep it current as you work, following the skill's "Project context" section, so the next thread starts where you stopped.`,
   );
   lines.push("");
@@ -96,7 +100,7 @@ function buildAgentPrompt(card: Card, instructions = ""): string {
   );
   lines.push("");
   lines.push(
-    "Work on this autonomously with the watch-and-fix skill: build it, draft the QA handoff for me, then watch Slack, the GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project is done. If the change should ship behind a Statsig experiment and none exists yet, set one up following the conventions of other experiments on the same surface, and test UI changes in a browser (the skill covers both). Never send a Slack message, Linear comment, or GitHub comment to a real person unless I ask you to. Draft it and flag this card instead.",
+    "Work on this autonomously with the watch-and-fix skill: build it, draft the QA handoff for me, then watch Slack, the GitHub PRs, and Linear for QA and review feedback and fix what's relevant until the project is done. If the change should ship behind a Statsig experiment and none exists yet, set one up following the conventions of other experiments on the same surface. Before naming it, check the spec (its document properties first, then its body) for a Statsig experiment name, and if it has one, use that exact name. Test UI changes in a browser (the skill covers both). Never send a Slack message, Linear comment, or GitHub comment to a real person unless I ask you to. Draft it and flag this card instead.",
   );
   return lines.join("\n");
 }

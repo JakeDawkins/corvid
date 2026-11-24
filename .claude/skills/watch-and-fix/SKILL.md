@@ -42,7 +42,11 @@ Some actions aren't messages but still signal people. Don't do these yourself.
 Put them in the user's next steps instead: marking a PR ready for review,
 requesting or re-requesting reviewers, changing a Linear issue's status or
 assignee, merging, deploying to production, and starting, changing allocation
-of, or shipping a Statsig experiment.
+of, or shipping a Statsig experiment. Never move a Linear issue or project to
+any other status (for example In Review, QA, or Done) unless the user
+explicitly tells you to. The only status change you may make without that is
+moving not-yet-started work to In Progress, and only when the user or the
+Corvid prompt asks for it.
 
 ## Setup (first run)
 
@@ -195,6 +199,13 @@ the ticket.
 Set up an experiment when the spec, Linear issue, or user says the change ships
 as an A/B test, experiment, or behind Statsig, and none exists yet. Don't invent
 experiments for bug fixes or changes nobody asked to test.
+
+**Take the name from the spec when it has one.** Before creating an experiment,
+check the spec (the Notion page or doc linked from the card or Linear issue or
+project) for a Statsig experiment name: its document properties first, then its
+body. If it names one, use that exact name, search for it in step 1, and pass
+it to the team's skill if you use one. It overrides the naming convention in
+step 2. Only derive a name when the spec doesn't give one.
 
 **Use the team's skill if there is one.** If a Statsig experiment skill is
 installed (for example `statsig-experiment-builder`, or
